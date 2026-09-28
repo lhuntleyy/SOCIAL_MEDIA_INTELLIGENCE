@@ -1,0 +1,268 @@
+{
+  "date": "2026-09-28T17:05:03.546Z",
+  "actor": "xmolodtsov/tiktok-search-scraper",
+  "build": "0.1.19",
+  "input": {
+    "keywords": [
+      "koperasi merah putih"
+    ],
+    "maxItems": 5,
+    "sortType": "DATE_POSTED"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 7566,
+  "items": 5,
+  "cost_usd": 0,
+  "charged_events": {
+    "apify-default-dataset-item": 0
+  },
+  "account_usage_usd": {
+    "before": 2.165164005031133,
+    "after": 2.1875640050311334,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "keywords": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Keywords/terms to search on TikTok. Each keyword is searched independently and results are combined into one dataset.<br><br><strong>Tip:</strong> You can batch many keywords in a single run for maxim"
+    },
+    "maxItems": {
+      "type": "integer",
+      "description": "Maximum total number of videos on output (across all keywords)."
+    },
+    "maxItemsPerKeyword": {
+      "type": "integer",
+      "description": "Optional cap of results per single keyword. Keywords are processed sequentially against the global <code>maxItems</code> budget."
+    },
+    "sortType": {
+      "type": "string",
+      "enum": [
+        "RELEVANCE",
+        "MOST_LIKED",
+        "DATE_POSTED"
+      ],
+      "description": "Sort order for search results. Sorting is applied client-side after fetching — TikTok ignores server-side sort parameters."
+    },
+    "location": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Preferred region for results (ISO 3166-1 alpha-2 country code, e.g. <code>US</code>). Passed to TikTok as the <code>region</code> parameter; TikTok search results are not strongly geo-partitioned, so "
+    },
+    "includeSearchKeywords": {
+      "type": "boolean",
+      "description": "If enabled, each result includes the <code>keyword</code> and <code>inputSource</code> fields with the search keyword that found it."
+    },
+    "expansion": {
+      "type": "array",
+      "editor": "select",
+      "description": "Opt-in harvest pools that multiply the number of <strong>new creators</strong> per keyword ~10x. On top of the classic keyword search, the Actor harvests TikTok's search suggestions, hashtag feeds and"
+    },
+    "relevanceThreshold": {
+      "type": "number",
+      "editor": "number",
+      "description": "Topicality gate for the sound/music pool: the fraction of a sound's first page of captions that must match the seed keyword or its hashtags before that sound is crawled in depth. Higher = stricter, fe"
+    },
+    "uniqueAuthors": {
+      "type": "boolean",
+      "description": "Emit at most one item per creator (<code>channel.id</code>) — creator-discovery mode instead of post collection."
+    },
+    "maxPostsPerAuthor": {
+      "type": "integer",
+      "description": "Cap on items per creator in the classic search (relevance) results — the expansion pools always emit at most one item per creator regardless of this value (leave empty for no cap)."
+    },
+    "proxyConfiguration": {
+      "type": "object",
+      "editor": "proxy",
+      "description": "Leave empty — the Actor ships with its own proxies. Only set this if you want to route through your own."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "bookmarks": [
+      "int"
+    ],
+    "channel": [
+      "object"
+    ],
+    "channel.avatar": [
+      "string:url"
+    ],
+    "channel.followers": [
+      "int"
+    ],
+    "channel.following": [
+      "int"
+    ],
+    "channel.id": [
+      "string:numeric-id"
+    ],
+    "channel.likes": [
+      "int"
+    ],
+    "channel.name": [
+      "string"
+    ],
+    "channel.url": [
+      "string:url"
+    ],
+    "channel.username": [
+      "string"
+    ],
+    "channel.verified": [
+      "boolean"
+    ],
+    "channel.videos": [
+      "int"
+    ],
+    "collabInfo": [
+      "null"
+    ],
+    "comments": [
+      "int"
+    ],
+    "hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "hashtags[]": [
+      "string"
+    ],
+    "id": [
+      "string:numeric-id"
+    ],
+    "inputSource": [
+      "string"
+    ],
+    "keyword": [
+      "string"
+    ],
+    "likes": [
+      "int"
+    ],
+    "poi": [
+      "null",
+      "object"
+    ],
+    "poi.address": [
+      "string"
+    ],
+    "poi.cityCode": [
+      "string"
+    ],
+    "poi.cityName": [
+      "null"
+    ],
+    "poi.latitude": [
+      "null"
+    ],
+    "poi.longitude": [
+      "null"
+    ],
+    "poi.poiName": [
+      "string"
+    ],
+    "poi.regionCode": [
+      "null"
+    ],
+    "postPage": [
+      "string:url"
+    ],
+    "shares": [
+      "int"
+    ],
+    "song": [
+      "object"
+    ],
+    "song.album": [
+      "null"
+    ],
+    "song.artist": [
+      "string"
+    ],
+    "song.cover": [
+      "string:url"
+    ],
+    "song.duration": [
+      "int"
+    ],
+    "song.id": [
+      "int"
+    ],
+    "song.title": [
+      "string"
+    ],
+    "subtitleInformation": [
+      "array(…)",
+      "null"
+    ],
+    "subtitleInformation[]": [
+      "object"
+    ],
+    "subtitleInformation[].caption_format": [
+      "string"
+    ],
+    "subtitleInformation[].caption_length": [
+      "int"
+    ],
+    "subtitleInformation[].is_auto_generated": [
+      "boolean"
+    ],
+    "subtitleInformation[].lang": [
+      "string"
+    ],
+    "subtitleInformation[].language_code": [
+      "string"
+    ],
+    "subtitleInformation[].url": [
+      "string:url"
+    ],
+    "subtitleInformation[].url_list": [
+      "array(…)"
+    ],
+    "subtitleInformation[].url_list[]": [
+      "string:url"
+    ],
+    "subtitleInformation[].version": [
+      "string"
+    ],
+    "title": [
+      "string"
+    ],
+    "uploadedAt": [
+      "int:epoch-s?"
+    ],
+    "uploadedAtFormatted": [
+      "string:iso-z"
+    ],
+    "video": [
+      "object"
+    ],
+    "video.cover": [
+      "string:url"
+    ],
+    "video.duration": [
+      "int"
+    ],
+    "video.height": [
+      "int"
+    ],
+    "video.ratio": [
+      "string"
+    ],
+    "video.thumbnail": [
+      "string:url"
+    ],
+    "video.url": [
+      "string:url"
+    ],
+    "video.width": [
+      "int"
+    ],
+    "views": [
+      "int"
+    ]
+  }
+}

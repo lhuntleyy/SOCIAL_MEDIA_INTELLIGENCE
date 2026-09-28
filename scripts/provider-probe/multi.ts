@@ -23,10 +23,11 @@ export const CANDIDATES: Candidate[] = [
     max: 0.03,
     memoryMb: 1024,
   },
+  // actor penerbit apidojo TIDAK dipakai (keputusan pemilik 2026-09-29: batas run bulanan plan FREE)
   {
     platform: "x",
-    actor: "apidojo/tweet-scraper",
-    input: { searchTerms: [PHRASE], maxItems: 20, sort: "Latest" },
+    actor: "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
+    input: { twitterContent: PHRASE, maxItems: 20, queryType: "Latest" },
     max: 0.03,
     memoryMb: 1024,
   },
@@ -39,9 +40,9 @@ export const CANDIDATES: Candidate[] = [
   },
   {
     platform: "tiktok",
-    actor: "apidojo/tiktok-scraper",
-    input: { keywords: [PHRASE], maxItems: 10, sortType: "DATE_POSTED" },
-    max: 0.03,
+    actor: "clockworks/free-tiktok-scraper",
+    input: { searchQueries: [PHRASE], searchSection: "/video", resultsPerPage: 10, videoSearchSorting: "LATEST" },
+    max: 0.06,
     memoryMb: 1024,
   },
   {

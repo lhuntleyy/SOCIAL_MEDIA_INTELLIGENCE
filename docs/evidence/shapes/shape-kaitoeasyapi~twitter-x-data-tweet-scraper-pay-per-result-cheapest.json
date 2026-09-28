@@ -1,0 +1,1879 @@
+{
+  "date": "2026-09-28T17:05:17.605Z",
+  "actor": "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
+  "build": "0.0.68",
+  "input": {
+    "twitterContent": "\"koperasi merah putih\" OR kopdes",
+    "maxItems": 20,
+    "queryType": "Latest",
+    "since_time": "1790528630"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 12460,
+  "items": 20,
+  "cost_usd": 0,
+  "charged_events": {
+    "apify-default-dataset-item": 0
+  },
+  "account_usage_usd": {
+    "before": 2.1875640050311334,
+    "after": 2.1875640050311334,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "twitterContent": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Enter the content of the tweet you want to scrape.case 1:nasa esa=>Containing both \"nasa\" and \"esa\". Spaces are implicit AND. Brackets can be used to group individual words if using other operators. c"
+    },
+    "maxItems": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Maximum number of items that you want as output."
+    },
+    "queryType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "Latest",
+        "Top",
+        "Photos",
+        "Videos"
+      ],
+      "description": "This field determines the type of Twitter search to be performed. The options are 'Latest', 'Top', 'Photos', 'Photos', Videos'. 'Latest' will return the most recent tweets. 'Top' will return the most "
+    },
+    "lang": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "ar",
+        "bn",
+        "zh",
+        "en",
+        "es",
+        "hi",
+        "ja",
+        "pa",
+        "pt",
+        "ru"
+      ],
+      "description": "Search for tweets in specified language, not always accurate.Language is specified as https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes."
+    },
+    "from": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Sent by a particular @username e.g. \"NASA\" .https://twitter.com/search?q=dogs%20from%3Anasa&src=typed_query&f=live"
+    },
+    "to": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Replying to a particular @username. eg. \"NASA\".https://twitter.com/search?q=%23MoonTunes%20to%3Anasa&src=typed_query&f=live"
+    },
+    "@": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Mentioning a particular @username. Combine with -from:username to get only mentions.Eg.https://twitter.com/search?q=%40cern%20-from%3Acern&src=typed_query&f=live"
+    },
+    "list": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Tweets from members of this public list. Use the list ID from the API or with urls like twitter.com/i/lists/715919216927322112. List slug is for old list urls like twitter.com/esa/lists/astronauts."
+    },
+    "filter:verified": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Filter tweets from verified users only.Eg.https://twitter.com/search?q=filter%3Averified&src=typed_query&f=live"
+    },
+    "filter:blue_verified": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Filter tweets from blue verified users only.However, I found that using filter:blue_verified alone causes issues and needs to be used together with filter:verified, possibly due to a Twitter bug.Eg.ht"
+    },
+    "near": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Geotagged in this place. Also supports Phrases, eg: near:\"The Hague\" . eg https://twitter.com/search?q=near%3A%22The%20Hague%22&src=typed_query&f=live"
+    },
+    "within": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Within specific radius of the \"near\" operator, to apply a limit. Can use km or mi. e.g. fire near:san-francisco within:10km.eg:https://twitter.com/search?q=fire%20near%3Asan-francisco%20within%3A10km&"
+    },
+    "geocode": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Search within a specific radius of a coordinate. E.g. to get tweets 10km around twitters hq, use geocode:37.7764685,-122.4172004,10km.Eg.https://twitter.com/search?q=geocode%3A37.7764685%2C-122.417200"
+    },
+    "since": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "On or after (inclusive) a specified date and time in the specified timezone. 4 digit year, 2 digit month, 2 digit day separated by - dashes, an _ underscore separating the 24 hour clock format hours:m"
+    },
+    "until": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Before (NOT inclusive) a specified date and time in the specified timezone. Combine with a \"since\" operator for dates between.Eg.https://twitter.com/search?q=%22%23NASA%22%20since%3A2022-10-13_00%3A00"
+    },
+    "since_time": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "On or after a specified unix timestamp in seconds. Combine with the \"Until Time\" operator for dates between. Maybe easier to use than since_id below.Eg.https://twitter.com/search?q=since_time%3A156172"
+    },
+    "until_time": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Before a specified unix timestamp in seconds. Combine with a \"Since Time\" operator for dates between. Maybe easier to use than max_id below.Eg.https://twitter.com/search?q=since_time%3A1561720321%20un"
+    },
+    "since_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "On or after a specified tweet ID. Combine with the \"Until ID\" operator for dates between. Maybe easier to use than since_time above.Eg.https://twitter.com/search?q=since_id%3A1138872932887924737%20max"
+    },
+    "max_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Before a specified tweet ID. Combine with a \"Since ID\" operator for dates between. Maybe easier to use than until_time above.Eg.https://twitter.com/search?q=since_id%3A1138872932887924737%20max_id%3A1"
+    },
+    "within_time": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Search within the last number of days, hours, minutes, or seconds, eg: within:1h, within:1d, within:1m, within:1s.Eg.https://twitter.com/search?q=nasa%20within_time%3A30s&src=typed_query&f=live"
+    },
+    "filter:nativeretweets": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Only retweets created using the retweet button. Works well combined with from: to show only retweets. Only works within the last 7-10 days or so.Eg.https://twitter.com/search?q=from%3Anasa%20filter%3A"
+    },
+    "include:nativeretweets": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Native retweets are excluded by default. This shows them. In contrast to filter:, which shows only retweets, this includes retweets in addition to other tweets. Only works within the last 7-10 days or"
+    },
+    "filter:replies": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Tweet is a reply to another Tweet. good for finding conversations, or threads if you add or remove to:user.eg.https://twitter.com/search?q=from%3Anasa%20filter%3Areplies%20-to%3Anasa&src=typed_query&f"
+    },
+    "conversation_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Tweets that are part of a thread (direct replies and other replies).Eg.https://twitter.com/search?q=conversation_id%3A1140437409710116865%20lang%3Aen&src=typed_query&f=live"
+    },
+    "filter:quote": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Contain Quote Tweets.Eg.https://twitter.com/search?q=from%3Anasa%20filter%3Aquote&src=typed_query&f=live"
+    },
+    "quoted_tweet_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Search for quotes of a specific tweet.Eg.https://twitter.com/search?q=quoted_user_id%3A11348282&src=typed_query&f=live"
+    },
+    "quoted_user_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Search for all quotes of a specific user, by numeric User ID.Eg.https://twitter.com/search?q=quoted_user_id%3A11348282&src=typed_query&f=live"
+    },
+    "card_name": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "poll2choice_text_only",
+        "poll3choice_text_only",
+        "poll4choice_text_only",
+        "poll2choice_image",
+        "poll3choice_image",
+        "poll4choice_image"
+      ],
+      "description": "Tweets containing polls. For polls containing 2, 3, 4 choices, or image Polls.Eg.https://twitter.com/search?q=lang%3Aen%20card_name%3Apoll4choice_text_only%20OR%20card_name%3Apoll3choice_text_only%20O"
+    },
+    "filter:has_engagement": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Has some engagement (replies, likes, retweets). Can be negated to find tweets with no engagement. Note all of these are mutually exclusive with filter:nativeretweets or include:nativeretweets, as they"
+    },
+    "min_retweets": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Minimum number of retweets.Eg.https://twitter.com/search?q=min_retweets%3A5000%20nasa&src=typed_query&f=live"
+    },
+    "min_faves": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Minimum number of favorites.Eg.https://twitter.com/search?q=min_faves%3A5000%20nasa&src=typed_query&f=live"
+    },
+    "min_replies": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Minimum number of replies.Eg.https://twitter.com/search?q=min_replies%3A5000%20nasa&src=typed_query&f=live"
+    },
+    "-min_retweets": {
+      "type": "integer",
+      "editor": "number",
+      "description": "A maximum number of Retweets.Eg.https://twitter.com/search?q=-min_retweets%3A5000%20nasa&src=typed_query&f=live"
+    },
+    "-min_faves": {
+      "type": "integer",
+      "editor": "number",
+      "description": "A maximum number of Faves.Eg.https://twitter.com/search?q=-min_faves%3A5000%20nasa&src=typed_query&f=live"
+    },
+    "-min_replies": {
+      "type": "integer",
+      "editor": "number",
+      "description": "A maximum number of Replies.Eg.https://twitter.com/search?q=-min_replies%3A5000%20nasa&src=typed_query&f=live"
+    },
+    "filter:media": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Filter tweets with media,All media types.Eg.https://twitter.com/search?q=filter%3Amedia%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:twimg": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Native Twitter images (pic.twitter.com links).Eg.https://twitter.com/search?q=filter%3Atwimg%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:images": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Filter tweets with images.Eg.https://twitter.com/search?q=filter%3Aimages%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:videos": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "All video types, including native Twitter video and external sources such as Youtube.Eg.https://twitter.com/search?q=filter%3Avideos%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:native_video": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "All Twitter-owned video types (native video, vine, periscope).Eg.https://twitter.com/search?q=filter%3Anative_video%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:vine": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Vine videos.Eg.https://twitter.com/search?q=filter%3Avine%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:consumer_video": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Twitter native video only.Eg.https://twitter.com/search?q=filter%3Aconsumer_video%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:pro_video": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Twitter pro video (Amplify) only.Eg.https://twitter.com/search?q=filter%3Apro_video%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:spaces": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Twitter Spaces only.Eg.https://twitter.com/search?q=filter%3Aspaces%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:links": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Only containing some URL, includes media. use -filter:media for urls that aren't media.Eg.https://twitter.com/search?q=filter%3Alinks%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:mentions": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Containing any sort of @mentions.Eg.https://twitter.com/search?q=filter%3Amentions%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "filter:news": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Containing link to a news story. Combine with a list operator to narrow the user set down further. Matches on a list of Domains.(See Note for full list :https://github.com/igorbrigadir/twitter-advance"
+    },
+    "filter:safe": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Excluding NSFW content. Excludes content that users have marked as \"Potentially Sensitive\". Doesn't always guarantee SFW results."
+    },
+    "filter:hashtags": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Containing any sort of hashtags.Eg.https://twitter.com/search?q=filter%3Ahashtags%20%23nasamoontunes&src=typed_query&f=live"
+    },
+    "url": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "urls are tokenized and matched, works very well for subdomains and domains, not so well for long urls, depends on url. Youtube ids work well. Works for both shortened and canonical urls, eg: gu.com sh"
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "author": [
+      "object"
+    ],
+    "author.affiliatesHighlightedLabel": [
+      "object"
+    ],
+    "author.automatedBy": [
+      "null"
+    ],
+    "author.canDm": [
+      "boolean"
+    ],
+    "author.canMediaTag": [
+      "boolean"
+    ],
+    "author.coverPicture": [
+      "string",
+      "string:url"
+    ],
+    "author.createdAt": [
+      "string:twitter-date"
+    ],
+    "author.description": [
+      "string"
+    ],
+    "author.entities": [
+      "object"
+    ],
+    "author.entities.description": [
+      "object"
+    ],
+    "author.entities.description.urls": [
+      "array(empty)"
+    ],
+    "author.entities.url": [
+      "object"
+    ],
+    "author.fastFollowersCount": [
+      "int"
+    ],
+    "author.favouritesCount": [
+      "int"
+    ],
+    "author.followers": [
+      "int"
+    ],
+    "author.following": [
+      "int"
+    ],
+    "author.hasCustomTimelines": [
+      "boolean"
+    ],
+    "author.id": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "author.isAutomated": [
+      "boolean"
+    ],
+    "author.isBlueVerified": [
+      "boolean"
+    ],
+    "author.isTranslator": [
+      "boolean"
+    ],
+    "author.isVerified": [
+      "boolean"
+    ],
+    "author.location": [
+      "string"
+    ],
+    "author.mediaCount": [
+      "int"
+    ],
+    "author.name": [
+      "string"
+    ],
+    "author.pinnedTweetIds": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "author.pinnedTweetIds[]": [
+      "string:numeric-id"
+    ],
+    "author.possiblySensitive": [
+      "boolean"
+    ],
+    "author.profilePicture": [
+      "string:url"
+    ],
+    "author.profile_bio": [
+      "object"
+    ],
+    "author.profile_bio.description": [
+      "string"
+    ],
+    "author.profile_bio.entities": [
+      "object"
+    ],
+    "author.profile_bio.entities.description": [
+      "object"
+    ],
+    "author.profile_bio.entities.description.user_mentions": [
+      "array(…)"
+    ],
+    "author.profile_bio.entities.description.user_mentions[]": [
+      "object"
+    ],
+    "author.profile_bio.entities.description.user_mentions[].id_str": [
+      "string"
+    ],
+    "author.profile_bio.entities.description.user_mentions[].indices": [
+      "array(…)"
+    ],
+    "author.profile_bio.entities.description.user_mentions[].indices[]": [
+      "int"
+    ],
+    "author.profile_bio.entities.description.user_mentions[].name": [
+      "string"
+    ],
+    "author.profile_bio.entities.description.user_mentions[].screen_name": [
+      "string"
+    ],
+    "author.profile_bio.entities.url": [
+      "object"
+    ],
+    "author.profile_bio.entities.url.urls": [
+      "array(…)"
+    ],
+    "author.profile_bio.entities.url.urls[]": [
+      "object"
+    ],
+    "author.profile_bio.entities.url.urls[].display_url": [
+      "string"
+    ],
+    "author.profile_bio.entities.url.urls[].expanded_url": [
+      "string:url"
+    ],
+    "author.profile_bio.entities.url.urls[].indices": [
+      "array(…)"
+    ],
+    "author.profile_bio.entities.url.urls[].indices[]": [
+      "int"
+    ],
+    "author.profile_bio.entities.url.urls[].url": [
+      "string:url"
+    ],
+    "author.status": [
+      "string"
+    ],
+    "author.statusesCount": [
+      "int"
+    ],
+    "author.twitterUrl": [
+      "string:url"
+    ],
+    "author.type": [
+      "string"
+    ],
+    "author.url": [
+      "string:url"
+    ],
+    "author.userName": [
+      "string"
+    ],
+    "author.withheldInCountries": [
+      "array(empty)"
+    ],
+    "bookmarkCount": [
+      "int"
+    ],
+    "card": [
+      "null"
+    ],
+    "conversationId": [
+      "string:numeric-id"
+    ],
+    "createdAt": [
+      "string:twitter-date"
+    ],
+    "entities": [
+      "object"
+    ],
+    "entities.hashtags": [
+      "array(empty)"
+    ],
+    "entities.symbols": [
+      "array(empty)"
+    ],
+    "entities.urls": [
+      "array(empty)"
+    ],
+    "entities.user_mentions": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "entities.user_mentions[]": [
+      "object"
+    ],
+    "entities.user_mentions[].id_str": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "entities.user_mentions[].indices": [
+      "array(…)"
+    ],
+    "entities.user_mentions[].indices[]": [
+      "int"
+    ],
+    "entities.user_mentions[].name": [
+      "string"
+    ],
+    "entities.user_mentions[].screen_name": [
+      "string"
+    ],
+    "extendedEntities": [
+      "object"
+    ],
+    "extendedEntities.media": [
+      "array(…)"
+    ],
+    "extendedEntities.media[]": [
+      "object"
+    ],
+    "extendedEntities.media[].display_url": [
+      "string"
+    ],
+    "extendedEntities.media[].expanded_url": [
+      "string:url"
+    ],
+    "extendedEntities.media[].ext_master_playlist_only": [
+      "array(empty)"
+    ],
+    "extendedEntities.media[].ext_media_availability": [
+      "object"
+    ],
+    "extendedEntities.media[].ext_media_availability.status": [
+      "string"
+    ],
+    "extendedEntities.media[].ext_playlists": [
+      "array(empty)"
+    ],
+    "extendedEntities.media[].features": [
+      "object"
+    ],
+    "extendedEntities.media[].features.large": [
+      "object"
+    ],
+    "extendedEntities.media[].features.large.faces": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "extendedEntities.media[].features.large.faces[]": [
+      "object"
+    ],
+    "extendedEntities.media[].features.large.faces[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].features.large.faces[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].features.large.faces[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].features.large.faces[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig": [
+      "object"
+    ],
+    "extendedEntities.media[].features.orig.faces": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "extendedEntities.media[].features.orig.faces[]": [
+      "object"
+    ],
+    "extendedEntities.media[].features.orig.faces[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig.faces[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig.faces[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig.faces[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].id_str": [
+      "string:numeric-id"
+    ],
+    "extendedEntities.media[].indices": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].indices[]": [
+      "int"
+    ],
+    "extendedEntities.media[].media_key": [
+      "string"
+    ],
+    "extendedEntities.media[].media_results": [
+      "object"
+    ],
+    "extendedEntities.media[].media_results.id": [
+      "string"
+    ],
+    "extendedEntities.media[].media_results.result": [
+      "object"
+    ],
+    "extendedEntities.media[].media_results.result.__typename": [
+      "string"
+    ],
+    "extendedEntities.media[].media_results.result.id": [
+      "string"
+    ],
+    "extendedEntities.media[].media_results.result.media_key": [
+      "string"
+    ],
+    "extendedEntities.media[].media_url_https": [
+      "string:url"
+    ],
+    "extendedEntities.media[].original_info": [
+      "object"
+    ],
+    "extendedEntities.media[].original_info.focus_rects": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[]": [
+      "object"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.height": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.width": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes": [
+      "object"
+    ],
+    "extendedEntities.media[].sizes.large": [
+      "object"
+    ],
+    "extendedEntities.media[].sizes.large.h": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.large.w": [
+      "int"
+    ],
+    "extendedEntities.media[].type": [
+      "string"
+    ],
+    "extendedEntities.media[].url": [
+      "string:url"
+    ],
+    "id": [
+      "string:numeric-id"
+    ],
+    "inReplyToId": [
+      "null",
+      "string:numeric-id"
+    ],
+    "inReplyToUserId": [
+      "null",
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "inReplyToUsername": [
+      "null",
+      "string"
+    ],
+    "isConversationControlled": [
+      "boolean"
+    ],
+    "isPinned": [
+      "boolean"
+    ],
+    "isQuote": [
+      "boolean"
+    ],
+    "isReply": [
+      "boolean"
+    ],
+    "lang": [
+      "string"
+    ],
+    "likeCount": [
+      "int"
+    ],
+    "place": [
+      "object"
+    ],
+    "quoteCount": [
+      "int"
+    ],
+    "quoted_tweet": [
+      "null",
+      "object"
+    ],
+    "quoted_tweet.author": [
+      "object"
+    ],
+    "quoted_tweet.author.affiliatesHighlightedLabel": [
+      "object"
+    ],
+    "quoted_tweet.author.automatedBy": [
+      "null"
+    ],
+    "quoted_tweet.author.canDm": [
+      "boolean"
+    ],
+    "quoted_tweet.author.canMediaTag": [
+      "boolean"
+    ],
+    "quoted_tweet.author.coverPicture": [
+      "string:url"
+    ],
+    "quoted_tweet.author.createdAt": [
+      "string:twitter-date"
+    ],
+    "quoted_tweet.author.description": [
+      "string"
+    ],
+    "quoted_tweet.author.entities": [
+      "object"
+    ],
+    "quoted_tweet.author.entities.description": [
+      "object"
+    ],
+    "quoted_tweet.author.entities.description.urls": [
+      "array(empty)"
+    ],
+    "quoted_tweet.author.entities.url": [
+      "object"
+    ],
+    "quoted_tweet.author.fastFollowersCount": [
+      "int"
+    ],
+    "quoted_tweet.author.favouritesCount": [
+      "int"
+    ],
+    "quoted_tweet.author.followers": [
+      "int"
+    ],
+    "quoted_tweet.author.following": [
+      "int"
+    ],
+    "quoted_tweet.author.hasCustomTimelines": [
+      "boolean"
+    ],
+    "quoted_tweet.author.id": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "quoted_tweet.author.isAutomated": [
+      "boolean"
+    ],
+    "quoted_tweet.author.isBlueVerified": [
+      "boolean"
+    ],
+    "quoted_tweet.author.isTranslator": [
+      "boolean"
+    ],
+    "quoted_tweet.author.isVerified": [
+      "boolean"
+    ],
+    "quoted_tweet.author.location": [
+      "string"
+    ],
+    "quoted_tweet.author.mediaCount": [
+      "int"
+    ],
+    "quoted_tweet.author.name": [
+      "string"
+    ],
+    "quoted_tweet.author.pinnedTweetIds": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "quoted_tweet.author.pinnedTweetIds[]": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet.author.possiblySensitive": [
+      "boolean"
+    ],
+    "quoted_tweet.author.profilePicture": [
+      "string:url"
+    ],
+    "quoted_tweet.author.profile_bio": [
+      "object"
+    ],
+    "quoted_tweet.author.profile_bio.description": [
+      "string"
+    ],
+    "quoted_tweet.author.profile_bio.entities": [
+      "object"
+    ],
+    "quoted_tweet.author.profile_bio.entities.description": [
+      "object"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url": [
+      "object"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url.urls": [
+      "array(…)"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url.urls[]": [
+      "object"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url.urls[].display_url": [
+      "string"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url.urls[].expanded_url": [
+      "string:url"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url.urls[].indices": [
+      "array(…)"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url.urls[].indices[]": [
+      "int"
+    ],
+    "quoted_tweet.author.profile_bio.entities.url.urls[].url": [
+      "string:url"
+    ],
+    "quoted_tweet.author.status": [
+      "string"
+    ],
+    "quoted_tweet.author.statusesCount": [
+      "int"
+    ],
+    "quoted_tweet.author.twitterUrl": [
+      "string:url"
+    ],
+    "quoted_tweet.author.type": [
+      "string"
+    ],
+    "quoted_tweet.author.url": [
+      "string:url"
+    ],
+    "quoted_tweet.author.userName": [
+      "string"
+    ],
+    "quoted_tweet.author.withheldInCountries": [
+      "array(empty)"
+    ],
+    "quoted_tweet.bookmarkCount": [
+      "int"
+    ],
+    "quoted_tweet.card": [
+      "null"
+    ],
+    "quoted_tweet.conversationId": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet.createdAt": [
+      "string:twitter-date"
+    ],
+    "quoted_tweet.entities": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media": [
+      "array(…)"
+    ],
+    "quoted_tweet.extendedEntities.media[]": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].additional_media_info": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].additional_media_info.monetizable": [
+      "boolean"
+    ],
+    "quoted_tweet.extendedEntities.media[].allow_download_status": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].allow_download_status.allow_download": [
+      "boolean"
+    ],
+    "quoted_tweet.extendedEntities.media[].display_url": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].expanded_url": [
+      "string:url"
+    ],
+    "quoted_tweet.extendedEntities.media[].ext_master_playlist_only": [
+      "array(empty)"
+    ],
+    "quoted_tweet.extendedEntities.media[].ext_media_availability": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].ext_media_availability.status": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].ext_playlists": [
+      "array(empty)"
+    ],
+    "quoted_tweet.extendedEntities.media[].features": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.large": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.large.faces": [
+      "array(…)"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.large.faces[]": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.large.faces[].h": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.large.faces[].w": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.large.faces[].x": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.large.faces[].y": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.orig": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.orig.faces": [
+      "array(…)"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.orig.faces[]": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.orig.faces[].h": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.orig.faces[].w": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.orig.faces[].x": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].features.orig.faces[].y": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].id_str": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet.extendedEntities.media[].indices": [
+      "array(…)"
+    ],
+    "quoted_tweet.extendedEntities.media[].indices[]": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_key": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_results": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_results.id": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_results.result": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_results.result.__typename": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_results.result.id": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_results.result.media_key": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].media_url_https": [
+      "string:url"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.focus_rects": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.focus_rects[]": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.focus_rects[].h": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.focus_rects[].w": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.focus_rects[].x": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.focus_rects[].y": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.height": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].original_info.width": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].sizes": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].sizes.large": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].sizes.large.h": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].sizes.large.w": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].type": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].url": [
+      "string:url"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.aspect_ratio": [
+      "array(…)"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.aspect_ratio[]": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.duration_millis": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.variants": [
+      "array(…)"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.variants[]": [
+      "object"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.variants[].bitrate": [
+      "int"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.variants[].content_type": [
+      "string"
+    ],
+    "quoted_tweet.extendedEntities.media[].video_info.variants[].url": [
+      "string:url"
+    ],
+    "quoted_tweet.id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet.inReplyToId": [
+      "null"
+    ],
+    "quoted_tweet.inReplyToUserId": [
+      "null"
+    ],
+    "quoted_tweet.inReplyToUsername": [
+      "null"
+    ],
+    "quoted_tweet.isConversationControlled": [
+      "boolean"
+    ],
+    "quoted_tweet.isPinned": [
+      "boolean"
+    ],
+    "quoted_tweet.isQuote": [
+      "boolean"
+    ],
+    "quoted_tweet.isReply": [
+      "boolean"
+    ],
+    "quoted_tweet.lang": [
+      "string"
+    ],
+    "quoted_tweet.likeCount": [
+      "int"
+    ],
+    "quoted_tweet.place": [
+      "object"
+    ],
+    "quoted_tweet.quoteCount": [
+      "int"
+    ],
+    "quoted_tweet.quoted_tweet": [
+      "null",
+      "object"
+    ],
+    "quoted_tweet.quoted_tweet.author": [
+      "object"
+    ],
+    "quoted_tweet.quoted_tweet.bookmarkCount": [
+      "int"
+    ],
+    "quoted_tweet.quoted_tweet.card": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.conversationId": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.createdAt": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.entities": [
+      "object"
+    ],
+    "quoted_tweet.quoted_tweet.extendedEntities": [
+      "object"
+    ],
+    "quoted_tweet.quoted_tweet.id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet.quoted_tweet.inReplyToId": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.inReplyToUserId": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.inReplyToUsername": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.isConversationControlled": [
+      "boolean"
+    ],
+    "quoted_tweet.quoted_tweet.isPinned": [
+      "boolean"
+    ],
+    "quoted_tweet.quoted_tweet.isReply": [
+      "boolean"
+    ],
+    "quoted_tweet.quoted_tweet.lang": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.likeCount": [
+      "int"
+    ],
+    "quoted_tweet.quoted_tweet.place": [
+      "object"
+    ],
+    "quoted_tweet.quoted_tweet.quoteCount": [
+      "int"
+    ],
+    "quoted_tweet.quoted_tweet.quoted_tweet": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.quoted_tweet_results": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.replyCount": [
+      "int"
+    ],
+    "quoted_tweet.quoted_tweet.reply_to_user_results": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.retweetCount": [
+      "int"
+    ],
+    "quoted_tweet.quoted_tweet.retweeted_tweet": [
+      "null"
+    ],
+    "quoted_tweet.quoted_tweet.source": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.text": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.twitterUrl": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.type": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.url": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet.viewCount": [
+      "int"
+    ],
+    "quoted_tweet.quoted_tweet_results": [
+      "null",
+      "object"
+    ],
+    "quoted_tweet.quoted_tweet_results.rest_id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet.quoted_tweet_results.result": [
+      "object"
+    ],
+    "quoted_tweet.quoted_tweet_results.result.__typename": [
+      "string"
+    ],
+    "quoted_tweet.quoted_tweet_results.result.rest_id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet.replyCount": [
+      "int"
+    ],
+    "quoted_tweet.reply_to_user_results": [
+      "null"
+    ],
+    "quoted_tweet.retweetCount": [
+      "int"
+    ],
+    "quoted_tweet.retweeted_tweet": [
+      "null"
+    ],
+    "quoted_tweet.source": [
+      "string"
+    ],
+    "quoted_tweet.text": [
+      "string",
+      "string:url"
+    ],
+    "quoted_tweet.twitterUrl": [
+      "string:url"
+    ],
+    "quoted_tweet.type": [
+      "string"
+    ],
+    "quoted_tweet.url": [
+      "string:url"
+    ],
+    "quoted_tweet.viewCount": [
+      "int"
+    ],
+    "quoted_tweet_results": [
+      "null",
+      "object"
+    ],
+    "quoted_tweet_results.rest_id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result": [
+      "object"
+    ],
+    "quoted_tweet_results.result.__typename": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.rest_id": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.core.user_results.result": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.__typename": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.action_counts": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.action_counts.favorites_count": [
+      "int"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.avatar": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.avatar.image_url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.banner": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.banner.image_url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.core": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.core.created_at": [
+      "string:twitter-date"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.core.name": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.core.screen_name": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.dm_permissions": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.dm_permissions.can_dm": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.exclusive_tweet_following": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.follow_request_sent": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.identity_profile_labels_highlighted_label": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.location": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.location.location": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.media_permissions": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.media_permissions.can_media_tag": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.notifications_settings": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.notifications_settings.notifications_enabled": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.pinned_items": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.pinned_items.tweet_ids_str": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.pinned_items.tweet_ids_str[]": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.privacy": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.privacy.protected": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.privacy.suspended": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.private_super_following": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.description": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.description": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url.urls": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url.urls[]": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url.urls[].display_url": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url.urls[].expanded_url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url.urls[].indices": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url.urls[].indices[]": [
+      "int"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_bio.entities.url.urls[].url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_image_shape": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_metadata": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_metadata.profile_interstitial_type": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_metadata.profile_link_color": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_translation": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.profile_translation.translator_type_enum": [
+      "string"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.properties": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.properties.has_extended_profile": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.properties.has_no_screen_name": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_counts": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_counts.followers": [
+      "int"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_counts.following": [
+      "int"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_perspectives": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_perspectives.blocked_by": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_perspectives.blocking": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_perspectives.followed_by": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_perspectives.following": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_perspectives.live_following": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.relationship_perspectives.muting": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.rest_id": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.smart_blocked_by": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.smart_blocking": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.super_follow_eligible": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.super_followed_by": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.super_following": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.tweet_counts": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.tweet_counts.media_tweets": [
+      "int"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.tweet_counts.tweets": [
+      "int"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.verification": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.verification.is_blue_verified": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.verification.verified": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.website": [
+      "object"
+    ],
+    "quoted_tweet_results.result.core.user_results.result.website.url": [
+      "string",
+      "string:url"
+    ],
+    "quoted_tweet_results.result.edit_control": [
+      "object"
+    ],
+    "quoted_tweet_results.result.edit_control.__typename": [
+      "string"
+    ],
+    "quoted_tweet_results.result.edit_control.edit_tweet_ids": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.edit_control.edit_tweet_ids[]": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.edit_control.editable_until_msecs": [
+      "string:epoch-ms"
+    ],
+    "quoted_tweet_results.result.edit_control.edits_remaining": [
+      "string"
+    ],
+    "quoted_tweet_results.result.edit_control.is_edit_eligible": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.is_translatable": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.bookmark_count": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.bookmarked": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.conversation_id_str": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.legacy.created_at": [
+      "string:twitter-date"
+    ],
+    "quoted_tweet_results.result.legacy.display_text_range": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.display_text_range[]": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.entities": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[]": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].additional_media_info": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].additional_media_info.monetizable": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].allow_download_status": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].allow_download_status.allow_download": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].display_url": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].expanded_url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].ext_master_playlist_only": [
+      "array(empty)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].ext_media_availability": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].ext_media_availability.status": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].ext_playlists": [
+      "array(empty)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.large": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.large.faces": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.large.faces[]": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.large.faces[].h": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.large.faces[].w": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.large.faces[].x": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.large.faces[].y": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.orig": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.orig.faces": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.orig.faces[]": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.orig.faces[].h": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.orig.faces[].w": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.orig.faces[].x": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].features.orig.faces[].y": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].id_str": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].indices": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].indices[]": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_key": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_results": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_results.id": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_results.result": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_results.result.__typename": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_results.result.id": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_results.result.media_key": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].media_url_https": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.focus_rects": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.focus_rects[]": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.focus_rects[].h": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.focus_rects[].w": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.focus_rects[].x": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.focus_rects[].y": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.height": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].original_info.width": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].sizes": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].sizes.large": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].sizes.large.h": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].sizes.large.w": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].type": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.aspect_ratio": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.aspect_ratio[]": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.duration_millis": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.variants": [
+      "array(…)"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.variants[]": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.variants[].bitrate": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.variants[].content_type": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.extended_entities.media[].video_info.variants[].url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.legacy.favorite_count": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.favorited": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.full_text": [
+      "string",
+      "string:url"
+    ],
+    "quoted_tweet_results.result.legacy.is_quote_status": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.lang": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.possibly_sensitive": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.possibly_sensitive_editable": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.quote_count": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.quoted_status_id_str": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.legacy.quoted_status_permalink": [
+      "object"
+    ],
+    "quoted_tweet_results.result.legacy.quoted_status_permalink.display": [
+      "string"
+    ],
+    "quoted_tweet_results.result.legacy.quoted_status_permalink.expanded": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.legacy.quoted_status_permalink.url": [
+      "string:url"
+    ],
+    "quoted_tweet_results.result.legacy.reply_count": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.retweet_count": [
+      "int"
+    ],
+    "quoted_tweet_results.result.legacy.retweeted": [
+      "boolean"
+    ],
+    "quoted_tweet_results.result.legacy.user_id_str": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.quoted_tweet_results": [
+      "object"
+    ],
+    "quoted_tweet_results.result.quoted_tweet_results.rest_id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.quoted_tweet_results.result": [
+      "object"
+    ],
+    "quoted_tweet_results.result.quoted_tweet_results.result.__typename": [
+      "string"
+    ],
+    "quoted_tweet_results.result.quoted_tweet_results.result.rest_id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.rest_id": [
+      "string:numeric-id"
+    ],
+    "quoted_tweet_results.result.unmention_data": [
+      "object"
+    ],
+    "quoted_tweet_results.result.unmention_data.id": [
+      "string"
+    ],
+    "quoted_tweet_results.result.view_count_info": [
+      "object"
+    ],
+    "quoted_tweet_results.result.view_count_info.count": [
+      "string"
+    ],
+    "quoted_tweet_results.result.view_count_info.state": [
+      "string"
+    ],
+    "replyCount": [
+      "int"
+    ],
+    "reply_to_user_results": [
+      "null",
+      "object"
+    ],
+    "reply_to_user_results.rest_id": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "reply_to_user_results.result": [
+      "object"
+    ],
+    "reply_to_user_results.result.__typename": [
+      "string"
+    ],
+    "reply_to_user_results.result.core": [
+      "object"
+    ],
+    "reply_to_user_results.result.core.screen_name": [
+      "string"
+    ],
+    "reply_to_user_results.result.rest_id": [
+      "string",
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "retweetCount": [
+      "int"
+    ],
+    "retweeted_tweet": [
+      "null"
+    ],
+    "source": [
+      "string"
+    ],
+    "text": [
+      "string"
+    ],
+    "twitterUrl": [
+      "string:url"
+    ],
+    "type": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "viewCount": [
+      "int"
+    ]
+  }
+}

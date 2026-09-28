@@ -1,0 +1,118 @@
+{
+  "date": "2026-09-28T17:05:28.072Z",
+  "actor": "scraper_one/x-posts-search",
+  "build": "0.0.160",
+  "input": {
+    "query": "koperasi merah putih",
+    "resultsCount": 5,
+    "searchType": "latest",
+    "timeWindowHours": 24
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 8089,
+  "items": 5,
+  "cost_usd": 0,
+  "charged_events": {
+    "result-item": 0,
+    "init": 0
+  },
+  "account_usage_usd": {
+    "before": 2.1875640050311334,
+    "after": 2.193164005031133,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "query": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "The search term to look for."
+    },
+    "resultsCount": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Number of search results to retrieve. If not set, only a few of the first posts will be returned. Note: Free-plan users can retrieve up to 100 posts per search query."
+    },
+    "timeWindow": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Get posts from last n day(s). Works only when the Search Type is set to 'Latest'"
+    },
+    "timeWindowHours": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Get posts from last n hours. Works only when the Search Type is set to 'Latest'"
+    },
+    "searchType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "top",
+        "latest"
+      ],
+      "description": "What kind of posts you'd like to search for."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "author": [
+      "object"
+    ],
+    "author.name": [
+      "string"
+    ],
+    "author.profileImageUrl": [
+      "string:url"
+    ],
+    "author.screenName": [
+      "string"
+    ],
+    "author.userId": [
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "conversationId": [
+      "string:numeric-id"
+    ],
+    "favouriteCount": [
+      "int"
+    ],
+    "media": [
+      "array(…)"
+    ],
+    "media[]": [
+      "object"
+    ],
+    "media[].id": [
+      "string:numeric-id"
+    ],
+    "media[].mediaUrlHttps": [
+      "string:url"
+    ],
+    "media[].type": [
+      "string"
+    ],
+    "postId": [
+      "string:numeric-id"
+    ],
+    "postText": [
+      "string"
+    ],
+    "postUrl": [
+      "string:url"
+    ],
+    "quoteCount": [
+      "int"
+    ],
+    "replyCount": [
+      "int"
+    ],
+    "repostCount": [
+      "int"
+    ],
+    "timestamp": [
+      "int:epoch-ms?"
+    ]
+  }
+}

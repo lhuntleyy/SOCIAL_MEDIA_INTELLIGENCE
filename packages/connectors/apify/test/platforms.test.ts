@@ -11,9 +11,12 @@ import {
   fbHandle,
   INSTAGRAM_BOOLEAN,
   THREADS_SCRAPERSDELIGHT,
-  TIKTOK_APIDOJO,
-  tiktokDateRange,
-  X_APIDOJO,
+  clockworksDateFilter,
+  KAITO_MIN_ITEMS,
+  TIKTOK_CLOCKWORKS,
+  TIKTOK_XMOLODTSOV,
+  X_KAITO,
+  X_SCRAPERONE,
   windowAgeDays,
   YOUTUBE_STREAMERS,
   youtubeDateFilter,
@@ -25,20 +28,18 @@ const OUT = "2026-09-20T01:00:00.000Z"; // di luar window (dibuang)
 const tw = (iso: string) => new Date(iso).toUTCString().replace(/^(\w+), (\d+) (\w+) (\d+) ([\d:]+) GMT$/, "$1 $3 $2 $5 +0000 $4");
 
 const FIXTURES: Record<string, { spec: ActorSpec; items: unknown[]; expectCount: number }> = {
-  x_apidojo: {
-    spec: X_APIDOJO,
-    expectCount: 2,
+  x_kaito: {
+    spec: X_KAITO,
+    expectCount: 3,
     items: [
       {
         id: "1850000000000000001",
         url: "https://x.com/u1/status/1850000000000000001",
-        fullText: "kopdes jalan #kdmp",
-        text: "kopdes jalan",
+        text: "kopdes jalan #kdmp",
         lang: "in",
         createdAt: tw(IN),
         conversationId: "1850000000000000001",
         isReply: false,
-        isRetweet: false,
         isQuote: false,
         likeCount: 4,
         replyCount: 1,
@@ -56,35 +57,94 @@ const FIXTURES: Record<string, { spec: ActorSpec; items: unknown[]; expectCount:
           createdAt: tw("2020-01-01T00:00:00.000Z"),
           location: "Surabaya",
         },
-        entities: {
-          hashtags: [{ text: "kdmp", indices: [13, 18] }],
-          user_mentions: [],
-          media: [{ type: "photo", media_url_https: "https://pbs.example.invalid/a.jpg" }],
-        },
+        entities: { hashtags: [{ text: "kdmp" }], user_mentions: [{ screen_name: "u9" }] },
+        extendedEntities: { media: [{ type: "photo", media_url_https: "https://pbs.example.invalid/a.jpg" }] },
       },
       {
         id: "1850000000000000002",
         text: "kutip kopdes",
         createdAt: tw(IN),
         isQuote: true,
-        quoteId: "1850000000000000001",
-        quote: { id: "1850000000000000001", author: { id: "11", userName: "u1" } },
+        quoted_tweet: { id: "1850000000000000001", author: { id: "11", userName: "u1" } },
         author: { id: "12", userName: "u2" },
         entities: {},
+      },
+      {
+        id: "1850000000000000004",
+        text: "RT kopdes",
+        createdAt: tw(IN),
+        retweeted_tweet: { id: "1850000000000000001", author: { id: "11", userName: "u1" } },
+        author: { id: "14", userName: "u4" },
       },
       { id: "1850000000000000003", text: "lama", createdAt: tw(OUT), author: { id: "13", userName: "u3" } },
     ],
   },
-  tiktok: {
-    spec: TIKTOK_APIDOJO,
+  x_scraperone: {
+    spec: X_SCRAPERONE,
+    expectCount: 1,
+    items: [
+      {
+        postId: "1850000000000000010",
+        postUrl: "https://x.com/s1/status/1850000000000000010",
+        postText: "kopdes #kdmp desa",
+        timestamp: Date.parse(IN),
+        conversationId: "1850000000000000009",
+        favouriteCount: 3,
+        replyCount: 0,
+        repostCount: 1,
+        quoteCount: 0,
+        author: { userId: "71", screenName: "s1", name: "S Satu", profileImageUrl: "https://pbs.example.invalid/s.jpg" },
+        media: [{ type: "video", mediaUrlHttps: "https://pbs.example.invalid/v.jpg", id: "5" }],
+      },
+      { postId: "1850000000000000011", postText: "tanpa author", timestamp: Date.parse(IN) },
+    ],
+  },
+  tiktok_clockworks: {
+    spec: TIKTOK_CLOCKWORKS,
     expectCount: 1,
     items: [
       {
         id: "7400000000000000001",
+        text: "video kopdes #kdmp",
+        textLanguage: "id",
+        createTime: Date.parse(IN) / 1000,
+        createTimeISO: IN,
+        webVideoUrl: "https://www.tiktok.com/@c1/video/7400000000000000001",
+        diggCount: 10,
+        commentCount: 2,
+        shareCount: 1,
+        playCount: 300,
+        collectCount: 3,
+        hashtags: [{ id: "1", name: "kdmp" }],
+        mentions: ["@c2"],
+        isAd: false,
+        isSponsored: true,
+        authorMeta: {
+          id: "21",
+          name: "c1",
+          nickName: "C Satu",
+          fans: 1000,
+          following: 10,
+          verified: true,
+          avatar: "https://p.example.invalid/c.jpg",
+          createTime: null,
+        },
+        videoMeta: { coverUrl: "https://v.example.invalid/c.jpg" },
+        locationCreated: "ID",
+      },
+      { id: "7400000000000000002", text: "lama", createTimeISO: OUT, authorMeta: { id: "22", name: "c2" } },
+    ],
+  },
+  tiktok_xmolodtsov: {
+    spec: TIKTOK_XMOLODTSOV,
+    expectCount: 1,
+    items: [
+      {
+        id: "7400000000000000003",
         title: "video kopdes #kdmp",
         uploadedAt: Date.parse(IN) / 1000,
         uploadedAtFormatted: IN,
-        postPage: "https://www.tiktok.com/@c1/video/7400000000000000001",
+        postPage: "https://www.tiktok.com/@c3/video/7400000000000000003",
         likes: 10,
         comments: 2,
         shares: 1,
@@ -92,17 +152,18 @@ const FIXTURES: Record<string, { spec: ActorSpec; items: unknown[]; expectCount:
         bookmarks: 3,
         hashtags: ["kdmp"],
         channel: {
-          id: "21",
-          username: "c1",
-          name: "C Satu",
+          id: "23",
+          username: "c3",
+          name: "C Tiga",
           followers: 1000,
-          following: null,
-          verified: true,
+          following: 5,
+          verified: false,
           avatar: "https://p.example.invalid/c.jpg",
         },
         video: { url: "https://v.example.invalid/v.mp4", cover: "https://v.example.invalid/c.jpg" },
+        poi: { poiName: "Alun-alun Bandung" },
       },
-      { id: "7400000000000000002", title: "tanpa channel → dibuang", uploadedAt: Date.parse(IN) / 1000 },
+      { id: "7400000000000000004", title: "tanpa channel → dibuang", uploadedAt: Date.parse(IN) / 1000 },
     ],
   },
   instagram: {
@@ -311,43 +372,78 @@ describe("detail normalizer & input", () => {
     return (await new ApifyActorConnector(spec).fetch(req(spec), ctx())).items;
   };
 
-  test("X apidojo: fullText, media dari entities, quote → parent", async () => {
-    const [a, b] = await fetchOf(X_APIDOJO);
+  test("X kaito: operator waktu di field terpisah, maxItems ≥ 20, media dari extendedEntities, quote & repost → parent", async () => {
+    const [a, b, c] = await fetchOf(X_KAITO);
     expect(a).toMatchObject({
       text: "kopdes jalan #kdmp",
       hashtags: ["kdmp"],
+      mentions: ["u9"],
       media: [{ type: "image" }],
       author: { handle: "u1", location_raw: "Surabaya" },
     });
-    expect(b).toMatchObject({
-      content_type: "quote",
-      parent: { platform_post_id: "1850000000000000001", author: { platform_user_id: "11", handle: "u1" } },
+    expect(b).toMatchObject({ content_type: "quote", parent: { platform_post_id: "1850000000000000001", author: { handle: "u1" } } });
+    expect(c).toMatchObject({
+      content_type: "repost",
+      parent: { platform_post_id: "1850000000000000001", author: { platform_user_id: "11" } },
     });
-    expect(bodies["apidojo~tweet-scraper"]).toEqual({
-      searchTerms: ['"koperasi merah putih" since_time:1790553600 until_time:1790647200'],
-      maxItems: 20,
-      sort: "Latest",
+    expect(bodies["kaitoeasyapi~twitter-x-data-tweet-scraper-pay-per-result-cheapest"]).toEqual({
+      twitterContent: '"koperasi merah putih"',
+      maxItems: KAITO_MIN_ITEMS,
+      queryType: "Latest",
+      since_time: "1790553600",
+      until_time: "1790647200",
     });
   });
 
-  test("TikTok: epoch detik, video + cover, bahasa tak diketahui = null; dateRange kasar dipilih dari umur window", async () => {
-    const [v] = await fetchOf(TIKTOK_APIDOJO);
-    expect(v).toMatchObject({
-      published_at: IN,
-      lang_hint: null,
-      media: [{ type: "video", thumb: "https://v.example.invalid/c.jpg" }],
-      metrics: { saves: 3, quotes: null },
+  test("X scraper_one: timestamp ms, handle screenName, tipe konten tak ditebak, resultsCount ≤ 100 (plan FREE)", async () => {
+    const [p] = await fetchOf(X_SCRAPERONE);
+    expect(p).toMatchObject({
+      content_type: "post",
+      root_post_id: "1850000000000000009",
+      author: { handle: "s1", followers: null },
+      media: [{ type: "video" }],
+      hashtags: ["kdmp"],
     });
-    expect([0.5, 3, 20, 60, 120, 400].map(tiktokDateRange)).toEqual([
-      "YESTERDAY",
-      "THIS_WEEK",
-      "THIS_MONTH",
-      "LAST_THREE_MONTHS",
-      "LAST_SIX_MONTHS",
+    expect(bodies["scraper_one~x-posts-search"]).toMatchObject({ query: '"koperasi merah putih"', searchType: "latest", resultsCount: 20 });
+    const hours = Math.max(1, Math.ceil(windowAgeDays(req(X_SCRAPERONE).window)! * 24)); // relatif jam sekarang
+    expect((bodies["scraper_one~x-posts-search"] as { timeWindowHours: number }).timeWindowHours).toBe(hours);
+  });
+
+  test("TikTok clockworks: bahasa dari textLanguage, isSponsored → is_ad, followers = fans; filter tanggal dari umur window", async () => {
+    const [v] = await fetchOf(TIKTOK_CLOCKWORKS);
+    expect(v).toMatchObject({
+      lang_hint: "id",
+      is_ad: true,
+      hashtags: ["kdmp"],
+      mentions: ["c2"],
+      author: { handle: "c1", followers: 1000 },
+      metrics: { views: 300, saves: 3 },
+      geo: { place_name: null },
+    });
+    expect([0.5, 3, 20, 60, 120, 400, null].map(clockworksDateFilter)).toEqual([
+      "PAST_24_HOURS",
+      "PAST_WEEK",
+      "PAST_MONTH",
+      "LAST_3_MONTHS",
+      "LAST_6_MONTHS",
+      "ALL_TIME",
       "ALL_TIME",
     ]);
-    expect(tiktokDateRange(null)).toBe("DEFAULT");
-    expect((bodies["apidojo~tiktok-scraper"] as { keywords: string[] }).keywords).toEqual(["koperasi merah putih"]);
+    expect(bodies["clockworks~free-tiktok-scraper"]).toMatchObject({
+      searchQueries: ["koperasi merah putih"],
+      searchSection: "/video",
+      videoSearchSorting: "LATEST",
+    });
+  });
+
+  test("TikTok xmolodtsov: tanpa filter tanggal di input (saring lokal), POI → place_name, bahasa null", async () => {
+    const [v] = await fetchOf(TIKTOK_XMOLODTSOV);
+    expect(v).toMatchObject({ lang_hint: null, geo: { place_name: "Alun-alun Bandung" }, media: [{ type: "video" }] });
+    expect(bodies["xmolodtsov~tiktok-search-scraper"]).toEqual({
+      keywords: ["koperasi merah putih"],
+      maxItems: 20,
+      sortType: "DATE_POSTED",
+    });
   });
 
   test("Instagram: shortcode sebagai id, offset +07:00 → UTC, reel = video, geo dari lat/lng, filter tanggal", async () => {
@@ -413,7 +509,7 @@ describe("detail normalizer & input", () => {
 
   test("placeholder noResults tanpa tanda limit → 0 item, 0 hasil (tidak ditagih), bukan error", async () => {
     mode = "empty";
-    const r = await new ApifyActorConnector(X_APIDOJO).fetch(req(X_APIDOJO), ctx());
+    const r = await new ApifyActorConnector(X_KAITO).fetch(req(X_KAITO), ctx());
     expect([r.items.length, r.usage.results]).toEqual([0, 0]);
     mode = "ok";
   });

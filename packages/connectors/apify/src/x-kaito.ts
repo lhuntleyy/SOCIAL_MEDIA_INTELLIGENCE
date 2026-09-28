@@ -1,15 +1,17 @@
-// X via Apify `apidojo/tweet-scraper` — PROVIDER_MATRIX §2.0 prioritas 3 (cadangan xquik).
-// Bentuk: docs/evidence/shapes/shape-apidojo~tweet-scraper.json. `searchTerms` = sintaks advanced search X
-// (dokumen actor merujuk igorbrigadir/twitter-advanced-search: since_time/until_time) → inkremental sama dgn xquik.
+// X via Apify `kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest` — cadangan X #2 (setelah xquik).
+// Bentuk: docs/evidence/shapes/shape-kaitoeasyapi~….json (probe 2026-09-29). Input: `twitterContent` + field operator
+// terpisah (`since_time`/`until_time` detik Unix) — skema input actor; `maxItems` minimal 20 (catatan actor, PROVIDER_MATRIX).
+// Dipilih menggantikan apidojo (ditolak pemilik 2026-09-29: batas run bulanan plan FREE).
 import type { CanonicalItem } from "@smip/contracts";
 import { count, toUtcIso } from "@smip/connector-sdk";
 import type { ActorSpec } from "./actor";
 import { arr, type NormMeta, type Obj, obj, provenance, str, url } from "./util";
-import { xWindowOperators } from "./x-xquik";
 
 const MEDIA: Record<string, "image" | "video" | "gif"> = { photo: "image", video: "video", animated_gif: "gif" };
+/** Minimum item per run menurut actor — hasil berlebih tetap ditagih, dipotong di connector. */
+export const KAITO_MIN_ITEMS = 20;
 
-export function normalizeApidojoTweet(r: Obj, meta: NormMeta): CanonicalItem | null {
+export function normalizeKaitoTweet(r: Obj, meta: NormMeta): CanonicalItem | null {
   const id = str(r.id);
   const published = toUtcIso(r.createdAt, "twitter_classic");
   const a = obj(r.author);
@@ -17,10 +19,12 @@ export function normalizeApidojoTweet(r: Obj, meta: NormMeta): CanonicalItem | n
   const handle = str(a?.userName);
   if (!id || !published || !authorId || !handle) return null;
   const replyTo = str(r.inReplyToId);
-  const q = obj(r.quote);
-  const quoted = str(r.quoteId) ?? str(q?.id);
-  const type = r.isRetweet === true ? "repost" : r.isQuote === true || quoted ? "quote" : r.isReply === true || replyTo ? "reply" : "post";
+  const q = obj(r.quoted_tweet);
+  const quoted = str(q?.id) ?? str(obj(r.quoted_tweet_results)?.rest_id);
+  const retweet = obj(r.retweeted_tweet);
+  const type = retweet ? "repost" : r.isQuote === true || quoted ? "quote" : r.isReply === true || replyTo ? "reply" : "post";
   const qa = obj(q?.author);
+  const ra = obj(retweet?.author);
   const parent =
     type === "reply" && replyTo
       ? {
@@ -29,8 +33,14 @@ export function normalizeApidojoTweet(r: Obj, meta: NormMeta): CanonicalItem | n
         }
       : type === "quote" && quoted
         ? { platform_post_id: quoted, author: str(qa?.id) ? { platform_user_id: str(qa?.id)!, handle: str(qa?.userName) } : null }
-        : null;
+        : type === "repost" && str(retweet?.id)
+          ? {
+              platform_post_id: str(retweet?.id)!,
+              author: str(ra?.id) ? { platform_user_id: str(ra?.id)!, handle: str(ra?.userName) } : null,
+            }
+          : null;
   const ent = obj(r.entities);
+  const ext = obj(r.extendedEntities);
   const conv = str(r.conversationId);
   const place = obj(r.place);
   return {
@@ -39,7 +49,7 @@ export function normalizeApidojoTweet(r: Obj, meta: NormMeta): CanonicalItem | n
     platform_post_id: id,
     content_type: type,
     url: url(r.url) ?? url(r.twitterUrl) ?? `https://x.com/${handle}/status/${id}`,
-    text: str(r.fullText) ?? str(r.text) ?? "",
+    text: str(r.text) ?? "",
     lang_hint: str(r.lang),
     published_at: published,
     parent,
@@ -70,7 +80,7 @@ export function normalizeApidojoTweet(r: Obj, meta: NormMeta): CanonicalItem | n
     mentions: arr(ent?.user_mentions)
       .map((m) => str(obj(m)?.screen_name) ?? str(obj(m)?.username))
       .filter((x): x is string => !!x),
-    media: arr(ent?.media).flatMap((m) => {
+    media: arr(ext?.media).flatMap((m) => {
       const o = obj(m);
       const t = MEDIA[String(o?.type)];
       const u = url(o?.media_url_https);
@@ -83,13 +93,13 @@ export function normalizeApidojoTweet(r: Obj, meta: NormMeta): CanonicalItem | n
   };
 }
 
-export const X_APIDOJO: ActorSpec = {
-  key: "apify.x.apidojo",
+export const X_KAITO: ActorSpec = {
+  key: "apify.x.kaito",
   platform: "x",
-  actorId: "apidojo/tweet-scraper",
+  actorId: "kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
   version: "0.1.0",
-  displayName: "X via Apify (apidojo/tweet-scraper)",
-  docsUrl: "https://apify.com/apidojo/tweet-scraper",
+  displayName: "X via Apify (kaitoeasyapi tweet scraper)",
+  docsUrl: "https://apify.com/kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest",
   operations: {
     search_keyword: {
       queryFeatures: ["term", "phrase", "or", "and", "not", "group"],
@@ -104,9 +114,15 @@ export const X_APIDOJO: ActorSpec = {
     },
   },
   buildInput(req) {
-    const w = xWindowOperators(req.window);
-    const q = req.query?.native ?? "";
-    return { searchTerms: [w ? `${q} ${w}` : q], maxItems: req.maxItems, sort: "Latest" };
+    const since = req.window?.since ? String(Math.floor(Date.parse(req.window.since) / 1000)) : undefined;
+    const until = req.window?.until ? String(Math.floor(Date.parse(req.window.until) / 1000)) : undefined;
+    return {
+      twitterContent: req.query?.native ?? "",
+      maxItems: Math.max(KAITO_MIN_ITEMS, req.maxItems),
+      queryType: "Latest",
+      ...(since ? { since_time: since } : {}),
+      ...(until ? { until_time: until } : {}),
+    };
   },
-  normalize: normalizeApidojoTweet,
+  normalize: normalizeKaitoTweet,
 };

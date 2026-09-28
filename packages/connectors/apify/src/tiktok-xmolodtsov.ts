@@ -1,22 +1,12 @@
-// TikTok via Apify `apidojo/tiktok-scraper` — PROVIDER_MATRIX §2.0 prioritas 1 (TESTED).
-// Bentuk: docs/evidence/shapes/shape-apidojo~tiktok-scraper.json. Filter waktu actor hanya `dateRange` kasar
-// (YESTERDAY … ALL_TIME) → pilih rentang terkecil yang mencakup window, lalu saring lokal (published_at ≥ since).
+// TikTok via Apify `xmolodtsov/tiktok-search-scraper` — TikTok #2 (murah $0,30/1K, cadangan).
+// Bentuk: docs/evidence/shapes/shape-xmolodtsov~tiktok-search-scraper.json. TANPA filter tanggal (sort diterapkan
+// setelah fetch menurut skema input) → saring lokal saja; kurang efisien untuk inkremental → prioritas rendah.
 import type { CanonicalItem } from "@smip/contracts";
 import { count, toUtcIso } from "@smip/connector-sdk";
 import type { ActorSpec } from "./actor";
-import { arr, type NormMeta, type Obj, noGeo, obj, plainQuery, provenance, str, url, windowAgeDays } from "./util";
+import { arr, type NormMeta, type Obj, obj, plainQuery, provenance, str, url } from "./util";
 
-export function tiktokDateRange(ageDays: number | null): string {
-  if (ageDays === null) return "DEFAULT";
-  if (ageDays <= 1) return "YESTERDAY";
-  if (ageDays <= 7) return "THIS_WEEK";
-  if (ageDays <= 30) return "THIS_MONTH";
-  if (ageDays <= 90) return "LAST_THREE_MONTHS";
-  if (ageDays <= 180) return "LAST_SIX_MONTHS";
-  return "ALL_TIME";
-}
-
-export function normalizeTiktok(r: Obj, meta: NormMeta): CanonicalItem | null {
+export function normalizeXmolodtsovTiktok(r: Obj, meta: NormMeta): CanonicalItem | null {
   const id = str(r.id);
   const published = toUtcIso(r.uploadedAt, "epoch_s") ?? toUtcIso(r.uploadedAtFormatted);
   const ch = obj(r.channel);
@@ -25,6 +15,7 @@ export function normalizeTiktok(r: Obj, meta: NormMeta): CanonicalItem | null {
   if (!id || !published || !authorId || !handle) return null;
   const v = obj(r.video);
   const vurl = url(v?.url);
+  const poi = obj(r.poi);
   return {
     schema: "canonical-item/v1",
     platform: "tiktok",
@@ -32,7 +23,7 @@ export function normalizeTiktok(r: Obj, meta: NormMeta): CanonicalItem | null {
     content_type: "post",
     url: url(r.postPage) ?? `https://www.tiktok.com/@${handle}/video/${id}`,
     text: str(r.title) ?? "",
-    lang_hint: null, // output tidak memuat bahasa teks (subtitle ≠ bahasa caption) — jangan menebak
+    lang_hint: null,
     published_at: published,
     parent: null,
     root_post_id: null,
@@ -61,41 +52,35 @@ export function normalizeTiktok(r: Obj, meta: NormMeta): CanonicalItem | null {
       .filter((x): x is string => !!x),
     mentions: [],
     media: vurl ? [{ type: "video", url: vurl, thumb: url(v?.cover) ?? url(v?.thumbnail) }] : [],
-    geo: noGeo,
+    geo: { lat: null, lng: null, place_name: str(poi?.poiName) },
     is_ad: null,
     extra: {},
     provenance: provenance(meta),
   };
 }
 
-export const TIKTOK_APIDOJO: ActorSpec = {
-  key: "apify.tiktok.apidojo",
+export const TIKTOK_XMOLODTSOV: ActorSpec = {
+  key: "apify.tiktok.xmolodtsov",
   platform: "tiktok",
-  actorId: "apidojo/tiktok-scraper",
+  actorId: "xmolodtsov/tiktok-search-scraper",
   version: "0.1.0",
-  displayName: "TikTok via Apify (apidojo/tiktok-scraper)",
-  docsUrl: "https://apify.com/apidojo/tiktok-scraper",
+  displayName: "TikTok via Apify (xmolodtsov/tiktok-search-scraper)",
+  docsUrl: "https://apify.com/xmolodtsov/tiktok-search-scraper",
   operations: {
     search_keyword: {
-      // kata kunci biasa (tanpa operator boolean terdokumentasi) → 1 leaf per sub-query; presisi = matcher lokal
       queryFeatures: ["term", "phrase"],
       maxQueryLength: 100,
-      supportsSince: true,
+      supportsSince: true, // lewat saring lokal
       supportsUntil: true,
       supportsCursor: false,
       maxPageSize: 1000,
       returnsFields: ["metrics.likes", "metrics.views", "author.followers"],
       asyncExecution: true,
-      resultOrder: "desc",
+      resultOrder: null,
     },
   },
   buildInput(req) {
-    return {
-      keywords: [plainQuery(req).replace(/"/g, "")],
-      maxItems: req.maxItems,
-      sortType: "DATE_POSTED",
-      dateRange: tiktokDateRange(windowAgeDays(req.window)),
-    };
+    return { keywords: [plainQuery(req).replace(/"/g, "")], maxItems: req.maxItems, sortType: "DATE_POSTED" };
   },
-  normalize: normalizeTiktok,
+  normalize: normalizeXmolodtsovTiktok,
 };

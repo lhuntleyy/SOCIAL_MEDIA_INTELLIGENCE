@@ -1,0 +1,681 @@
+{
+  "date": "2026-09-28T17:04:54.332Z",
+  "actor": "clockworks/free-tiktok-scraper",
+  "build": "0.0.528",
+  "input": {
+    "searchQueries": [
+      "koperasi merah putih"
+    ],
+    "searchSection": "/video",
+    "resultsPerPage": 5,
+    "videoSearchSorting": "LATEST",
+    "videoSearchDateFilter": "PAST_WEEK"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 62155,
+  "items": 5,
+  "cost_usd": 0.0224,
+  "charged_events": {
+    "result": 4,
+    "filter-applied": 4,
+    "popularity-filter-applied": 0,
+    "follower-dataset-item": 0,
+    "mobile-filter-sorting-applied": 4,
+    "video-download": 0,
+    "comment-dataset-item": 0,
+    "scrape-as-in-country": 0,
+    "transcription-minute": 0
+  },
+  "account_usage_usd": {
+    "before": 2.165040751193905,
+    "after": 2.165164005031133,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "hashtags": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Just add one or more TikTok hashtags and the scraper will collect data about videos containing this hashtag: likes, users, followers and more. <br> You can enter the hashtags one by one, or use the <s"
+    },
+    "resultsPerPage": {
+      "type": "integer",
+      "description": "Add the number of tiktoks you want to scrape per hashtag, profile, or search query. This field is applicable to <strong>#️⃣ Hashtags</strong>, <strong>😎 Profiles</strong>, and <strong>🔍 Search</stro"
+    },
+    "profiles": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Add one or multiple TikTok usernames or user IDs you want to scrape. You can enter the usernames one by one, or use the <strong>Bulk edit</strong> section to add a prepared list."
+    },
+    "profileScrapeSections": {
+      "type": "array",
+      "editor": "select",
+      "description": "If a profile has reposted videos, you can scrape them by selecting 'Reposts'. If a profile currently has an active story, you can scrape it by selecting 'Stories'"
+    },
+    "profileSorting": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "latest",
+        "popular",
+        "oldest"
+      ],
+      "description": "Select Latest to scrape the most recent videos first, Oldest - the oldest videos first, Popular - the most popular videos first. Date filters only work with Latest and Oldest. Only supported for Video"
+    },
+    "excludePinnedPosts": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Tick to exclude pinned posts from profiles. Pinned posts are usually the first videos on a profile's page."
+    },
+    "oldestPostDateUnified": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Optional charged filter. Only videos uploaded after or on this date will be scraped. Alternatively, specify how old the scraped videos should be in days. Putting <code>1</code> will get you only today"
+    },
+    "newestPostDate": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Optional charged filter. Only videos uploaded before or on this date will be scraped."
+    },
+    "mostDiggs": {
+      "type": "integer",
+      "description": "Optional charged filter. Scrapes only videos with less hearts than the number you add. Doesn't work with date filters"
+    },
+    "leastDiggs": {
+      "type": "integer",
+      "description": "Optional charged filter. Scrapes only videos with no less hearts than the number you add. Doesn't work with date filters"
+    },
+    "maxFollowersPerProfile": {
+      "type": "integer",
+      "description": "Scrapes number of 'Followers' profiles requested from the inputted profiles. You can find the link to the dataset under the followDatasetUrl field in the output. If you want to scrape only Followers/F"
+    },
+    "maxFollowingPerProfile": {
+      "type": "integer",
+      "description": "Scrapes number of 'Following' profiles requested from the inputted profiles. You can find the link to the dataset under the followDatasetUrl field in the output. If you want to scrape only Followers/F"
+    },
+    "searchQueries": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Your keyword will apply to both videos <strong>and</strong> profiles. Use the <strong>Search sorting</strong> field below to specify whether you want your search to apply to top content, videos or use"
+    },
+    "searchSection": {
+      "type": "string",
+      "enum": [
+        "",
+        "/video",
+        "/user"
+      ],
+      "description": "By default, this scraper will sort the search results by whatever shows up in the <strong>Top</strong> section of TikTok search. <br> But you can narrow it down: if you want to apply your search query"
+    },
+    "maxProfilesPerQuery": {
+      "type": "integer",
+      "description": "Only applies to profile searches. In this case ignore the <strong> 💯 Number of videos </strong> section and choose the number of profiles you want to scrape here."
+    },
+    "videoSearchSorting": {
+      "type": "string",
+      "enum": [
+        "MOST_RELEVANT",
+        "MOST_LIKED",
+        "LATEST"
+      ],
+      "description": "Optional charged filter. Select how you want the search results to be sorted when searching for videos. Only valid with `/video` search section."
+    },
+    "videoSearchDateFilter": {
+      "type": "string",
+      "enum": [
+        "ALL_TIME",
+        "PAST_24_HOURS",
+        "PAST_WEEK",
+        "PAST_MONTH",
+        "LAST_3_MONTHS",
+        "LAST_6_MONTHS"
+      ],
+      "description": "Optional charged filter. Select a date range in which to search for videos. Only valid with `/video` search section."
+    },
+    "postURLs": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Add the URLs of tiktok videos you want to scrape. You can paste video URLs one by one, or use the <strong>Bulk edit</strong> section to add a prepared list."
+    },
+    "scrapeRelatedVideos": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Tick to scrape related videos for the post URLs you provide.\n- The maximum number of scraped related videos is set by the `resultsPerPage` count.\n- Note that this only works for direct video URLs from"
+    },
+    "shouldDownloadVideos": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "This is a charged add-on. Tick to download TikTok videos."
+    },
+    "shouldDownloadCovers": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Tick to download TikTok video cover images (thumbnails)."
+    },
+    "shouldDownloadSlideshowImages": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Tick to download TikTok slideshow images."
+    },
+    "shouldDownloadAvatars": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Tick to download authors' profile pictures."
+    },
+    "shouldDownloadMusicCovers": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Tick to download cover images of sounds used in posts."
+    },
+    "videoKvStoreIdOrName": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Name (or ID) of the Key Value Store where the videos and other media like thumbnails will be stored. Omit to store in the default one. Using this option will provide a named Key-Value store can help b"
+    },
+    "downloadSubtitlesOptions": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "NEVER_DOWNLOAD_SUBTITLES",
+        "DOWNLOAD_SUBTITLES",
+        "DOWNLOAD_AND_TRANSCRIBE_VIDEOS_WITHOUT_SUBTITLES",
+        "TRANSCRIBE_ALL_VIDEOS"
+      ],
+      "description": "Choose how to handle subtitles and audio transcription for input videos. Subtitles are provided by TikTok for some videos, and transcription means that this Actor will use speech-to-text AI to generat"
+    },
+    "aiVideoDescription": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Use AI to generate a time-segmented description of each video (what is seen and heard, per scene). Provided inline under `videoMeta.aiVideoDescription`. Charged per video-second, only when the descrip"
+    },
+    "aiVideoSummary": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Use AI to generate a high-level summary of each video as a piece of content. Provided inline under `videoMeta.aiVideoSummary`. Charged per video-second, only when the summary is produced successfully."
+    },
+    "commentsPerPost": {
+      "type": "integer",
+      "description": "The number of comments extracted from every result. Due to TikTok API limitations, the actual number of scraped comments may differ, especially for posts with thousands of comments. The link to the da"
+    },
+    "topLevelCommentsPerPost": {
+      "type": "integer",
+      "description": "The maximum number of top-level (non-reply) comments you want from a single post."
+    },
+    "maxRepliesPerComment": {
+      "type": "integer",
+      "description": "The maximum number of replies you want from a single comment. \n\nNote: Successful extraction of all desired replies is currently not guaranteed."
+    },
+    "proxyCountryCode": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "None",
+        "AF",
+        "AL",
+        "DZ",
+        "AS",
+        "AD",
+        "AO",
+        "AI",
+        "AG",
+        "AR",
+        "AM",
+        "AU",
+        "AT",
+        "AZ",
+        "BS",
+        "BH",
+        "BB",
+        "BY",
+        "BE",
+        "BZ",
+        "BJ",
+        "BM",
+        "BT",
+        "BO",
+        "BA",
+        "BW",
+        "BR",
+        "VG",
+        "BN",
+        "BG",
+        "BF",
+        "BI",
+        "KH",
+        "CM",
+        "CA",
+        "CV",
+        "KY",
+        "TD",
+        "CL",
+        "CO",
+        "CK",
+        "CR",
+        "HR",
+        "CY",
+        "CZ",
+        "CD",
+        "DK",
+        "DJ",
+        "DO",
+        "EC",
+        "EG",
+        "SV",
+        "EE",
+        "ET",
+        "FK",
+        "FJ",
+        "FI",
+        "FR",
+        "PF",
+        "GA",
+        "GE",
+        "DE",
+        "GH",
+        "GI",
+        "GR",
+        "GL",
+        "GD",
+        "GP",
+        "GT",
+        "GN",
+        "GW",
+        "GY",
+        "HN",
+        "HU",
+        "IS",
+        "ID",
+        "IQ",
+        "IE",
+        "IM",
+        "IL",
+        "IT",
+        "CI",
+        "JM",
+        "JP",
+        "JE",
+        "KZ",
+        "KE",
+        "XK",
+        "KW",
+        "LA",
+        "LV",
+        "LB",
+        "LS",
+        "LR",
+        "LY",
+        "LT",
+        "LU",
+        "MO",
+        "MG",
+        "MW",
+        "MY",
+        "MV",
+        "ML",
+        "MT",
+        "MH",
+        "MQ",
+        "MR",
+        "MU",
+        "MX",
+        "MD",
+        "MC",
+        "MN",
+        "ME",
+        "MA",
+        "MZ",
+        "MM",
+        "NA",
+        "NR",
+        "NP",
+        "NL",
+        "NZ",
+        "NI",
+        "NG",
+        "MK",
+        "NO",
+        "OM",
+        "PS",
+        "PA",
+        "PG",
+        "PY",
+        "PE",
+        "PH",
+        "PL",
+        "PT",
+        "PR",
+        "QA",
+        "CG",
+        "RO",
+        "RU",
+        "RW",
+        "RE",
+        "KN",
+        "LC",
+        "MF",
+        "PM",
+        "VC",
+        "SM",
+        "SA",
+        "SN",
+        "RS",
+        "SL",
+        "SG",
+        "SX",
+        "SK",
+        "SB",
+        "SO",
+        "ZA",
+        "KR",
+        "ES",
+        "LK",
+        "SR",
+        "SZ",
+        "SE",
+        "CH",
+        "TW",
+        "TJ",
+        "TZ",
+        "TH",
+        "TG",
+        "TO",
+        "TT",
+        "TN",
+        "TR",
+        "TC",
+        "TV",
+        "VI",
+        "UG",
+        "UA",
+        "AE",
+        "GB",
+        "US",
+        "UY",
+        "VE",
+        "VN",
+        "WF",
+        "YE",
+        "ZM",
+        "ZW",
+        "AX"
+      ],
+      "description": "Country to use with proxy. Use it in case you want to scrape posts only available for some country."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "authorMeta": [
+      "object"
+    ],
+    "authorMeta.avatar": [
+      "string:url"
+    ],
+    "authorMeta.commerceUserInfo": [
+      "object"
+    ],
+    "authorMeta.commerceUserInfo.category": [
+      "string"
+    ],
+    "authorMeta.commerceUserInfo.categoryButton": [
+      "boolean"
+    ],
+    "authorMeta.commerceUserInfo.commerceUser": [
+      "boolean"
+    ],
+    "authorMeta.commerceUserInfo.downLoadLink": [
+      "object"
+    ],
+    "authorMeta.commerceUserInfo.downLoadLink.android": [
+      "string"
+    ],
+    "authorMeta.commerceUserInfo.downLoadLink.ios": [
+      "string"
+    ],
+    "authorMeta.createTime": [
+      "null"
+    ],
+    "authorMeta.digg": [
+      "int"
+    ],
+    "authorMeta.fans": [
+      "int"
+    ],
+    "authorMeta.followDatasetUrl": [
+      "null"
+    ],
+    "authorMeta.following": [
+      "int"
+    ],
+    "authorMeta.friends": [
+      "int"
+    ],
+    "authorMeta.heart": [
+      "int"
+    ],
+    "authorMeta.id": [
+      "string:numeric-id"
+    ],
+    "authorMeta.name": [
+      "string"
+    ],
+    "authorMeta.nickName": [
+      "string"
+    ],
+    "authorMeta.originalAvatarUrl": [
+      "string:url"
+    ],
+    "authorMeta.privateAccount": [
+      "boolean"
+    ],
+    "authorMeta.profileUrl": [
+      "string:url"
+    ],
+    "authorMeta.verified": [
+      "boolean"
+    ],
+    "authorMeta.video": [
+      "int"
+    ],
+    "collectCount": [
+      "int"
+    ],
+    "commentCount": [
+      "int"
+    ],
+    "commentsDatasetUrl": [
+      "null"
+    ],
+    "createTime": [
+      "int:epoch-s?"
+    ],
+    "createTimeISO": [
+      "string:iso-z"
+    ],
+    "detailedMentions": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "detailedMentions[]": [
+      "object"
+    ],
+    "detailedMentions[].id": [
+      "string:numeric-id"
+    ],
+    "detailedMentions[].nickName": [
+      "string"
+    ],
+    "detailedMentions[].profileUrl": [
+      "string:url"
+    ],
+    "diggCount": [
+      "int"
+    ],
+    "effectStickers": [
+      "array(empty)"
+    ],
+    "hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "hashtags[]": [
+      "object"
+    ],
+    "hashtags[].cover": [
+      "null"
+    ],
+    "hashtags[].id": [
+      "string",
+      "string:numeric-id"
+    ],
+    "hashtags[].name": [
+      "string"
+    ],
+    "hashtags[].title": [
+      "null"
+    ],
+    "id": [
+      "string:numeric-id"
+    ],
+    "isAd": [
+      "boolean"
+    ],
+    "isMuted": [
+      "boolean"
+    ],
+    "isPinned": [
+      "boolean"
+    ],
+    "isSlideshow": [
+      "boolean"
+    ],
+    "isSponsored": [
+      "boolean"
+    ],
+    "isStory": [
+      "boolean"
+    ],
+    "locationCreated": [
+      "string"
+    ],
+    "mediaUrls": [
+      "array(empty)"
+    ],
+    "mentions": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "mentions[]": [
+      "string"
+    ],
+    "musicMeta": [
+      "object"
+    ],
+    "musicMeta.coverMediumUrl": [
+      "string:url"
+    ],
+    "musicMeta.musicAlbum": [
+      "string"
+    ],
+    "musicMeta.musicAuthor": [
+      "string"
+    ],
+    "musicMeta.musicId": [
+      "string:numeric-id"
+    ],
+    "musicMeta.musicName": [
+      "string"
+    ],
+    "musicMeta.musicOriginal": [
+      "boolean"
+    ],
+    "musicMeta.originalCoverMediumUrl": [
+      "string:url"
+    ],
+    "musicMeta.playUrl": [
+      "string:url"
+    ],
+    "playCount": [
+      "int"
+    ],
+    "repostCount": [
+      "null"
+    ],
+    "searchQuery": [
+      "string"
+    ],
+    "shareCount": [
+      "int"
+    ],
+    "shortDramaSeriesInfo": [
+      "null"
+    ],
+    "text": [
+      "string"
+    ],
+    "textLanguage": [
+      "string"
+    ],
+    "videoMeta": [
+      "object"
+    ],
+    "videoMeta.aiVideoDescription": [
+      "null"
+    ],
+    "videoMeta.aiVideoSummary": [
+      "null"
+    ],
+    "videoMeta.coverUrl": [
+      "string:url"
+    ],
+    "videoMeta.definition": [
+      "string"
+    ],
+    "videoMeta.duration": [
+      "float"
+    ],
+    "videoMeta.format": [
+      "string"
+    ],
+    "videoMeta.height": [
+      "int"
+    ],
+    "videoMeta.originalCoverUrl": [
+      "string:url"
+    ],
+    "videoMeta.subtitleLinks": [
+      "array(…)",
+      "null"
+    ],
+    "videoMeta.subtitleLinks[]": [
+      "object"
+    ],
+    "videoMeta.subtitleLinks[].downloadLink": [
+      "string:url"
+    ],
+    "videoMeta.subtitleLinks[].language": [
+      "string"
+    ],
+    "videoMeta.subtitleLinks[].source": [
+      "string"
+    ],
+    "videoMeta.subtitleLinks[].sourceUnabbreviated": [
+      "string"
+    ],
+    "videoMeta.subtitleLinks[].tiktokLink": [
+      "string:url"
+    ],
+    "videoMeta.subtitleLinks[].version": [
+      "string"
+    ],
+    "videoMeta.transcriptionLink": [
+      "null"
+    ],
+    "videoMeta.width": [
+      "int"
+    ],
+    "webVideoUrl": [
+      "string:url"
+    ]
+  }
+}

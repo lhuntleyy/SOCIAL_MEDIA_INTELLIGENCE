@@ -1,0 +1,33 @@
+{
+  "date": "2026-09-28T17:16:10.388Z",
+  "connector": "apify.tiktok.xmolodtsov",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "koperasi merah putih",
+  "window_hours": 168,
+  "max_items": 5,
+  "samples": 5,
+  "items_valid": 20,
+  "items_invalid": 0,
+  "usage_results_returned": 20,
+  "cost_usd": 0,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.views": 1,
+    "author.followers": 1
+  },
+  "latency_ms": {
+    "samples": [
+      8151,
+      7112,
+      7373,
+      7782,
+      2365
+    ],
+    "p50": 7373,
+    "p95": 8151
+  },
+  "status": "verified",
+  "note": null
+}
