@@ -163,7 +163,7 @@ describe.skipIf(!infraUp)("I-14 worker-pipeline (integrasi)", () => {
       [post(31, "harga sembako naik", { provenance: { ...post(31, "").provenance, connector_key: "fake.x.b" } })],
       1,
     );
-    const c = await send(ids2, [post(31, "harga sembako naik")], 1);
+    const c = await send(ids2, [post(31, "harga sembako naik")], 2);
     expect([a.matched, a.newPosts]).toEqual([2, 2]);
     expect([b.matched, b.duplicateMatches, b.newPosts]).toEqual([0, 1, 0]); // topik sama, run berikutnya (overlap)
     expect([c.matched, c.newPosts]).toEqual([1, 0]); // topik lain: match baru, konten sudah ada → is_new_post=false
@@ -175,11 +175,18 @@ describe.skipIf(!infraUp)("I-14 worker-pipeline (integrasi)", () => {
     const ids = await setup({ query_text: "pemilu" });
     const items = [post(41, "pemilu damai"), post(42, "pemilu serentak")];
     const first = await send(ids, items, 3);
-    await sql`update crawl_runs set pending_batches = 1 where id = ${ids.run}`; // simulasi rollback counter
+    // simulasi crash SEBELUM commit: seluruh efek DB (counter, ledger, outbox) tergulung balik, kunci Redis tetap
+    await sql`update crawl_runs set pending_batches = 1 where id = ${ids.run}`;
+    await sql`delete from processed_messages where key = ${`pipe.${ids.run}.3`}`;
     const again = await send(ids, items, 3);
     expect([first.matched, again.matched, again.duplicateMatches]).toEqual([2, 2, 0]);
     const keys = (await jobs(ids.run, "ai.enrich")).map((j) => j.idempotencyKey);
     expect(new Set(keys).size).toBe(1); // jobId sama → BullMQ mengabaikan duplikat
+    // terkirim ulang SETELAH commit (ack gagal) → dilewati seluruhnya, counter tidak berubah lagi
+    const before = (await sql`select pending_batches from crawl_runs where id = ${ids.run}`)[0]!.pending_batches;
+    const dup = await send(ids, items, 3);
+    expect(dup.duplicateMessage).toBe(true);
+    expect((await sql`select pending_batches from crawl_runs where id = ${ids.run}`)[0]!.pending_batches).toBe(before);
   });
 
   test("geo gazetteer: place_name 0,8, lokasi profil 0,5 / terkandung 0,3, tak dikenal null", async () => {

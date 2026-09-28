@@ -39,6 +39,10 @@
       "name": "@smip/scheduler",
       "version": "0.0.0",
     },
+    "apps/worker-ai-stub": {
+      "name": "@smip/worker-ai-stub",
+      "version": "0.0.0",
+    },
     "apps/worker-dispatch": {
       "name": "@smip/worker-dispatch",
       "version": "0.0.0",
@@ -49,6 +53,10 @@
     },
     "apps/worker-pipeline": {
       "name": "@smip/worker-pipeline",
+      "version": "0.0.0",
+    },
+    "apps/worker-sink": {
+      "name": "@smip/worker-sink",
       "version": "0.0.0",
     },
     "packages/analytics": {
@@ -312,11 +320,15 @@
 
     "@smip/storage": ["@smip/storage@workspace:packages/storage"],
 
+    "@smip/worker-ai-stub": ["@smip/worker-ai-stub@workspace:apps/worker-ai-stub"],
+
     "@smip/worker-dispatch": ["@smip/worker-dispatch@workspace:apps/worker-dispatch"],
 
     "@smip/worker-fetch-bun": ["@smip/worker-fetch-bun@workspace:apps/worker-fetch-bun"],
 
     "@smip/worker-pipeline": ["@smip/worker-pipeline@workspace:apps/worker-pipeline"],
+
+    "@smip/worker-sink": ["@smip/worker-sink@workspace:apps/worker-sink"],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 

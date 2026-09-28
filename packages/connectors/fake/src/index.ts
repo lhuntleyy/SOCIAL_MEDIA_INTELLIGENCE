@@ -100,7 +100,11 @@ export class FakeConnector implements Connector {
   /** Jejak panggilan (untuk assert di test router/failover). */
   readonly calls: FetchRequest[] = [];
 
-  constructor(opts: { platform: string; variant?: string }) {
+  /** Dev: bila tidak ada langkah terskrip, hasilkan item ini (default: kosong). */
+  private readonly autoRespond?: (req: FetchRequest) => unknown[];
+
+  constructor(opts: { platform: string; variant?: string; autoRespond?: (req: FetchRequest) => unknown[] }) {
+    this.autoRespond = opts.autoRespond;
     const key = `fake.${opts.platform}${opts.variant ? `.${opts.variant}` : ""}`;
     this.manifest = {
       key,
@@ -137,7 +141,7 @@ export class FakeConnector implements Connector {
     if (!this.manifest.operations[req.operation]) throw new ConnectorError("NOT_SUPPORTED", `operation ${req.operation} tidak didukung`);
     this.calls.push(req);
     const i = this.steps.findIndex((s) => !s.op || s.op === req.operation);
-    const step = i >= 0 ? this.steps.splice(i, 1)[0]! : { respond: { items: [] } };
+    const step = i >= 0 ? this.steps.splice(i, 1)[0]! : { respond: { items: this.autoRespond?.(req) ?? [] } };
     if (step.delayMs) await sleep(step.delayMs, ctx.signal);
     if (step.fail) {
       if (step.fail.code === "RATE_LIMITED") {

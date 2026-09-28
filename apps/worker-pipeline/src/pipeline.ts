@@ -4,7 +4,7 @@
 //   post baru tak cocok      → sink.analytics langsung (matches = []) — disimpan untuk backfill, tanpa AI (P-17)
 // Counter run: pending_batches −1 (pesan ini) + N (batch anak); run ditutup bila tak ada lagi yang tertunda.
 import type { CanonicalItem, PipelineItemsPayload, PostRecord } from "@smip/contracts";
-import { type Db, finalizeRunIfDone, type Tx, withSystem, writeJobOutbox } from "@smip/db";
+import { claimMessage, type Db, finalizeRunIfDone, type Tx, withSystem, writeJobOutbox } from "@smip/db";
 import type { Gazetteer } from "@smip/geo";
 import type { Logger } from "@smip/observability";
 import { type CompiledQuery, matchQuery, type QueryAst } from "@smip/query";
@@ -31,6 +31,7 @@ export interface PipelineResult {
   aiBatches: number;
   unmatchedBatch: boolean;
   finalized: "succeeded" | "partial" | null;
+  duplicateMessage?: boolean;
 }
 
 /** Model AI yang diminta per item (AI_SPEC §1); flag per tenant (psikografi) menyusul bersama worker-ai. */
@@ -76,6 +77,11 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
       status: string;
     }[];
     if (!run) return res;
+    // terkirim ulang setelah commit → efek (counter, batch anak) sudah ada; jangan diulang
+    if (!(await claimMessage(tx, `pipe.${m.crawl_run_id}.${m.attempt_no}`))) {
+      res.duplicateMessage = true;
+      return res;
+    }
     const q = m.topic_query_id ? await loadQuery(tx, m.topic_query_id) : undefined;
     // query/topik dihapus/diarsipkan setelah fetch: item tetap disimpan sebagai post tak-match
     const active = !!q && q.enabled && q.topic_status !== "archived";

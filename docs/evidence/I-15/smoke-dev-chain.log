@@ -1,0 +1,7 @@
+# I-15 smoke dev — 2026-09-28T10:31:55Z: bun run dev:workers (7 proses) → ClickHouse
+      1 {"ts":"2026-09-28T10:31:58.132Z","level":"warn","service":"worker-ai-stub","env":"development","msg":"worker-ai-stub mulai — label NETRAL, bukan inferensi nyata"}
+[{"status":"succeeded","attempts":1,"items_fetched":3,"items_matched":2,"items_new":3,"pending_batches":0,"error_code":null},{"status":"succeeded","attempts":1,"items_fetched":3,"items_matched":2,"items_new":3,"pending_batches":0,"error_code":null},{"status":"failed","attempts":1,"items_fetched":0,"items_matched":0,"items_new":0,"pending_batches":0,"error_code":"NO_CANDIDATE"}]
+[{"high_watermark":"2026-09-28T10:30:59.773Z","inflight_run_id":null}]
+SELECT count() n, countIf(matched=1) m FROM posts FINAL [{"n":6,"m":4}]
+SELECT count() n, any(model_version) mv FROM topic_match_events [{"n":4,"mv":"stub-0"}]
+SELECT sum(posts) n FROM agg_topic_5m [{"n":4}]

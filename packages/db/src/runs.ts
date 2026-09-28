@@ -140,3 +140,11 @@ export async function loadGeoRegions(db: Db): Promise<{ code: string; name: stri
     aliases: string[];
   }[];
 }
+
+/** Ledger idempotensi: true = pesan ini belum pernah diproses (klaim berhasil, ikut transaksi pemanggil). */
+export async function claimMessage(tx: Tx, key: string): Promise<boolean> {
+  const r = (await tx.execute(
+    sql`insert into processed_messages (key) values (${key}) on conflict (key) do nothing returning key`,
+  )) as unknown as unknown[];
+  return r.length === 1;
+}

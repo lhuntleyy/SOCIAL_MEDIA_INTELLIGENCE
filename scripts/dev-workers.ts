@@ -1,4 +1,4 @@
-// bun run dev:workers → jalankan scheduler + worker-dispatch + worker-fetch-bun + worker-pipeline dengan env infra/compose/.env.dev
+// bun run dev:workers → jalankan scheduler + worker-dispatch + worker-fetch-bun + worker-pipeline + worker-ai-stub + worker-sink dengan env infra/compose/.env.dev
 // (butuh `bun run dev:up` lebih dulu). Ctrl+C menghentikan semuanya (SIGTERM → graceful shutdown).
 import { join } from "node:path";
 
@@ -15,6 +15,8 @@ const services = [
   "apps/worker-dispatch/src/main.ts",
   "apps/worker-fetch-bun/src/main.ts",
   "apps/worker-pipeline/src/main.ts",
+  "apps/worker-ai-stub/src/main.ts", // dev saja: label netral "stub-0" sampai worker-ai (Python) ada
+  "apps/worker-sink/src/main.ts",
 ];
 const procs = services.map((s) =>
   Bun.spawn(["bun", s], { cwd: ROOT, env: { ...env, ...process.env }, stdout: "inherit", stderr: "inherit" }),

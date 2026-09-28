@@ -69,7 +69,7 @@ Semua perintah `bun run …` dijalankan dari **root repo** (`cd ~/social-intel`)
 - Rekam bukti task: `scripts/evidence.sh <TASK-ID> <perintah>` → `docs/evidence/<TASK-ID>/`.
 - Bun ada di `~/.bun/bin` (tambahkan ke PATH). Paket baru **wajib** ditambah check di `scripts/compat/` dulu (Golden Rule 8).
 - `bun run dev:up` / `dev:down` — infra dev via Docker Compose + migrasi + seed (F-11). Sesi shell yang dibuat sebelum user masuk grup `docker` perlu `sg docker -c "…"`.
-- `bun run dev:workers` — jalankan scheduler + worker-dispatch + worker-fetch-bun + worker-pipeline (env `.env.dev`, connector `fake.*`); seed membuat topik "Demo KDMP" + akun provider fake sehingga alur run langsung jalan. Ctrl+C = shutdown graceful.
+- `bun run dev:workers` — jalankan scheduler + worker-dispatch + worker-fetch-bun + worker-pipeline + worker-ai-stub (label netral `stub-0`, dev saja) + worker-sink (env `.env.dev`, connector `fake.*` menghasilkan item demo); seed membuat topik "Demo KDMP" + akun provider fake sehingga alur run langsung jalan. Ctrl+C = shutdown graceful.
 - Migrasi: `bun run db:migrate up|down|status` (Postgres, SQL-first), `bun run ch:migrate up|down|status` (ClickHouse).
 - Placeholder: `pytest`.
 

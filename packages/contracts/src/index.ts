@@ -314,6 +314,10 @@ export const SinkAnalyticsPayload = z.strictObject({
     .nullable(),
 });
 
+export type SinkAnalyticsPayload = z.infer<typeof SinkAnalyticsPayload>;
+export type SinkMatch = z.infer<typeof SinkMatch>;
+export type AiEnrichPayload = z.infer<typeof AiEnrichPayload>;
+
 /** Semua skema yang diekspor ke JSON Schema + pydantic. Nama = nama file & kelas Python. */
 export const EXPORTED = {
   CanonicalItem,
