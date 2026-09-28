@@ -243,5 +243,6 @@ describe.skipIf(!up)("BullMqQueue (integrasi Redis)", () => {
     await waitFor(() => (attemptB ? attemptB : undefined));
     expect(attemptB).toBe(1); // pengembalian saat shutdown tidak menghabiskan attempt
     expect((await q.listDlq("fetch.bun")).length).toBe(0);
-  });
+    // batas > waitFor (8 s): promosi job delayed BullMQ bisa > 5 s (default bun) saat suite penuh berjalan paralel
+  }, 15_000);
 });

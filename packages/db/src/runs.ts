@@ -67,6 +67,53 @@ export async function settleGap(tx: Tx, planId: string, runId: string, ok: boole
     where id = ${planId} and gap_windows @> ${JSON.stringify([{ run_id: runId }])}::text::jsonb`);
 }
 
+/** Batas celah per plan: celah tertua dibuang (data hilang yang disadari — lihat pruneGaps). */
+export const MAX_GAPS = 20;
+
+/**
+ * Rentang yang HILANG pada run partial menurut urutan hasil connector (CONNECTOR_SPEC §7):
+ *   desc (terbaru dulu) → [window_from, min(published) diterima]; asc → [max(published) diterima, window_to];
+ *   tak terurut / tak diketahui → seluruh window (tidak bisa tahu bagian mana yang hilang).
+ */
+export function gapWindow(
+  r: {
+    window_from: Date | null;
+    window_to: Date | null;
+    min_published_at: Date | null;
+    max_published_at: Date | null;
+    result_order: string | null;
+  },
+  now = new Date(),
+): { since: string; until: string } {
+  const from = (r.window_from ?? now).toISOString();
+  const to = (r.window_to ?? now).toISOString();
+  if (r.result_order === "desc") return { since: from, until: (r.min_published_at ?? r.window_to ?? now).toISOString() };
+  if (r.result_order === "asc") return { since: (r.max_published_at ?? r.window_from ?? now).toISOString(), until: to };
+  return { since: from, until: to };
+}
+
+/**
+ * Buang celah yang melewati umur maksimum (default 24 jam) dan belum sedang diambil — dicatat sebagai data hilang
+ * yang DISADARI (metrik smip_crawl_gap_abandoned_total), bukan diam-diam. Mengembalikan jumlah per platform.
+ */
+export async function pruneGaps(tx: Tx, maxAgeSec: number, now = new Date()): Promise<Record<string, number>> {
+  const cutoff = new Date(now.getTime() - maxAgeSec * 1000).toISOString();
+  const rows = (await tx.execute(sql`
+    with old as (
+      select p.id, p.platform_code,
+             count(*) filter (where g->>'run_id' is null and (g->>'created_at')::timestamptz < ${cutoff}::timestamptz) as n
+      from crawl_plans p, jsonb_array_elements(p.gap_windows) g
+      group by p.id, p.platform_code)
+    update crawl_plans p set gap_windows = coalesce((
+        select jsonb_agg(g) from jsonb_array_elements(p.gap_windows) g
+        where not (g->>'run_id' is null and (g->>'created_at')::timestamptz < ${cutoff}::timestamptz)), '[]'::jsonb), updated_at = now()
+    from old where old.id = p.id and old.n > 0
+    returning old.platform_code, old.n`)) as unknown as { platform_code: string; n: string | number }[];
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.platform_code] = (out[r.platform_code] ?? 0) + Number(r.n);
+  return out;
+}
+
 export interface FinalizedRun {
   runId: string;
   outcome: "succeeded" | "partial";
@@ -81,9 +128,12 @@ export interface FinalizedRun {
  */
 export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date()): Promise<FinalizedRun | null> {
   const [r] =
-    (await tx.execute(sql`select id, scheduled_for::text as sf, status, pending_batches, error_code, crawl_plan_id, tenant_id, kind,
-      window_from, window_to, min_published_at, max_published_at
-    from crawl_runs where id = ${runId} for update`)) as unknown as {
+    (await tx.execute(sql`select r.id, r.scheduled_for::text as sf, r.status, r.pending_batches, r.error_code, r.crawl_plan_id, r.tenant_id, r.kind,
+      r.window_from, r.window_to, r.min_published_at, r.max_published_at,
+      -- urutan hasil connector attempt terakhir (declared.result_order) → sisi window mana yang hilang
+      (select cc.declared->>'result_order' from connector_capabilities cc join crawl_plans p on p.id = r.crawl_plan_id
+        where cc.connector_id::text = r.routing->>'connector_id' and cc.operation = p.operation) as result_order
+    from crawl_runs r where r.id = ${runId} for update of r`)) as unknown as {
       id: string;
       sf: string;
       status: string;
@@ -96,6 +146,7 @@ export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date())
       window_to: Date | null;
       min_published_at: Date | null;
       max_published_at: Date | null;
+      result_order: string | null;
     }[];
   if (r?.status !== "processing" || r.pending_batches > 0) return null;
   const outcome = r.error_code ? "partial" : "succeeded";
@@ -112,19 +163,12 @@ export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date())
         where id = ${r.crawl_plan_id}`);
       await settleGap(tx, r.crawl_plan_id, r.id, true);
     } else {
-      // item terbaru sudah diterima; yang hilang = rentang lebih lama sampai item terlama yang diterima
-      const gap = r.window_from
-        ? [
-            {
-              since: r.window_from.toISOString(),
-              until: (r.min_published_at ?? r.window_to ?? now).toISOString(),
-              created_at: now.toISOString(),
-            },
-          ]
-        : [];
+      const gap = r.window_from ? [{ ...gapWindow(r, now), created_at: now.toISOString() }] : [];
       await tx.execute(sql`update crawl_plans set updated_at = now(),
           inflight_run_id = case when inflight_run_id = ${r.id} then null else inflight_run_id end,
-          gap_windows = gap_windows || ${JSON.stringify(r.kind === "incremental" ? gap : [])}::text::jsonb
+          gap_windows = (select coalesce(jsonb_agg(g order by g->>'created_at'), '[]'::jsonb) from (
+            select g from jsonb_array_elements(gap_windows || ${JSON.stringify(r.kind === "incremental" ? gap : [])}::text::jsonb) g
+            order by g->>'created_at' desc limit ${MAX_GAPS}) t)
         where id = ${r.crawl_plan_id}`);
       await settleGap(tx, r.crawl_plan_id, r.id, false);
     }

@@ -1,7 +1,7 @@
 // I-12 tick scheduler (QUEUE_SPEC §6): plan jatuh tempo → crawl_runs(queued) + outbox job `crawl.dispatch`
 // dalam SATU transaksi (tidak ada run "hantu"). FOR UPDATE SKIP LOCKED → aman bila dua scheduler sempat aktif.
 import type { CrawlDispatchPayload } from "@smip/contracts";
-import { BACKFILL_PRIORITY, createCrawlRun, type Db, jsonbValue, withSystem } from "@smip/db";
+import { BACKFILL_PRIORITY, createCrawlRun, type Db, jsonbValue, pruneGaps, withSystem } from "@smip/db";
 import { sql } from "drizzle-orm";
 
 export const NON_FINAL = ["queued", "dispatching", "fetching", "processing"] as const;
@@ -13,12 +13,16 @@ export interface TickOptions {
   /** true = antrean hilir penuh → plan prioritas rendah (priority ≥ 5) ditunda. */
   backpressure?: (platform: string) => Promise<boolean> | boolean;
   random?: () => number;
+  /** Umur maksimum celah (detik) sebelum dibuang; default 24 jam. */
+  maxGapAgeSec?: number;
 }
 export interface TickResult {
   scheduled: number;
   coalesced: number;
   deferred: number;
   gapRuns: number;
+  /** Celah dibuang karena melewati umur maksimum, per platform. */
+  gapsAbandoned: Record<string, number>;
 }
 
 interface PlanRow {
@@ -48,8 +52,9 @@ export const nextRunAt = (now: Date, intervalSec: number, random = Math.random) 
 export async function schedulerTick(db: Db, o: TickOptions = {}): Promise<TickResult> {
   const now = o.now?.() ?? new Date();
   const random = o.random ?? Math.random;
-  const res: TickResult = { scheduled: 0, coalesced: 0, deferred: 0, gapRuns: 0 };
+  const res: TickResult = { scheduled: 0, coalesced: 0, deferred: 0, gapRuns: 0, gapsAbandoned: {} };
   await withSystem(db, async (tx) => {
+    res.gapsAbandoned = await pruneGaps(tx, o.maxGapAgeSec ?? 86_400, now);
     const plans = (await tx.execute(sql`
       select p.id, p.tenant_id, p.topic_id, p.topic_query_id, p.platform_code, p.operation, p.interval_sec, p.high_watermark,
              p.gap_windows, p.priority, p.inflight_run_id,

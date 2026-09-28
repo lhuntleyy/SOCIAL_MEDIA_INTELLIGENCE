@@ -35,6 +35,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Worker (I-13): `apps/worker-dispatch`, `apps/worker-fetch-bun`, `@smip/storage`, `bun run dev:workers`, migrasi 0013 (`crawl_runs.routing`), kontrak `queries[]`/`PipelineItemsPayload`; seed membuat akun fake + topik demo. CI GitHub Actions (F-12) hijau.
   - Pipeline (I-14): `apps/worker-pipeline`, `@smip/geo` + ADR-010 (gazetteer provinsi, UNVERIFIED), migrasi 0014 (counter penutupan run) & 0015 (38 provinsi), `finalizeRunIfDone`/`settleGap`, kontrak `PostRecord`.
   - Sink (I-15): `apps/worker-sink` (ClickHouse + guard dedup + penutupan run + realtime.notify), ledger `processed_messages` (migrasi 0016), `apps/worker-ai-stub` (dev), `FakeConnector.autoRespond`; `dev:workers` kini mengalir sampai ClickHouse.
+  - Partial success (I-24): sisi celah per `result_order`, maks 20 celah, `pruneGaps` + `smip_crawl_gap_abandoned_total`, P-18 e2e.
+  - Fix: semua connector habis setelah sebagian item diterima → run `partial` (sebelumnya `failed`, celah hilang).
   - Keputusan pemilik: actor `apidojo` dikeluarkan (batas run bulanan plan FREE). Pengganti VERIFIED live: X `apify.x.kaito`, `apify.x.scraperone`; TikTok `apify.tiktok.clockworks` (sinyal iklan & bahasa), `apify.tiktok.xmolodtsov`.
   - Connector per platform (I-18): `apify.instagram.boolean`, `apify.facebook.scraperone`, `apify.tiktok.apidojo`, `apify.youtube.streamers`, `apify.threads.scrapersdelight` (VERIFIED live), `apify.x.apidojo` (FAILED: batas plan FREE → dipetakan `QUOTA_EXHAUSTED`). Evidence `docs/evidence/shapes/` & `docs/evidence/verify/`.
   - Fix: YouTube `oldestPostDate` tidak dihormati mode search → `dateFilter`; placeholder `noResults` tidak dihitung sebagai hasil.

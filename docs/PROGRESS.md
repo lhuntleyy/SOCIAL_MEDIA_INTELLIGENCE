@@ -78,7 +78,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | I-21 | todo | | | |
 | I-22 | todo | | | |
 | I-23 | todo | | | |
-| I-24 | todo | | | Baru v0.4 |
+| I-24 | done | claude | [evidence/I-24](evidence/I-24/) · CI | Celah partial success lengkap: sisi celah per `result_order` connector (desc/asc/tak terurut → seluruh window), maks 20 celah/plan, `pruneGaps` di tick scheduler (`SCHEDULER_MAX_GAP_AGE_SEC`, default 24 jam; celah sedang diambil dipertahankan) + metrik `smip_crawl_gap_abandoned_total`, run celah sukses melepas celah / gagal membebaskan `run_id` (dari I-14/I-15). **Bug ditemukan:** semua connector habis setelah sebagian item diterima → run `failed` (celah hilang) → kini `partial`. **P-18 e2e** (hal. 1–2 sukses, hal. 3 gagal → partial, watermark diam, celah [since, min(published)] → run backfill berikutnya persis window celah) + tes aging & sisi celah. Juga: tes F-08 graceful shutdown diberi batas 15 s (flaky di suite penuh) |
 | I-25 | todo | | | Baru v0.4 |
 
 ## Fase 3 — AI & Dashboard
@@ -100,7 +100,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 
 ## Serah-terima (baca ini dulu saat melanjutkan / ganti model)
 
-**Terakhir diperbarui: 2026-09-28 (sesi 5).** Scope tidak berubah dari TASK.md v0.4. Fase 2 selesai: I-01..I-15, I-17. F-12 CI hijau di GitHub. **Berikutnya: I-24 (umur celah + metrik) → I-22 collection stream → I-21 Admin API (ganti `scripts/connectors.ts`) → I-23 cost guard. Connector baru: pola `packages/connectors/apify` (shape probe → normalizer + fixture sintetis → verify live). Alur ingest sudah end-to-end sampai ClickHouse dengan stub AI (worker-ai Python = Fase 3) → I-13 worker-dispatch + worker-fetch-bun (pakai `Router` + pola loop run di `packages/router/test/router.test.ts`) → I-14/I-15 → I-03 Topic CRUD.** Urutan kerja asli (dependency sudah terpenuhi):
+**Terakhir diperbarui: 2026-09-28 (sesi 5).** Scope tidak berubah dari TASK.md v0.4. Fase 2 selesai: I-01..I-15, I-17, I-24. F-12 CI hijau di GitHub. **Berikutnya: I-22 collection stream → I-21 Admin API (ganti `scripts/connectors.ts`) → I-23 cost guard. Connector baru: pola `packages/connectors/apify` (shape probe → normalizer + fixture sintetis → verify live). Alur ingest sudah end-to-end sampai ClickHouse dengan stub AI (worker-ai Python = Fase 3) → I-13 worker-dispatch + worker-fetch-bun (pakai `Router` + pola loop run di `packages/router/test/router.test.ts`) → I-14/I-15 → I-03 Topic CRUD.** Urutan kerja asli (dependency sudah terpenuhi):
 
 1. Fase 1 selesai kecuali **F-12** (CI) — butuh repo git + remote dari pemilik.
 2. **Fase 2 berikutnya (tanpa API key):** **I-01** query parser/AST/matcher (`packages/query`) → **I-02** compiler → **I-04** `packages/connector-sdk` (+ contract suite) → **I-05** connector `fake` → **I-06/I-07** router → **I-08/I-09** rate limit & quota → **I-12** scheduler → **I-13..I-15** worker dispatch/fetch/pipeline/sink → **I-03** Topic CRUD API.

@@ -98,7 +98,7 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     const later = await plan({ dueInSec: 600 });
     const now = new Date();
     const r = await schedulerTick(created.db, { now: () => now, initialLookbackSec: 3600 });
-    expect(r).toEqual({ scheduled: 1, coalesced: 0, deferred: 0, gapRuns: 0 });
+    expect(r).toEqual({ scheduled: 1, coalesced: 0, deferred: 0, gapRuns: 0, gapsAbandoned: {} });
     const [run1] = await runsOf(due);
     expect(run1).toMatchObject({ kind: "incremental", status: "queued" });
     expect(run1!.window_to.getTime()).toBe(now.getTime());
@@ -187,7 +187,7 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
   });
 
   test("celah run partial → satu run backfill berprioritas rendah, tidak digandakan tick berikutnya", async () => {
-    const gap = { since: "2026-09-27T01:00:00.000Z", until: "2026-09-27T02:00:00.000Z", created_at: "2026-09-27T03:00:00.000Z" };
+    const gap = { since: "2026-09-27T01:00:00.000Z", until: "2026-09-27T02:00:00.000Z", created_at: new Date().toISOString() };
     const p = await plan({ gaps: [gap] });
     expect((await schedulerTick(created.db)).gapRuns).toBe(1);
     const runs = await runsOf(p);
@@ -232,5 +232,23 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     await b.release();
     expect(await a.ensure()).toBe(true);
     await a.release();
+  });
+
+  test("I-24: celah melewati max_gap_age dibuang & dihitung per platform; celah muda / sedang diambil dipertahankan", async () => {
+    const now = new Date();
+    const old = {
+      since: "2026-09-20T01:00:00.000Z",
+      until: "2026-09-20T02:00:00.000Z",
+      created_at: new Date(now.getTime() - 30 * 3600_000).toISOString(),
+    };
+    const oldRunning = { ...old, run_id: id(0xeeee) };
+    const young = { ...old, created_at: new Date(now.getTime() - 3600_000).toISOString() };
+    const p = await plan({ gaps: [old, oldRunning, young], dueInSec: 600 });
+    const r = await schedulerTick(created.db, { now: () => now, maxGapAgeSec: 86_400 });
+    expect(r.gapsAbandoned).toEqual({ x: 1 });
+    const [pl] = await sql`select gap_windows from crawl_plans where id = ${p}`;
+    expect(pl!.gap_windows).toEqual([oldRunning, young]);
+    expect((await schedulerTick(created.db, { now: () => now, maxGapAgeSec: 86_400 })).gapsAbandoned).toEqual({});
+    await sql`update crawl_plans set status = 'paused' where id = ${p}`;
   });
 });

@@ -94,6 +94,8 @@ const scheduler = z.object({
   SCHEDULER_INITIAL_LOOKBACK_SEC: z.coerce.number().int().min(60).default(3600),
   /** Backpressure: antrean fetch menunggu > ini → plan prioritas rendah ditunda. */
   SCHEDULER_BACKPRESSURE_WAITING: z.coerce.number().int().min(1).default(5000),
+  /** Celah partial success lebih tua dari ini dibuang (data hilang yang disadari, CONNECTOR_SPEC §7). */
+  SCHEDULER_MAX_GAP_AGE_SEC: z.coerce.number().int().min(3600).default(86_400),
 });
 
 const SHAPES: Record<ServiceName, z.ZodObject<z.ZodRawShape>[]> = {

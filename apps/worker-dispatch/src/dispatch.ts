@@ -270,6 +270,13 @@ export async function handleDispatch(
         );
         return "waiting";
       }
+      if (run.items_fetched > 0) {
+        // sebagian item sudah diterima di attempt sebelumnya → partial (celah dicatat), bukan failed (P-18)
+        await tx.execute(sql`update crawl_runs set status = 'processing', error_code = ${decision.reason},
+          error_message = 'tidak ada connector yang layak untuk sisa run' where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
+        await finalizeRunIfDone(tx, run.id, now);
+        return "failed";
+      }
       await finishRun(tx, run, "failed", now, { code: decision.reason, message: "tidak ada connector yang layak" });
       await releasePlan(tx, d, run, "failure", plan.interval_sec, now);
       return "failed";

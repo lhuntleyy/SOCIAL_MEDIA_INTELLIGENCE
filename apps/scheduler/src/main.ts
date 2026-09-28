@@ -2,7 +2,7 @@
 // relay outbox → queue/pubsub tiap 1 s. Semua pekerjaan hanya oleh leader; SKIP LOCKED menjaga bila lock sempat ganda.
 import { loadConfig } from "@smip/config";
 import { createDb, publishOutbox } from "@smip/db";
-import { createLogger } from "@smip/observability";
+import { Counter, createLogger } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { LeaderLock } from "./leader";
 import { reapStuckRuns } from "./reaper";
@@ -14,6 +14,10 @@ const cfg = loadConfig("scheduler");
 const TICK_MS = cfg.SCHEDULER_TICK_MS!;
 const GRACE_SEC = cfg.SCHEDULER_STUCK_RUN_GRACE_SEC!;
 const BACKPRESSURE = cfg.SCHEDULER_BACKPRESSURE_WAITING!;
+const MAX_GAP_AGE_SEC = cfg.SCHEDULER_MAX_GAP_AGE_SEC!;
+const gapAbandoned = new Counter("smip_crawl_gap_abandoned_total", "Celah partial success yang dibuang karena melewati max_gap_age", [
+  "platform",
+]);
 const logger = createLogger({ service: "scheduler", version: cfg.SERVICE_VERSION, env: cfg.NODE_ENV, level: cfg.LOG_LEVEL });
 const { db, close } = createDb(cfg.DATABASE_URL, { max: 4 });
 const cache = new Bun.RedisClient(cfg.REDIS_CACHE_URL);
@@ -32,7 +36,12 @@ async function tick() {
     const r = await schedulerTick(db, {
       initialLookbackSec: cfg.SCHEDULER_INITIAL_LOOKBACK_SEC,
       backpressure: () => fetchWaiting > BACKPRESSURE,
+      maxGapAgeSec: MAX_GAP_AGE_SEC,
     });
+    for (const [platform, n] of Object.entries(r.gapsAbandoned)) {
+      gapAbandoned.inc({ platform }, n);
+      logger.warn("celah dibuang (melewati max_gap_age) — data hilang yang disadari", { platform, count: n });
+    }
     if (r.scheduled || r.coalesced || r.deferred) logger.info("tick", { ...r, fetch_waiting: fetchWaiting });
     if (Date.now() - lastReap >= 60_000) {
       lastReap = Date.now();

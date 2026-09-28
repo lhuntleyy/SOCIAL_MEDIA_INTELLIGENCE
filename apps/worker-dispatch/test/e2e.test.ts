@@ -5,7 +5,17 @@ import type { CanonicalItem } from "@smip/contracts";
 import { CrawlDispatchPayload, FetchRequestPayload, FetchResultPayload, PipelineItemsPayload } from "@smip/contracts";
 import { FakeConnector, fakeItem } from "@smip/connector-fake";
 import { credentialAad, LocalDevKms, seal } from "@smip/crypto";
-import { createDb, loadRoutingSnapshot, markAccountAttention, markCapabilityFailed, publishOutbox, setAccountCooldown, up } from "@smip/db";
+import {
+  createDb,
+  finalizeRunIfDone,
+  withSystem,
+  loadRoutingSnapshot,
+  markAccountAttention,
+  markCapabilityFailed,
+  publishOutbox,
+  setAccountCooldown,
+  up,
+} from "@smip/db";
 import { astHash, compileQuery } from "@smip/query";
 import { BullMqQueue } from "@smip/queue";
 import { HealthCache, HealthMonitor, RedisReserver, Router, SnapshotStore } from "@smip/router";
@@ -106,7 +116,7 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
         // a: hanya "term" (tanpa OR) → dua sub-query; b: sintaks penuh → satu query eksak
         const features = k === "a" ? ["term", "phrase"] : ["term", "phrase", "or", "and", "not", "group"];
         await tx`insert into connector_capabilities (connector_id, operation, declared, status, verified_at, evidence_ref)
-          values (${C[k]}, 'search_keyword', ${tx.json({ query_features: features, max_query_length: 512 })}, 'verified', now(), 'test')`;
+          values (${C[k]}, 'search_keyword', ${tx.json({ query_features: features, max_query_length: 512, result_order: "desc" })}, 'verified', now(), 'test')`;
         const s = await seal(kms, credentialAad(credId, null), { api_key: `rahasia-${k}` });
         await tx`insert into credentials (id, kind, ciphertext, iv, wrapped_dek, kek_id, aad, fingerprint)
           values (${credId}, 'api_key', ${Buffer.from(s.ciphertext)}, ${Buffer.from(s.iv)}, ${Buffer.from(s.wrapped_dek)}, ${s.kek_id}, ${s.aad}, '\\x00')`;
@@ -304,5 +314,40 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
     const [r] = await sql`select routing from crawl_runs where id = ${run.id}`;
     expect(r!.routing.resumes).toBe(2);
     await sql`update crawl_runs set status = 'succeeded' where id = ${run.id}`;
+  });
+
+  test("P-18: halaman 1–2 sukses, halaman 3 gagal & semua connector habis → partial; watermark diam; celah [since, min(published)] diambil run berikutnya", async () => {
+    await sql`update crawl_plans set high_watermark = null, gap_windows = '[]'`;
+    const newest = items(60, 2); // halaman 1 (terbaru)
+    const older = items(62, 2).map((it, k) => ({ ...it, published_at: new Date(Date.now() - (10 + k) * 60_000).toISOString() })); // halaman 2 (lebih lama)
+    fakes.a.script([
+      { respond: { items: newest, nextCursor: "p2" } },
+      { respond: { items: older, nextCursor: "p3" } },
+      { fail: { code: "TIMEOUT" } }, // halaman 3 gagal
+    ]);
+    fakes.b.script([{ fail: { code: "TIMEOUT" } }]);
+    await pump(async () => (await runRow()).status === "processing" && pipelineJobs.length >= 1);
+    const run = await runRow();
+    expect(run).toMatchObject({ status: "processing", items_fetched: 4, error_code: "NO_CANDIDATE" });
+    // hilir (pipeline/sink) selesai → penutupan run
+    const minP = older.map((i) => i.published_at).sort()[0]!;
+    await sql`update crawl_runs set pending_batches = 0, min_published_at = ${minP}, max_published_at = ${newest[0]!.published_at} where id = ${run.id}`;
+    expect((await withSystem(deps.db, (tx) => finalizeRunIfDone(tx, run.id)))?.outcome).toBe("partial");
+    const [r] = await sql`select status, window_from from crawl_runs where id = ${run.id}`;
+    const [p] = await sql`select high_watermark, gap_windows, inflight_run_id, consecutive_failures from crawl_plans`;
+    expect(r!.status).toBe("partial");
+    expect(p).toMatchObject({ high_watermark: null, inflight_run_id: null });
+    expect(p!.gap_windows).toHaveLength(1);
+    expect([p!.gap_windows[0].since, p!.gap_windows[0].until]).toEqual([r!.window_from.toISOString(), new Date(minP).toISOString()]);
+    // run berikutnya: incremental + backfill untuk celah (window persis celah → tidak ada post hilang)
+    await sql`update crawl_plans set next_run_at = now() - interval '1 second'`;
+    expect((await schedulerTick(deps.db)).gapRuns).toBe(1);
+    const [gapRun] = await sql`select window_from, window_to from crawl_runs where kind = 'backfill' order by scheduled_for desc limit 1`;
+    expect([gapRun!.window_from.toISOString(), gapRun!.window_to.toISOString()]).toEqual([
+      r!.window_from.toISOString(),
+      new Date(minP).toISOString(),
+    ]);
+    await sql`update crawl_runs set status = 'succeeded' where status in ('queued', 'dispatching', 'fetching')`;
+    await sql`update crawl_plans set gap_windows = '[]', inflight_run_id = null`;
   });
 });

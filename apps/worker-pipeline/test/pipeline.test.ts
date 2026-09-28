@@ -53,6 +53,18 @@ describe.skipIf(!infraUp)("I-14 worker-pipeline (integrasi)", () => {
       values (${run}, ${T}, ${plan}, now(), 'incremental', 'processing', now() - interval '2 hours', now(), 1, ${o.errorCode ?? null})`;
     return { topic, query, plan, run };
   }
+  /** Run seolah dikerjakan connector dengan urutan hasil tertentu (declared.result_order) — menentukan sisi celah. */
+  async function withConnector(runId: string, order: "desc" | "asc" | null) {
+    const prov = Bun.randomUUIDv7();
+    const conn = Bun.randomUUIDv7();
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`insert into providers (id, key, name, kind, risk_level) values (${prov}, ${`p${prov.slice(-8)}`}, 'p', 'third_party', 'low')`;
+      await tx`insert into connectors (id, key, provider_id, platform_code, runtime, version) values (${conn}, ${`p${prov.slice(-8)}.x`}, ${prov}, 'x', 'bun', '1')`;
+      await tx`insert into connector_capabilities (connector_id, operation, declared) values (${conn}, 'search_keyword', ${tx.json({ result_order: order } as never)})`;
+      await tx`update crawl_runs set routing = ${tx.json({ connector_id: conn } as never)} where id = ${runId}`;
+    });
+  }
   async function send(ids: { topic: string; query: string; run: string }, items: CanonicalItem[], attempt = 1) {
     const ref = await blobs.putJsonl(`batches/${ids.run}/${attempt}.jsonl.gz`, items);
     return handlePipelineItems(deps, {
@@ -231,6 +243,7 @@ describe.skipIf(!infraUp)("I-14 worker-pipeline (integrasi)", () => {
   test("P-18 (bagian pipeline): run partial → celah [window_from, min(published_at)], watermark TIDAK maju", async () => {
     const hw = new Date("2026-09-01T00:00:00Z");
     const ids = await setup({ query_text: "zzzunik" }, { errorCode: "UPSTREAM_5XX", hw });
+    await withConnector(ids.run, "desc"); // hasil terbaru dulu → yang hilang bagian LAMA
     const r = await send(ids, [post(32, "sembako murah"), post(31, "harga sembako naik")]); // konten lama & tak cocok → tanpa batch anak
     expect(r.finalized).toBe("partial");
     const [run] = await sql`select status, window_from from crawl_runs where id = ${ids.run}`;
@@ -239,5 +252,21 @@ describe.skipIf(!infraUp)("I-14 worker-pipeline (integrasi)", () => {
     expect(p!.high_watermark.getTime()).toBe(hw.getTime());
     expect(p!.gap_windows).toHaveLength(1);
     expect(p!.gap_windows[0]).toMatchObject({ since: run!.window_from.toISOString(), until: post(31, "").published_at });
+  });
+
+  test("I-24: sisi celah mengikuti urutan hasil connector — asc → [max(published), until]; tak terurut → seluruh window", async () => {
+    for (const [order, expectSide] of [
+      ["asc", "atas"],
+      [null, "penuh"],
+    ] as const) {
+      const ids = await setup({ query_text: "zzzunik" }, { errorCode: "TIMEOUT" });
+      await withConnector(ids.run, order);
+      await send(ids, [post(32, "a"), post(31, "b")]); // konten lama       await send(ids, [post(33, "a"), post(31, "b")]); tak cocok → tanpa batch anak → langsung ditutup
+      const [run] = await sql`select window_from, window_to from crawl_runs where id = ${ids.run}`;
+      const [p] = await sql`select gap_windows from crawl_plans where id = ${ids.plan}`;
+      const g = p!.gap_windows[0];
+      if (expectSide === "atas") expect([g.since, g.until]).toEqual([post(32, "").published_at, run!.window_to.toISOString()]);
+      else expect([g.since, g.until]).toEqual([run!.window_from.toISOString(), run!.window_to.toISOString()]);
+    }
   });
 });

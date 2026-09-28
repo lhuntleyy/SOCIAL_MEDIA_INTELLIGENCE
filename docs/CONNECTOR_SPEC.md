@@ -382,6 +382,8 @@ celah = [window.since, min(published_at item diterima)]      ← BUKAN since = m
 ```
 `since = max(published_at)` (rumus v0.3) melompati celah → data hilang permanen tanpa error. Untuk provider yang mengurutkan terlama→terbaru (dideklarasikan di manifest `resultOrder: "asc"`), celah = `[max(published_at diterima), window.until]`.
 
+**Implementasi (I-24):** sisi celah mengikuti `declared.result_order` connector attempt terakhir — `desc` → `[window_from, min(published_at) diterima]`, `asc` → `[max(published_at) diterima, window_to]`, **tak terurut / tak diketahui → seluruh window** (tidak bisa tahu bagian mana yang hilang). Maks 20 celah per plan (tertua dibuang). Bila semua connector habis setelah sebagian item diterima, run menjadi **partial** (bukan failed). Celah > `SCHEDULER_MAX_GAP_AGE_SEC` (default 24 jam) tanpa run aktif dibuang + `smip_crawl_gap_abandoned_total{platform}` + log warn.
+
 **High-watermark hanya maju pada run `succeeded`.** Run `partial` menyimpan celah ke `crawl_plans.gap_windows` (DATA_MODEL §3.7); run berikutnya mengambil celah dulu (prioritas lebih rendah dari incremental baru) sampai kosong atau melewati `max_gap_age` (default 24 jam → dicatat `smip_crawl_gap_abandoned_total`, bukan diam-diam).
 
 ---
