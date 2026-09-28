@@ -1,0 +1,48 @@
+# F-12 CI (DEPLOYMENT §7, TESTING §1): lint → typecheck → dependency rule → kontrak TS↔Python → unit + contract + integrasi (compose).
+# CI TIDAK PERNAH memanggil provider eksternal (hanya connector `fake` + fixture). Build image + SBOM menyusul saat Dockerfile ada.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Codegen pydantic (versi dipin = lokal)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --quiet datamodel-code-generator==0.83.0 pydantic==2.13.5
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Lint + typecheck + dependency rule + kontrak sinkron
+        run: bun run check
+
+      - name: Infra dev (Docker Compose) + migrasi + seed
+        run: bun run dev:up
+
+      - name: Test (unit + contract + integrasi)
+        run: bun test
+
+      - name: Log compose saat gagal
+        if: failure()
+        run: docker compose -f infra/compose/docker-compose.yml logs --tail=200
