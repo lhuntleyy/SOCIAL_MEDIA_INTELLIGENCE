@@ -220,76 +220,83 @@
       }
     },
     "run_update": {
-      "type": "object",
-      "properties": {
-        "items_fetched": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "items_matched": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "items_new": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "new_high_watermark": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "items_fetched": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "run_outcome": {
-          "type": "string",
-          "enum": [
-            "succeeded",
-            "partial",
-            "failed"
-          ]
-        },
-        "gap_window": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "since": {
+            "items_matched": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "items_new": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "new_high_watermark": {
+              "anyOf": [
+                {
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
                 },
-                "until": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                {
+                  "type": "null"
                 }
-              },
-              "additionalProperties": false
+              ]
             },
-            {
-              "type": "null"
+            "run_outcome": {
+              "type": "string",
+              "enum": [
+                "succeeded",
+                "partial",
+                "failed"
+              ]
+            },
+            "gap_window": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "since": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "until": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
-          ]
+          },
+          "required": [
+            "items_fetched",
+            "items_matched",
+            "items_new",
+            "new_high_watermark",
+            "run_outcome",
+            "gap_window"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
         }
-      },
-      "required": [
-        "items_fetched",
-        "items_matched",
-        "items_new",
-        "new_high_watermark",
-        "run_outcome",
-        "gap_window"
-      ],
-      "additionalProperties": false
+      ]
     }
   },
   "required": [

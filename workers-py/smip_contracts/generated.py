@@ -680,4 +680,4 @@ class SinkAnalyticsPayload(BaseModel):
     topic_id: TopicId | None
     posts_ref: Annotated[str, Field(min_length=1)]
     matches: list[Match1]
-    run_update: RunUpdate
+    run_update: RunUpdate | None

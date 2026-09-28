@@ -25,7 +25,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Anti-goals di PRD (realtime <1m, prediksi viral, skor per-individu, platform sprawl).
   - AGENTS.md: "kesalahan yang mudah terjadi"; UI_SPEC: tabel cakupan screenshot (QA); media hotlink-vs-simpan.
 
-- **Sesi 5 (2026-09-28) — Fase 2: I-01..I-13, F-12:**
+- **Sesi 5 (2026-09-28) — Fase 2: I-01..I-14, F-12:**
   - `packages/query` (parser/AST/matcher/compiler set penutup), `packages/connector-sdk` (+ SSRF guard, contract suite), connector `fake`.
   - Router: tipe `RoutingSnapshot` di core, `loadRoutingSnapshot` (@smip/db), `SnapshotStore` + outbox (`writeOutbox`/`publishOutbox`, `cfg:version`) — R-12; `select()` dengan eliminasi berjejak, weighted-by-health, standby, round_robin/cost_aware, BYO per tenant — R-01..R-05, R-13, R-15.
   - Rate limit + quota (I-08/I-09): reservasi atomik satu skrip Lua (quota → Retry-After → token bucket → semaphore), commit/release idempoten, sweeper, threshold 50/80/95%, flush/seed `quota_usage` — R-10, R-11. Migrasi 0010: `period` di PK `quota_usage`. Snapshot router memuat `rate_limit_policies` & `quota_policies`; `cost_aware` memperhitungkan `fixed_cost_per_run`.
@@ -33,6 +33,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Topic API (I-03): CRUD + validate/preview/cost-estimate + SyncCrawlPlans, scope API key ditegakkan; migrasi 0011 (`topics.version`), 0012 (grant INSERT outbox ke smip_app); helper `textArray`/`inList`.
   - Scheduler (I-12): `apps/scheduler` (leader lock, tick SKIP LOCKED + coalescing + backpressure + jitter, reaper, relay outbox → BullMQ), API backfill & riwayat run, kontrak `CrawlDispatchPayload`.
   - Worker (I-13): `apps/worker-dispatch`, `apps/worker-fetch-bun`, `@smip/storage`, `bun run dev:workers`, migrasi 0013 (`crawl_runs.routing`), kontrak `queries[]`/`PipelineItemsPayload`; seed membuat akun fake + topik demo. CI GitHub Actions (F-12) hijau.
+  - Pipeline (I-14): `apps/worker-pipeline`, `@smip/geo` + ADR-010 (gazetteer provinsi, UNVERIFIED), migrasi 0014 (counter penutupan run) & 0015 (38 provinsi), `finalizeRunIfDone`/`settleGap`, kontrak `PostRecord`.
+  - Fix: pembanding `scheduled_for` lewat `Date` JS kehilangan mikrodetik (UPDATE meleset diam-diam).
   - Fix: `BullMqQueue` tanpa opsi worker gagal start (stalledInterval undefined).
   - Fix: payload `outbox` tersimpan sebagai string JSON (encode ganda, sama dengan F14) — ditangkap tes I-06.
 - **Sesi 4 (2026-09-28) — Fase 1 hampir selesai (F-04, F-05, F-09, F-10, F-11):**

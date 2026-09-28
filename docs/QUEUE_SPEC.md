@@ -230,7 +230,7 @@ stateDiagram-v2
   skipped --> [*]
 ```
 
-`new_high_watermark` hanya diterapkan bila `run_outcome = succeeded`; bila `partial`, sink menambahkan `gap_window` ke `crawl_plans.gap_windows` dan watermark tidak bergerak (CONNECTOR_SPEC §7).
+**Penutupan run (I-14, migrasi 0014) — digerakkan counter DB, bukan `run_update` di payload:** `crawl_runs.pending_batches` = pesan hilir yang belum selesai. worker-dispatch **+1** per `pipeline.items`; worker-pipeline mengganti dirinya dengan N batch anak (`ai.enrich` + `sink.analytics` tak-match) → **−1+N**; worker-sink **−1** per batch selesai. Siapa pun yang terakhir mengubah counter (di bawah row lock) memanggil `finalizeRunIfDone`: bila `status='processing'` dan `pending_batches=0` → `succeeded` (tanpa `error_code`; `high_watermark` maju ke `max_published_at`, hanya run incremental) atau `partial` (ada `error_code`; celah `[window_from, min_published_at]` masuk `crawl_plans.gap_windows`, watermark **tidak** bergerak — CONNECTOR_SPEC §7). Run celah (backfill) yang sukses melepas entri celahnya; yang gagal membebaskan `run_id` celah untuk dicoba lagi. `sink.analytics.run_update` kini opsional/informatif.
 
 Update status dilakukan dengan compare-and-set (`UPDATE … WHERE id=$1 AND status = ANY($expected)`), sehingga pesan duplikat tidak memundurkan status.
 

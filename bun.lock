@@ -47,6 +47,10 @@
       "name": "@smip/worker-fetch-bun",
       "version": "0.0.0",
     },
+    "apps/worker-pipeline": {
+      "name": "@smip/worker-pipeline",
+      "version": "0.0.0",
+    },
     "packages/analytics": {
       "name": "@smip/analytics",
       "version": "0.0.0",
@@ -77,6 +81,10 @@
     },
     "packages/db": {
       "name": "@smip/db",
+      "version": "0.0.0",
+    },
+    "packages/geo": {
+      "name": "@smip/geo",
       "version": "0.0.0",
     },
     "packages/observability": {
@@ -290,6 +298,8 @@
 
     "@smip/db": ["@smip/db@workspace:packages/db"],
 
+    "@smip/geo": ["@smip/geo@workspace:packages/geo"],
+
     "@smip/observability": ["@smip/observability@workspace:packages/observability"],
 
     "@smip/query": ["@smip/query@workspace:packages/query"],
@@ -305,6 +315,8 @@
     "@smip/worker-dispatch": ["@smip/worker-dispatch@workspace:apps/worker-dispatch"],
 
     "@smip/worker-fetch-bun": ["@smip/worker-fetch-bun@workspace:apps/worker-fetch-bun"],
+
+    "@smip/worker-pipeline": ["@smip/worker-pipeline@workspace:apps/worker-pipeline"],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 

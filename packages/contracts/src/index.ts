@@ -237,6 +237,14 @@ export type PipelineItemsPayload = z.infer<typeof PipelineItemsPayload>;
 export type FetchRequestPayload = z.infer<typeof FetchRequestPayload>;
 export type FetchResultPayload = z.infer<typeof FetchResultPayload>;
 
+/** Baris file `posts_ref` (pipeline → sink, TS saja): item canonical + turunan pipeline. */
+export const PostRecord = CanonicalItem.extend({
+  geo_region_code: z.string().nullable(),
+  geo_confidence: z.number().min(0).max(1).nullable(),
+  matched: z.boolean(),
+});
+export type PostRecord = z.infer<typeof PostRecord>;
+
 export const AiEnrichPayload = z.strictObject({
   batch_id: Uuid,
   crawl_run_id: Uuid,
@@ -293,14 +301,17 @@ export const SinkAnalyticsPayload = z.strictObject({
   topic_id: Uuid.nullable(),
   posts_ref: z.string().min(1),
   matches: z.array(SinkMatch),
-  run_update: z.strictObject({
-    items_fetched: Count,
-    items_matched: Count,
-    items_new: Count,
-    new_high_watermark: UtcDateTime.nullable(),
-    run_outcome: z.enum(["succeeded", "partial", "failed"]),
-    gap_window: Window.nullable(),
-  }),
+  /** Informatif saja: penutupan run & watermark digerakkan counter DB (crawl_runs.pending_batches, migrasi 0014). */
+  run_update: z
+    .strictObject({
+      items_fetched: Count,
+      items_matched: Count,
+      items_new: Count,
+      new_high_watermark: UtcDateTime.nullable(),
+      run_outcome: z.enum(["succeeded", "partial", "failed"]),
+      gap_window: Window.nullable(),
+    })
+    .nullable(),
 });
 
 /** Semua skema yang diekspor ke JSON Schema + pydantic. Nama = nama file & kelas Python. */

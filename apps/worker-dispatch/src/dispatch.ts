@@ -6,7 +6,7 @@
 // pesan duplikat/terlambat diabaikan oleh compare-and-set status + nomor attempt.
 import type { AttemptOutcome, FailoverDecision, RouteInput } from "@smip/core";
 import type { CrawlDispatchPayload, FetchRequestPayload, FetchResultPayload, PipelineItemsPayload, QueryFeature } from "@smip/contracts";
-import { type Db, jsonbValue, type Tx, withSystem, writeJobOutbox } from "@smip/db";
+import { type Db, finalizeRunIfDone, jsonbValue, settleGap, type Tx, withSystem, writeJobOutbox } from "@smip/db";
 import type { Logger } from "@smip/observability";
 import { compileGeneric, coverHashtags, type Node } from "@smip/query";
 import { failureBackoffSec, type Router, shouldAlertConsecutive, type Snapshot } from "@smip/router";
@@ -36,6 +36,8 @@ export interface DispatchDeps {
 type RunRow = {
   id: string;
   scheduled_for: Date;
+  /** nilai persis (mikrodetik) untuk WHERE — Date JS hanya milidetik */
+  sf: string;
   status: string;
   attempts: number;
   routing: Partial<Routing>;
@@ -91,7 +93,7 @@ export function astFeatures(n: Node, depth = 0, out = new Set<QueryFeature>()): 
 
 async function loadRun(tx: Tx, where: ReturnType<typeof sql>): Promise<RunRow | undefined> {
   const [r] =
-    (await tx.execute(sql`select id, scheduled_for, status, attempts, routing, tenant_id, crawl_plan_id, kind, window_from, window_to, items_fetched
+    (await tx.execute(sql`select id, scheduled_for, scheduled_for::text as sf, status, attempts, routing, tenant_id, crawl_plan_id, kind, window_from, window_to, items_fetched
     from crawl_runs where ${where} for update`)) as unknown as RunRow[];
   return r;
 }
@@ -113,7 +115,7 @@ async function finishRun(
 ) {
   await tx.execute(sql`update crawl_runs set status = ${status}::e_run_status, finished_at = ${iso(now)}::timestamptz,
     error_code = ${error?.code ?? null}, error_message = ${error?.message ?? null}
-    where id = ${run.id} and scheduled_for = ${iso(run.scheduled_for)}::timestamptz`);
+    where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
 }
 
 /** Plan dibebaskan; gagal → consecutive_failures++ dan backoff eksponensial next_run_at (R-08, cap 4× interval). */
@@ -126,6 +128,7 @@ async function releasePlan(
   now: Date,
 ) {
   if (!run.crawl_plan_id) return;
+  if (run.kind === "backfill") await settleGap(tx, run.crawl_plan_id, run.id, false);
   if (outcome === "failure") {
     const [p] = (await tx.execute(sql`update crawl_plans set consecutive_failures = consecutive_failures + 1, updated_at = now(),
         inflight_run_id = case when inflight_run_id = ${run.id} then null else inflight_run_id end
@@ -158,7 +161,7 @@ async function redispatch(
   recompile = false,
 ) {
   await tx.execute(sql`update crawl_runs set status = 'queued', routing = ${jsonbValue(routing)}
-    where id = ${run.id} and scheduled_for = ${iso(run.scheduled_for)}::timestamptz`);
+    where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
   const payload: CrawlDispatchPayload = {
     crawl_run_id: run.id,
     scheduled_for: iso(run.scheduled_for),
@@ -208,7 +211,8 @@ export async function handleDispatch(
   const now = d.now?.() ?? new Date();
   const f = { pageLimit: 3, maxItems: 300, timeoutMs: 120_000, ...d.fetch };
   return withSystem(d.db, async (tx) => {
-    const run = await loadRun(tx, sql`id = ${m.crawl_run_id} and scheduled_for = ${m.scheduled_for}::timestamptz`);
+    // cari per id (index PK tiap partisi); scheduled_for di payload bisa kehilangan presisi mikrodetik
+    const run = await loadRun(tx, sql`id = ${m.crawl_run_id}`);
     if (run?.status !== "queued" || run.attempts >= m.attempt_no) return "ignored";
     const plan = run.crawl_plan_id ? await loadPlan(tx, run.crawl_plan_id) : undefined;
     if (!plan || plan.plan_status === "disabled" || plan.topic_status !== "active" || !plan.query_enabled) {
@@ -216,9 +220,7 @@ export async function handleDispatch(
       await releasePlan(tx, d, run, "neutral", plan?.interval_sec ?? m.interval_sec, now);
       return "cancelled";
     }
-    await tx.execute(
-      sql`update crawl_runs set status = 'dispatching' where id = ${run.id} and scheduled_for = ${iso(run.scheduled_for)}::timestamptz`,
-    );
+    await tx.execute(sql`update crawl_runs set status = 'dispatching' where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
     const routing = routingOf(run.routing);
     routing.exclude_connector_ids = [...new Set([...routing.exclude_connector_ids, ...m.exclude_connector_ids])];
     routing.exclude_account_ids = [...new Set([...routing.exclude_account_ids, ...m.exclude_account_ids])];
@@ -280,7 +282,7 @@ export async function handleDispatch(
       reservation_id: decision.reservationId,
     });
     await tx.execute(sql`update crawl_runs set status = 'fetching', attempts = ${m.attempt_no}, started_at = coalesce(started_at, ${iso(now)}::timestamptz),
-      routing = ${jsonbValue(routing)} where id = ${run.id} and scheduled_for = ${iso(run.scheduled_for)}::timestamptz`);
+      routing = ${jsonbValue(routing)} where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
     const payload: FetchRequestPayload = {
       crawl_run_id: run.id,
       attempt_no: m.attempt_no,
@@ -352,7 +354,7 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
 
     await tx.execute(sql`insert into provider_attempts (id, crawl_run_id, crawl_run_scheduled_for, tenant_id, connector_id, provider_account_id, attempt_no,
         started_at, duration_ms, outcome, error_code, http_status, items, usage)
-      values (${Bun.randomUUIDv7()}, ${run.id}, ${iso(run.scheduled_for)}::timestamptz, ${run.tenant_id}, ${m.connector_id}, ${m.provider_account_id}, ${m.attempt_no},
+      values (${Bun.randomUUIDv7()}, ${run.id}, ${run.sf}::timestamptz, ${run.tenant_id}, ${m.connector_id}, ${m.provider_account_id}, ${m.attempt_no},
         ${iso(new Date(now.getTime() - m.duration_ms))}::timestamptz, ${m.duration_ms}, ${OUTCOME[decision.action]}::e_attempt_outcome,
         ${m.error?.code ?? null}, ${m.error?.http_status ?? null}, ${m.items_count}, ${jsonbValue(m.usage)})`);
 
@@ -376,18 +378,20 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
         payload,
       });
     }
-    await tx.execute(sql`update crawl_runs set items_fetched = ${itemsTotal}, routing = ${jsonbValue(routing)}
+    const queued = m.items_count > 0 && m.items_ref ? 1 : 0;
+    await tx.execute(sql`update crawl_runs set items_fetched = ${itemsTotal}, routing = ${jsonbValue(routing)}, pending_batches = pending_batches + ${queued}
       ${decision.action === "done" ? sql`, final_connector_id = ${m.connector_id}` : sql``}
-      where id = ${run.id} and scheduled_for = ${iso(run.scheduled_for)}::timestamptz`);
+      where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
 
     const next = m.attempt_no + 1;
     switch (decision.action) {
       case "done":
         if (itemsTotal > 0) {
-          // sink (I-15) menutup run: succeeded + high_watermark, lalu membebaskan plan
+          // ditutup oleh yang terakhir menurunkan pending_batches (pipeline/sink) — atau di sini bila hilir sudah selesai
           await tx.execute(
-            sql`update crawl_runs set status = 'processing' where id = ${run.id} and scheduled_for = ${iso(run.scheduled_for)}::timestamptz`,
+            sql`update crawl_runs set status = 'processing' where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`,
           );
+          await finalizeRunIfDone(tx, run.id, now);
         } else {
           await finishRun(tx, run, "succeeded", now);
           await releasePlan(tx, d, run, "success", plan.interval_sec, now);
@@ -411,9 +415,10 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
       case "fail": {
         const err = { code: m.error?.code ?? "FAILED", message: decision.reason.slice(0, 500) };
         if (itemsTotal > 0) {
-          // item yang sudah diterima tetap diproses; sink menutup run sebagai partial (I-15/I-24)
+          // item yang sudah diterima tetap diproses; run ditutup sebagai partial saat hilir selesai
           await tx.execute(sql`update crawl_runs set status = 'processing', error_code = ${err.code}, error_message = ${err.message}
-            where id = ${run.id} and scheduled_for = ${iso(run.scheduled_for)}::timestamptz`);
+            where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
+          await finalizeRunIfDone(tx, run.id, now);
         } else {
           await finishRun(tx, run, "failed", now, err);
           await releasePlan(tx, d, run, "failure", plan.interval_sec, now);

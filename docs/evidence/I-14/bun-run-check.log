@@ -1,0 +1,34 @@
+# I-14 — 2026-09-28T10:23:07Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun run check
+$ bun run lint && bun run typecheck && bun run deps && bun run gen:contracts --check
+$ biome lint .
+packages/db/src/runs.ts:100:7 lint/complexity/useOptionalChain  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Change to an optional chain.
+  
+     98 │       max_published_at: Date | null;
+     99 │     }[];
+  > 100 │   if (!r || r.status !== "processing" || r.pending_batches > 0) return null;
+        │       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    101 │   const outcome = r.error_code ? "partial" : "succeeded";
+    102 │   // scheduled_for via teks: Date JS hanya milidetik, timestamptz Postgres mikrodetik → perbandingan Date bisa meleset
+  
+  i Unsafe fix: Change to an optional chain.
+  
+     98  98 │         max_published_at: Date | null;
+     99  99 │       }[];
+    100     │ - ··if·(!r·||·r.status·!==·"processing"·||·r.pending_batches·>·0)·return·null;
+        100 │ + ··if·(r?.status·!==·"processing"·||·r.pending_batches·>·0)·return·null;
+    101 101 │     const outcome = r.error_code ? "partial" : "succeeded";
+    102 102 │     // scheduled_for via teks: Date JS hanya milidetik, timestamptz Postgres mikrodetik → perbandingan Date bisa meleset
+  
+
+Checked 160 files in 654ms. No fixes applied.
+Found 1 warning.
+$ tsc -p .
+$ bun run scripts/check-deps.ts
+dependency-rule: OK
+$ bun run scripts/gen-contracts.ts --check
+kontrak sinkron
+# exit 0

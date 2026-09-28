@@ -231,6 +231,10 @@ UNIQUE(topic_query_id, platform_code, operation). Index: `(status, next_run_at) 
 
 Index: `(crawl_plan_id, scheduled_for DESC)`, `(status) WHERE status IN ('queued','dispatching','fetching','processing')`.
 
+> **Kolom tambahan (migrasi 0013–0014, I-13/I-14).** `routing jsonb` — state routing per run (policy, connector/akun terpilih, reservasi, exclude hasil failover, retry, recompile); `pending_batches int` — pesan hilir yang belum selesai; `min_published_at`/`max_published_at` — rentang item diterima (celah run partial & kandidat high-watermark). Run ditutup `succeeded`/`partial` oleh `finalizeRunIfDone` saat `status='processing'` **dan** `pending_batches = 0` (lihat QUEUE_SPEC §5).
+>
+> **Presisi waktu.** `timestamptz` bermikrodetik, `Date` JS bermilidetik → pembanding `scheduled_for` (kunci partisi) dikirim balik sebagai teks asli (`scheduled_for::text`), bukan dari `Date` (bug ditemukan I-14).
+
 > **FK ke tabel partisi.** PK `crawl_runs` = `(id, scheduled_for)`. Postgres **mewajibkan** kolom partisi (`scheduled_for`) ikut di setiap FK yang menunjuk tabel terpartisi. Maka tabel anak (`provider_attempts`) menyimpan **`crawl_run_id` + `crawl_run_scheduled_for`** dan FK-nya `(crawl_run_id, crawl_run_scheduled_for) → crawl_runs(id, scheduled_for)`. Alternatif: tanpa FK deklaratif, integritas dijaga di app + `ON DELETE` manual saat drop partition. Pilih salah satu secara konsisten (lihat ADR-002).
 >
 > **Reaper `inflight_run_id`.** Bila worker mati setelah scheduler set `crawl_plans.inflight_run_id` tapi sebelum run final, plan akan ter-*coalesce* selamanya. Job `crawl.reaper` (worker-ops, tiap 60 s) mencari `crawl_runs` yang masih di status non-final melewati `scheduled_for + deadline_grace` → set `status='failed'`, `error_code='STUCK_RUN'`, dan **reset `crawl_plans.inflight_run_id = NULL`** dengan compare-and-set. (Lihat QUEUE_SPEC §6 & RUNBOOK.)
