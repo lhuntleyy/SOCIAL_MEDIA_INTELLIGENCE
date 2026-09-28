@@ -104,7 +104,10 @@ describe.skipIf(!up)("admin API (integrasi)", () => {
     const k = (await j<{ id: string; secret: string; prefix: string }>(c)).data;
     expect(k.secret).toMatch(/^smip_[0-9A-Za-z]{8}_[A-Za-z0-9_-]{43}$/);
     const list = JSON.stringify(await j(await h.call("GET", "/api-keys", { token: tok.adminA })));
-    expect(list).not.toContain(k.secret.split("_")[2]!);
+    // bagian rahasia = setelah "smip_<prefix>_"; base64url bisa memuat "_" sehingga split("_") tidak aman (flaky CI 2026-09-28)
+    const secretPart = k.secret.slice(`smip_${k.prefix}_`.length);
+    expect(secretPart).toHaveLength(43);
+    expect(list).not.toContain(secretPart);
     expect(list).not.toContain("key_hash");
     const ping = await h.call("GET", "/ping", { headers: { "x-api-key": k.secret } });
     expect(ping.status).toBe(200);
