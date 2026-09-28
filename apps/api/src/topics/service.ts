@@ -3,7 +3,19 @@
 // dengan filter tenant eksplisit.
 import type { TenantId } from "@smip/core";
 import type { QueryFeature } from "@smip/contracts";
-import { auditLogs, type Db, inList, textArray, type Tx, withSystem, withTenant, writeOutbox } from "@smip/db";
+import {
+  auditLogs,
+  BACKFILL_PRIORITY,
+  createCrawlRun,
+  type Db,
+  inList,
+  type PlanForRun,
+  textArray,
+  type Tx,
+  withSystem,
+  withTenant,
+  writeOutbox,
+} from "@smip/db";
 import {
   astHash,
   type CompiledQuery,
@@ -67,6 +79,8 @@ export type Previewer = (q: { platforms: string[]; needles: string[]; hashtags: 
 type Row = Record<string, unknown>;
 const rows = async <T = Row>(tx: Tx, q: ReturnType<typeof sql>) => (await tx.execute(q)) as unknown as T[];
 const PREVIEW_DAYS = 7;
+/** Batas rentang backfill manual per permintaan (biaya; COST_MODEL §8). */
+export const MAX_BACKFILL_DAYS = 31;
 
 function pgCode(e: unknown): string | undefined {
   let cur: unknown = e;
@@ -692,6 +706,100 @@ export class TopicService {
       await writeOutbox(tx, { aggregate: "topic", aggregateId: id, eventType: `topic.${status}` });
       await this.audit(tx, a, `topic.${status === "active" ? "resume" : status === "paused" ? "pause" : "archive"}`, id);
       return status === "archived" ? { id, status } : this.load(tx, id);
+    });
+  }
+
+  // ---------- backfill & riwayat run (API_SPEC §4) ----------
+  /**
+   * Backfill manual (FR-T06): satu run `backfill` per plan aktif per hari dalam [from, to] — prioritas queue terendah.
+   * Kepemilikan dicek dengan filter tenant eksplisit (insert crawl_runs butuh role system).
+   */
+  async backfill(a: Actor, id: string, b: { from: string; to: string; platforms?: string[] }) {
+    const from = new Date(b.from);
+    const to = new Date(b.to);
+    const now = this.opts.now?.() ?? new Date();
+    const DAY = 86_400_000;
+    if (!(from < to))
+      throw new ApiError("VALIDATION_FAILED", "`from` harus sebelum `to`", [{ path: "from", issue: "rentang tidak valid" }]);
+    if (to.getTime() > now.getTime())
+      throw new ApiError("VALIDATION_FAILED", "`to` tidak boleh di masa depan", [{ path: "to", issue: "masa depan" }]);
+    if (to.getTime() - from.getTime() > MAX_BACKFILL_DAYS * DAY) {
+      throw new ApiError("VALIDATION_FAILED", `Rentang backfill maksimal ${MAX_BACKFILL_DAYS} hari`, [
+        { path: "to", issue: "terlalu panjang" },
+      ]);
+    }
+    const backfillId = Bun.randomUUIDv7();
+    const created = await withSystem(this.db, async (tx) => {
+      const [t] = await rows<{ status: string }>(
+        tx,
+        sql`select status from topics where id = ${id} and tenant_id = ${a.tenantId} and deleted_at is null`,
+      );
+      if (!t) throw new ApiError("NOT_FOUND", "Topik tidak ditemukan");
+      if (t.status !== "active") throw new ApiError("CONFLICT", "Topik tidak aktif");
+      const plans = await rows<PlanForRun>(
+        tx,
+        sql`select id, tenant_id, topic_id, topic_query_id, platform_code, operation, interval_sec from crawl_plans
+            where topic_id = ${id} and tenant_id = ${a.tenantId} and status in ('active', 'error_backoff')
+            ${b.platforms?.length ? sql`and platform_code in ${inList(b.platforms)}` : sql``}`,
+      );
+      if (!plans.length)
+        throw new ApiError("VALIDATION_FAILED", "Tidak ada crawl plan aktif untuk platform tersebut", [
+          { path: "platforms", issue: "kosong" },
+        ]);
+      let n = 0;
+      for (let since = from.getTime(); since < to.getTime(); since += DAY) {
+        const until = new Date(Math.min(since + DAY, to.getTime()));
+        for (const p of plans) {
+          await createCrawlRun(tx, p, "backfill", { since: new Date(since), until }, now, BACKFILL_PRIORITY);
+          n++;
+        }
+      }
+      await tx.insert(auditLogs).values({
+        id: Bun.randomUUIDv7(),
+        tenantId: a.tenantId,
+        actorType: "user",
+        actorId: a.userId,
+        action: "topic.backfill",
+        targetType: "topic",
+        targetId: id,
+        after: { backfill_id: backfillId, from: b.from, to: b.to, platforms: b.platforms ?? null, runs: n },
+        ip: a.ip ?? null,
+        userAgent: a.ua ?? null,
+        requestId: a.requestId ?? null,
+      });
+      return n;
+    });
+    return { backfill_id: backfillId, runs_created: created, status: "queued" };
+  }
+
+  async runs(a: Actor, id: string, q: { platform?: string; status?: string; limit: number }) {
+    return this.tenant(a, async (tx) => {
+      const [t] = await rows(tx, sql`select 1 from topics where id = ${id}`);
+      if (!t) throw new ApiError("NOT_FOUND", "Topik tidak ditemukan");
+      const runs = await rows<Row>(
+        tx,
+        sql`select r.id, p.platform_code as platform, p.operation, r.kind, r.status, r.scheduled_for, r.started_at, r.finished_at,
+                   r.items_fetched, r.items_matched, r.items_new, r.error_code
+            from crawl_runs r join crawl_plans p on p.id = r.crawl_plan_id
+            where p.topic_id = ${id}
+              ${q.platform ? sql`and p.platform_code = ${q.platform}` : sql``}
+              ${q.status ? sql`and r.status = ${q.status}::e_run_status` : sql``}
+              and r.scheduled_for > now() - interval '90 days'
+            order by r.scheduled_for desc, r.id desc limit ${q.limit}`,
+      );
+      const ids = runs.map((r) => String(r.id));
+      const attempts = ids.length
+        ? await rows<Row>(
+            tx,
+            sql`select a.crawl_run_id, a.attempt_no as no, c.key as connector, a.outcome, a.error_code, a.duration_ms
+                from provider_attempts a join connectors c on c.id = a.connector_id
+                where a.crawl_run_id in ${inList(ids)} order by a.attempt_no`,
+          )
+        : [];
+      return runs.map((r) => ({
+        ...r,
+        attempts: attempts.filter((x) => x.crawl_run_id === r.id).map(({ crawl_run_id: _c, ...x }) => x),
+      }));
     });
   }
 }

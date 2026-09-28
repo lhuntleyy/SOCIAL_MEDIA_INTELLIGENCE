@@ -1,4 +1,4 @@
-// API_SPEC §4 Topics. Backfill & /runs menyusul bersama scheduler/worker (I-12/I-13).
+// API_SPEC §4 Topics (+ backfill & riwayat run, I-12).
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
@@ -147,6 +147,31 @@ export function topicRoutes(svc: TopicService) {
   r.delete("/topics/:id", requireRole("admin"), write, async (c) => {
     await svc.setStatus(actor(c), id(c), "archived", ifMatch(c.req.header("if-match")));
     return c.body(null, 204);
+  });
+  r.post("/topics/:id/backfill", requireRole("admin"), write, async (c) => {
+    const b = await parseJson(
+      c,
+      z.strictObject({ from: z.iso.datetime(), to: z.iso.datetime(), platforms: z.array(PlatformCode).max(20).optional() }),
+    );
+    return c.json({ data: await svc.backfill(actor(c), id(c), b), meta: meta(c) }, 202);
+  });
+  r.get("/topics/:id/runs", requireRole("analyst"), read, async (c) => {
+    const q = z
+      .object({
+        platform: PlatformCode.optional(),
+        status: z
+          .enum(["queued", "dispatching", "fetching", "processing", "succeeded", "partial", "failed", "skipped", "cancelled"])
+          .optional(),
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+      })
+      .safeParse(c.req.query());
+    if (!q.success)
+      throw new ApiError(
+        "VALIDATION_FAILED",
+        "Parameter tidak valid",
+        q.error.issues.map((i) => ({ path: i.path.join("."), issue: i.message })),
+      );
+    return c.json({ data: await svc.runs(actor(c), id(c), q.data), meta: meta(c) });
   });
   r.post("/topics/:id/pause", requireRole("analyst"), write, async (c) =>
     c.json({ data: await svc.setStatus(actor(c), id(c), "paused", ifMatch(c.req.header("if-match"))), meta: meta(c) }),

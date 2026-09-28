@@ -299,4 +299,45 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     );
     expect((await h.call("GET", "/topics", { headers: { "x-api-key": k2.data.secret } })).status).toBe(403);
   });
+  test("backfill (admin): satu run per plan per hari, prioritas terendah via outbox; riwayat run + attempts; isolasi", async () => {
+    const list = await j<{ id: string; name: string }[]>(await h.call("GET", "/topics?search=Banjir", { token: tok.adminA }));
+    const banjir = list.data[0]!.id;
+    const to = new Date(Date.now() - 3_600_000);
+    const from = new Date(to.getTime() - 3 * 86_400_000 + 3_600_000); // 2 hari 23 jam → 3 potongan harian
+    const bf = { from: from.toISOString(), to: to.toISOString() };
+    expect((await h.call("POST", `/topics/${banjir}/backfill`, { token: tok.analystA, body: bf })).status).toBe(403);
+    const r = await h.call("POST", `/topics/${banjir}/backfill`, { token: tok.adminA, body: bf });
+    expect(r.status).toBe(202);
+    expect((await j<{ runs_created: number; status: string }>(r)).data).toMatchObject({ runs_created: 6, status: "queued" }); // 2 plan (x, instagram) × 3 hari
+    const jobs = await h.sql`select payload->>'priority' as pr, payload->'payload'->>'run_kind' as kind from outbox where aggregate = 'job'
+      and payload->'payload'->>'topic_id' = ${banjir}`;
+    expect(jobs.map((x) => [x.pr, x.kind])).toEqual(Array(6).fill(["10", "backfill"]));
+    const bad = [
+      { from: bf.from, to: new Date(Date.now() + 86_400_000).toISOString() },
+      { from: new Date(Date.now() - 40 * 86_400_000).toISOString(), to: bf.to },
+      { from: bf.to, to: bf.from },
+    ];
+    for (const b of bad) expect((await h.call("POST", `/topics/${banjir}/backfill`, { token: tok.adminA, body: b })).status).toBe(400);
+    expect((await h.call("POST", `/topics/${banjir}/backfill`, { token: tok.ownerB, body: bf })).status).toBe(404);
+
+    const [run] =
+      await h.sql`select r.id, r.scheduled_for from crawl_runs r join crawl_plans p on p.id = r.crawl_plan_id where p.topic_id = ${banjir} and p.platform_code = 'x' limit 1`;
+    await h.sql`insert into provider_attempts (id, crawl_run_id, crawl_run_scheduled_for, tenant_id, connector_id, attempt_no, started_at, duration_ms, outcome, error_code)
+      values (${Bun.randomUUIDv7()}, ${run!.id}, ${run!.scheduled_for}, ${A}, ${tid(41)}, 1, now(), 812, 'failover_error', 'RATE_LIMITED')`;
+    const runs = await j<
+      {
+        id: string;
+        platform: string;
+        kind: string;
+        status: string;
+        attempts: { no: number; connector: string; outcome: string; error_code: string; duration_ms: number }[];
+      }[]
+    >(await h.call("GET", `/topics/${banjir}/runs?platform=x`, { token: tok.analystA }));
+    expect(runs.data).toHaveLength(3);
+    expect(runs.data.every((x) => x.platform === "x" && x.kind === "backfill" && x.status === "queued")).toBe(true);
+    expect(runs.data.find((x) => x.id === run!.id)!.attempts).toEqual([
+      { no: 1, connector: "prov_x.x", outcome: "failover_error", error_code: "RATE_LIMITED", duration_ms: 812 },
+    ]);
+    expect((await h.call("GET", `/topics/${banjir}/runs`, { token: tok.ownerB })).status).toBe(404);
+  });
 });

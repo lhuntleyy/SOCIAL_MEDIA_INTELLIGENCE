@@ -147,6 +147,25 @@ export type Envelope<T = unknown> = Omit<z.infer<typeof Envelope>, "payload"> & 
 // ---------- Payload yang melintasi TS ↔ Python (QUEUE_SPEC §4) ----------
 const Window = z.strictObject({ since: UtcDateTime.optional(), until: UtcDateTime.optional() });
 
+/** QUEUE_SPEC §4.1 — scheduler/API (backfill)/dispatch (failover) → worker-dispatch. Hanya TS (tidak diekspor ke Python). */
+export const CrawlDispatchPayload = z.strictObject({
+  crawl_run_id: Uuid,
+  /** crawl_runs dipartisi per scheduled_for → wajib ikut agar update tidak memindai semua partisi. */
+  scheduled_for: UtcDateTime,
+  crawl_plan_id: Uuid,
+  topic_id: Uuid,
+  topic_query_id: Uuid,
+  platform: PlatformCode,
+  operation: Operation,
+  run_kind: RunKind,
+  window: Window,
+  interval_sec: z.number().int().positive(),
+  attempt_no: z.number().int().min(1),
+  exclude_connector_ids: z.array(Uuid),
+  exclude_account_ids: z.array(Uuid),
+});
+export type CrawlDispatchPayload = z.infer<typeof CrawlDispatchPayload>;
+
 export const FetchRequestPayload = z.strictObject({
   crawl_run_id: Uuid,
   attempt_no: z.number().int().min(1),

@@ -88,6 +88,12 @@ const api = z.object({
 
 const scheduler = z.object({
   SCHEDULER_TICK_MS: z.coerce.number().int().min(1000).default(15000),
+  /** Run non-final lebih tua dari ini → reaper menandai STUCK_RUN & membebaskan plan (QUEUE_SPEC §6). */
+  SCHEDULER_STUCK_RUN_GRACE_SEC: z.coerce.number().int().min(60).default(900),
+  /** Run pertama plan tanpa high_watermark: jendela mundur (detik). Kecil = hemat biaya provider. */
+  SCHEDULER_INITIAL_LOOKBACK_SEC: z.coerce.number().int().min(60).default(3600),
+  /** Backpressure: antrean fetch menunggu > ini → plan prioritas rendah ditunda. */
+  SCHEDULER_BACKPRESSURE_WAITING: z.coerce.number().int().min(1).default(5000),
 });
 
 const SHAPES: Record<ServiceName, z.ZodObject<z.ZodRawShape>[]> = {

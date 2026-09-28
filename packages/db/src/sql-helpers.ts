@@ -14,3 +14,8 @@ export function textArray(arr: readonly string[] | null | undefined): SQL {
 export function inList(arr: readonly string[]): SQL {
   return arr.length ? sql`${arr}` : sql`(null)`;
 }
+
+/** jsonb dari nilai apa pun (termasuk ARRAY — yang tak bisa dikirim mentah karena drizzle mengekspansi array). Cast via text → tidak ter-encode ganda. */
+export function jsonbValue(v: unknown): SQL {
+  return sql`(${JSON.stringify(v)}::text)::jsonb`;
+}

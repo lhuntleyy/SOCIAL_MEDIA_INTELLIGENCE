@@ -112,6 +112,11 @@ export class BullMqQueue implements JobQueue, QueueConsumer {
     return q;
   }
 
+  /** Jumlah job menunggu (waiting + prioritized) — sinyal backpressure scheduler (QUEUE_SPEC §6). */
+  async waitingCount(queue: QueueName): Promise<number> {
+    return this.queue(queue).getJobCountByTypes("waiting", "prioritized");
+  }
+
   async enqueue<T>(queue: QueueName, msg: Envelope<T>, opts: EnqueueOptions = {}): Promise<void> {
     await this.enqueueBulk(queue, [msg], opts);
   }

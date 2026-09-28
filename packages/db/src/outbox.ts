@@ -37,15 +37,52 @@ export interface PubSub {
   incr(key: string): Promise<number>;
 }
 
-/** Satu putaran publish (dipanggil loop worker-ops tiap ~1 s). Aman paralel (SKIP LOCKED). */
-export async function publishOutbox(db: Db, bus: PubSub, batch = 100): Promise<number> {
+/** Job yang harus di-enqueue ATOMIK bersama perubahan DB (mis. crawl_runs baru → crawl.dispatch; QUEUE_SPEC §6). */
+export interface OutboxJob {
+  queue: string;
+  /** = jobId BullMQ → publish ulang setelah crash tidak menggandakan job. */
+  idempotencyKey: string;
+  type: string;
+  tenantId: string | null;
+  payload: unknown;
+  priority?: number;
+  delayMs?: number;
+}
+export const JOB_AGGREGATE = "job";
+
+export async function writeJobOutbox(tx: Tx, aggregateId: string, job: OutboxJob): Promise<void> {
+  await writeOutbox(tx, {
+    aggregate: JOB_AGGREGATE,
+    aggregateId,
+    eventType: `enqueue.${job.queue}`,
+    payload: job as unknown as Record<string, unknown>,
+  });
+}
+
+export interface PublishOptions {
+  batch?: number;
+  /** Relay job ke queue. Tanpa ini baris `job` DIBIARKAN (tidak ditandai published) untuk relay lain. */
+  enqueue?: (jobs: OutboxJob[]) => Promise<void>;
+}
+
+/**
+ * Satu putaran publish (loop scheduler/worker-ops tiap ~1 s). Aman paralel (SKIP LOCKED).
+ * Enqueue terjadi sebelum commit penanda published: crash di antaranya → publish ulang → jobId sama → diabaikan BullMQ.
+ */
+export async function publishOutbox(db: Db, bus: PubSub, opts: PublishOptions | number = {}): Promise<number> {
+  const o = typeof opts === "number" ? { batch: opts } : opts;
   return withSystem(db, async (tx) => {
     const rows = (await tx.execute(
-      sql`select id, aggregate, aggregate_id, event_type, payload from outbox where published_at is null order by id limit ${batch} for update skip locked`,
+      sql`select id, aggregate, aggregate_id, event_type, payload from outbox
+          where published_at is null ${o.enqueue ? sql`` : sql`and aggregate <> ${JOB_AGGREGATE}`}
+          order by id limit ${o.batch ?? 100} for update skip locked`,
     )) as unknown as { id: string | number; aggregate: string; aggregate_id: string; event_type: string; payload: unknown }[];
     if (!rows.length) return 0;
+    const jobs = rows.filter((r) => r.aggregate === JOB_AGGREGATE);
+    if (jobs.length) await o.enqueue!(jobs.map((r) => r.payload as OutboxJob));
     let configChanged = false;
     for (const r of rows) {
+      if (r.aggregate === JOB_AGGREGATE) continue;
       if (CONFIG_AGGREGATES.has(r.aggregate)) configChanged = true;
       await bus.publish(CONFIG_CHANNEL, JSON.stringify({ aggregate: r.aggregate, id: r.aggregate_id, event: r.event_type }));
     }

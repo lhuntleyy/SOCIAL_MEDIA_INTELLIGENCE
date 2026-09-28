@@ -35,6 +35,10 @@
       "name": "@smip/api",
       "version": "0.0.0",
     },
+    "apps/scheduler": {
+      "name": "@smip/scheduler",
+      "version": "0.0.0",
+    },
     "packages/analytics": {
       "name": "@smip/analytics",
       "version": "0.0.0",
@@ -281,6 +285,8 @@
     "@smip/queue": ["@smip/queue@workspace:packages/queue"],
 
     "@smip/router": ["@smip/router@workspace:packages/router"],
+
+    "@smip/scheduler": ["@smip/scheduler@workspace:apps/scheduler"],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 
