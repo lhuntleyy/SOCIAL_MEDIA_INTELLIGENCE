@@ -62,24 +62,28 @@
             "health_probe"
           ]
         },
-        "query": {
-          "type": "object",
-          "properties": {
-            "native": {
-              "type": "string"
-            },
-            "sourceNodeIds": {
-              "type": "array",
-              "items": {
+        "queries": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "native": {
                 "type": "string"
+              },
+              "sourceNodeIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
-            }
-          },
-          "required": [
-            "native",
-            "sourceNodeIds"
-          ],
-          "additionalProperties": false
+            },
+            "required": [
+              "native",
+              "sourceNodeIds"
+            ],
+            "additionalProperties": false
+          }
         },
         "targetIds": {
           "type": "array",

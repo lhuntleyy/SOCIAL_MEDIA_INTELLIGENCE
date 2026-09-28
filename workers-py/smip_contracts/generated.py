@@ -280,7 +280,7 @@ class Request(BaseModel):
     idempotencyKey: Annotated[str, Field(pattern='^[A-Za-z0-9._-]{1,200}$')]
     platform: Annotated[str, Field(pattern='^[a-z][a-z0-9_]{0,31}$')]
     operation: Operation
-    query: Query | None = None
+    queries: Annotated[list[Query] | None, Field(max_length=50)] = None
     targetIds: list[str] | None = None
     window: Window | None = None
     cursor: str | None = None

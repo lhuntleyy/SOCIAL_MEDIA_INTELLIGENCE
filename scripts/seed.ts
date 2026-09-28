@@ -1,6 +1,8 @@
 // F-11: seed dev idempoten (DEPLOYMENT §3: tenant demo, fake connector, policy default). Aman dijalankan berulang.
 //   DATABASE_URL=… [SEED_ADMIN_PASSWORD=…] bun scripts/seed.ts
 // Password admin: dari SEED_ADMIN_PASSWORD, atau dibuat acak dan dicetak SEKALI (tidak disimpan di file).
+import { createKms, credentialAad, seal } from "@smip/crypto";
+import { astHash, compileQuery } from "@smip/query";
 import postgres from "postgres";
 
 const url = process.env.DATABASE_URL;
@@ -9,7 +11,17 @@ if (process.env.NODE_ENV === "production") throw new Error("seed dev dilarang di
 
 // ID deterministik agar idempoten & mudah dirujuk test/dev
 const id = (n: number) => `00000000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
-const IDS = { plan: id(1), tenant: id(2), admin: id(3), providerFake: id(10) };
+const IDS = {
+  plan: id(1),
+  tenant: id(2),
+  admin: id(3),
+  providerFake: id(10),
+  credFake: id(400),
+  accountFake: id(401),
+  topic: id(500),
+  query: id(501),
+  planX: id(502),
+};
 
 const PLATFORMS: [string, string, string, string[], boolean, number][] = [
   ["x", "Twitter / X", "twitter", ["post", "reply", "repost", "quote"], true, 1],
@@ -33,6 +45,18 @@ const PROVIDERS: [string, string, string, string][] = [
   ["meta_graph", "Meta Graph API", "official", "low"],
   ["scrapecreators", "ScrapeCreators", "third_party", "medium"],
 ];
+
+// Vault: kunci transit KEK untuk credential (SECURITY §4)
+if (process.env.VAULT_ADDR && process.env.VAULT_TOKEN) {
+  const h = { "X-Vault-Token": process.env.VAULT_TOKEN, "content-type": "application/json" };
+  await fetch(`${process.env.VAULT_ADDR}/v1/sys/mounts/transit`, { method: "POST", headers: h, body: JSON.stringify({ type: "transit" }) });
+  const r = await fetch(`${process.env.VAULT_ADDR}/v1/transit/keys/${process.env.KMS_KEY_ID ?? "smip-kek"}`, {
+    method: "POST",
+    headers: h,
+    body: "{}",
+  });
+  console.log(`vault transit key ${process.env.KMS_KEY_ID ?? "smip-kek"}: HTTP ${r.status}`);
+}
 
 const sql = postgres(url, { max: 1, onnotice: () => {} });
 try {
@@ -65,8 +89,8 @@ try {
     for (const [n, [code, , , , enabled]] of PLATFORMS.entries()) {
       if (!enabled) continue;
       const connectorId = id(100 + n);
-      await tx`insert into connectors (id, key, provider_id, platform_code, runtime, version, enabled) values (${connectorId}, ${`fake.${code}`}, ${IDS.providerFake}, ${code}, 'bun', '0.0.0', true)
-        on conflict (key) do nothing`;
+      await tx`insert into connectors (id, key, provider_id, platform_code, runtime, version, enabled) values (${connectorId}, ${`fake.${code}`}, ${IDS.providerFake}, ${code}, 'bun', '0.1.0', true)
+        on conflict (key) do update set version = excluded.version`; // = FakeConnector.manifest.version
       await tx`insert into connector_capabilities (connector_id, operation, declared, status, verified_at, evidence_ref)
         values (${connectorId}, 'search_keyword', ${tx.json({ query_features: ["term", "phrase", "or", "and", "not", "group"], supports_since: true, supports_cursor: true })},
                 'verified', now(), 'seed:fake-connector')
@@ -77,22 +101,34 @@ try {
       await tx`insert into routing_rules (id, policy_id, connector_id, priority, weight, enabled) values (${id(300 + n)}, ${policyId}, ${connectorId}, 1, 100, true)
         on conflict (policy_id, connector_id) do nothing`;
     }
+
+    // akun shared pool untuk provider fake (credential disegel KMS — sama seperti akun nyata)
+    const kms = process.env.KMS_ADAPTER ? createKms({ NODE_ENV: process.env.NODE_ENV ?? "development", ...process.env }) : null;
+    if (kms) {
+      const exists = await tx`select 1 from provider_accounts where id = ${IDS.accountFake}`;
+      if (!exists.length) {
+        const s = await seal(kms, credentialAad(IDS.credFake, null), { api_key: "fake-dev" });
+        await tx`insert into credentials (id, kind, ciphertext, iv, wrapped_dek, kek_id, aad, fingerprint)
+          values (${IDS.credFake}, 'api_key', ${Buffer.from(s.ciphertext)}, ${Buffer.from(s.iv)}, ${Buffer.from(s.wrapped_dek)}, ${s.kek_id}, ${s.aad}, '\\x00')`;
+        await tx`insert into provider_accounts (id, provider_id, label, credential_id) values (${IDS.accountFake}, ${IDS.providerFake}, 'fake-shared', ${IDS.credFake})`;
+      }
+    } else {
+      console.log("KMS_ADAPTER tidak diset → akun provider fake dilewati (routing akan NO_ELIGIBLE_ACCOUNT)");
+    }
+
+    // topik demo (tenant contoh) → scheduler langsung punya plan untuk dijalankan di dev
+    const q = compileQuery({ query_text: '"koperasi merah putih" OR kopdes' });
+    await tx`insert into topics (id, tenant_id, name, author_user_id) values (${IDS.topic}, ${IDS.tenant}, 'Demo KDMP', ${IDS.admin}) on conflict (id) do nothing`;
+    await tx`insert into topic_queries (id, tenant_id, topic_id, kind, query_text, query_ast, ast_hash)
+      values (${IDS.query}, ${IDS.tenant}, ${IDS.topic}, 'main', '"koperasi merah putih" OR kopdes', ${tx.json(q.ast as never)}, ${Buffer.from(await astHash(q))})
+      on conflict (id) do nothing`;
+    await tx`insert into topic_platforms (topic_id, platform_code, tenant_id, interval_sec) values (${IDS.topic}, 'x', ${IDS.tenant}, 900) on conflict do nothing`;
+    await tx`insert into crawl_plans (id, tenant_id, topic_id, topic_query_id, platform_code, operation, interval_sec, next_run_at, priority)
+      values (${IDS.planX}, ${IDS.tenant}, ${IDS.topic}, ${IDS.query}, 'x', 'search_keyword', 900, now(), 0) on conflict do nothing`;
   });
   const [c] = await sql`select (select count(*) from platforms)::int platforms, (select count(*) from connectors)::int connectors,
     (select count(*) from routing_policies)::int policies, (select count(*) from tenants)::int tenants`;
   console.log("seed OK", c);
 } finally {
   await sql.end();
-}
-
-// Vault: kunci transit KEK untuk credential (SECURITY §4)
-if (process.env.VAULT_ADDR && process.env.VAULT_TOKEN) {
-  const h = { "X-Vault-Token": process.env.VAULT_TOKEN, "content-type": "application/json" };
-  await fetch(`${process.env.VAULT_ADDR}/v1/sys/mounts/transit`, { method: "POST", headers: h, body: JSON.stringify({ type: "transit" }) });
-  const r = await fetch(`${process.env.VAULT_ADDR}/v1/transit/keys/${process.env.KMS_KEY_ID ?? "smip-kek"}`, {
-    method: "POST",
-    headers: h,
-    body: "{}",
-  });
-  console.log(`vault transit key ${process.env.KMS_KEY_ID ?? "smip-kek"}: HTTP ${r.status}`);
 }

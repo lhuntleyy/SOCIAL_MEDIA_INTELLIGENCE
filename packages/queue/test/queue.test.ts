@@ -76,6 +76,19 @@ describe.skipIf(!up)("BullMqQueue (integrasi Redis)", () => {
     expect(seen).toEqual([7]);
   });
 
+  test("tanpa opsi worker (setelan produksi): consumer tetap jalan + waitingCount", async () => {
+    const plain = new BullMqQueue({ connection: REDIS, prefix }); // regresi: undefined menimpa default BullMQ
+    const got: number[] = [];
+    const e = createEnvelope({ type: "notify.send", idempotencyKey: `ns.${Date.now()}`, tenantId: null, payload: { n: 3 } });
+    await plain.enqueue("notify.send", e);
+    expect(await plain.waitingCount("notify.send")).toBe(1);
+    const sub = await plain.consume("notify.send", async (m) => void got.push(m.payload.n), { parse });
+    await waitFor(() => (got.length ? got : undefined));
+    expect(got).toEqual([3]);
+    await sub.close(100);
+    await plain.close();
+  });
+
   test("poison (payload invalid) → DLQ tanpa retry, handler tidak dipanggil", async () => {
     let calls = 0;
     subs.push(await q.consume("alert.evaluate", async () => void calls++, { parse }));

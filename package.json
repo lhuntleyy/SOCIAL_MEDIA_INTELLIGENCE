@@ -20,7 +20,8 @@
     "ch:migrate": "bun run scripts/ch-migrate.ts",
     "dev:up": "bun run scripts/dev-up.ts up",
     "dev:down": "bun run scripts/dev-up.ts down",
-    "seed": "bun run scripts/seed.ts"
+    "seed": "bun run scripts/seed.ts",
+    "dev:workers": "bun run scripts/dev-workers.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

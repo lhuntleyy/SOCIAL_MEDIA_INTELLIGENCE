@@ -16,6 +16,7 @@ export function connector(
     providerEnabled: true,
     platform: "x",
     runtime: "bun",
+    version: "1.0.0",
     enabled: true,
     capabilities: new Map([
       [
@@ -23,6 +24,7 @@ export function connector(
         {
           status: o.status ?? "verified",
           queryFeatures: ["term", "phrase"],
+          maxQueryLength: null,
           measured: { minIntervalSec: o.minInterval, costPer1kResults: o.cost },
         },
       ],

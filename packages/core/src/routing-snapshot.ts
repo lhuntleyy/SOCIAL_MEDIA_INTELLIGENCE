@@ -7,6 +7,8 @@ export type CapabilityStatus = "declared" | "verified" | "failed" | "deprecated"
 export interface Capability {
   status: CapabilityStatus;
   queryFeatures: QueryFeature[];
+  /** declared.max_query_length (batas teknis compiler); null = tak diketahui. */
+  maxQueryLength: number | null;
   /** Diukur connector.verify: min_interval_sec, p95_latency_ms, fixed_cost_per_run, cost_per_1k_results. */
   measured: { minIntervalSec?: number; p95LatencyMs?: number; costPer1kResults?: number; fixedCostPerRun?: number };
 }
@@ -18,6 +20,7 @@ export interface ConnectorInfo {
   providerEnabled: boolean;
   platform: string;
   runtime: "bun" | "python";
+  version: string;
   enabled: boolean;
   capabilities: Map<string, Capability>;
 }

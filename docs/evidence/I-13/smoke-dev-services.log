@@ -1,0 +1,9 @@
+# I-13 smoke dev — 2026-09-28T09:26:13Z: 3 proses terpisah (scheduler, worker-dispatch, worker-fetch-bun) terhadap compose
+== sched
+{"ts":"2026-09-28T09:24:13.685Z","level":"info","service":"scheduler","version":"0.0.0","env":"development","msg":"scheduler mulai","tick_ms":2000,"owner":"01a0e754-40f1-770a-aab4-73b51e986681"}
+== disp
+{"ts":"2026-09-28T09:24:14.201Z","level":"info","service":"worker-dispatch","version":"0.0.0","env":"development","msg":"worker-dispatch mulai"}
+{"ts":"2026-09-28T09:24:14.279Z","level":"info","service":"worker-dispatch","version":"0.0.0","env":"development","msg":"router snapshot dimuat","field_version":0,"policies":6,"connectors":6}
+== fetch
+{"ts":"2026-09-28T09:24:14.163Z","level":"info","service":"worker-fetch-bun","version":"0.0.0","env":"development","msg":"worker-fetch-bun mulai","connectors":["fake.x","fake.instagram","fake.facebook","fake.threads","fake.tiktok","fake.youtube"]}
+{"ts":"2026-09-28T09:24:14.733Z","level":"warn","service":"worker-fetch-bun","version":"0.0.0","env":"development","msg":"versi connector berbeda dengan registry","crawl_run_id":"01a0e753-cd6c-7363-ac8b-2d95f257f164","attempt":1,"connector":"fake.x","registry":"0.0.0","worker":"0.1.0"}

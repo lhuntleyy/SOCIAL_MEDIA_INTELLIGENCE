@@ -26,7 +26,8 @@
         "./packages/connectors/*/src/index.ts"
       ],
       "@smip/*": [
-        "./packages/*/src/index.ts"
+        "./packages/*/src/index.ts",
+        "./apps/*/src/index.ts"
       ]
     }
   }

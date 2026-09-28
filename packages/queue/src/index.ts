@@ -197,8 +197,9 @@ export class BullMqQueue implements JobQueue, QueueConsumer {
         connection: this.o.connection,
         prefix: this.o.prefix,
         concurrency: opts.concurrency ?? p.concurrency,
-        lockDuration: this.o.worker?.lockDuration,
-        stalledInterval: this.o.worker?.stalledInterval,
+        // hanya bila diisi: `undefined` eksplisit menimpa default BullMQ → "stalledInterval must be greater than 0"
+        ...(this.o.worker?.lockDuration !== undefined ? { lockDuration: this.o.worker.lockDuration } : {}),
+        ...(this.o.worker?.stalledInterval !== undefined ? { stalledInterval: this.o.worker.stalledInterval } : {}),
         autorun: true,
       },
     );

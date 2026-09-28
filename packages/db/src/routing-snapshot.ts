@@ -12,7 +12,7 @@ const num = (v: unknown) => (v === null || v === undefined ? undefined : Number(
 export async function loadRoutingSnapshot(db: Db, version: number): Promise<RoutingSnapshot> {
   const [providers, connectors, caps, policies, rules, accounts, rls, quotas] = await Promise.all([
     q(db, sql`select id, enabled from providers`),
-    q(db, sql`select id, key, provider_id, platform_code, runtime, enabled from connectors`),
+    q(db, sql`select id, key, provider_id, platform_code, runtime, version, enabled from connectors`),
     q(db, sql`select connector_id, operation, status, declared, measured from connector_capabilities`),
     q(
       db,
@@ -39,12 +39,13 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
       providerEnabled: provEnabled.get(String(c.provider_id)) ?? false,
       platform: String(c.platform_code),
       runtime: c.runtime as "bun" | "python",
+      version: String(c.version),
       enabled: Boolean(c.enabled),
       capabilities: new Map(),
     });
   }
   for (const cap of caps) {
-    const d = (cap.declared ?? {}) as { query_features?: string[] };
+    const d = (cap.declared ?? {}) as { query_features?: string[]; max_query_length?: number };
     const m = (cap.measured ?? {}) as {
       min_interval_sec?: number;
       p95_latency_ms?: number;
@@ -54,6 +55,7 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
     cmap.get(String(cap.connector_id))?.capabilities.set(String(cap.operation), {
       status: cap.status as "declared",
       queryFeatures: (d.query_features ?? []) as never,
+      maxQueryLength: num(d.max_query_length) ?? null,
       measured: {
         minIntervalSec: num(m.min_interval_sec),
         p95LatencyMs: num(m.p95_latency_ms),

@@ -163,6 +163,8 @@ export const CrawlDispatchPayload = z.strictObject({
   attempt_no: z.number().int().min(1),
   exclude_connector_ids: z.array(Uuid),
   exclude_account_ids: z.array(Uuid),
+  /** INVALID_QUERY → compile ulang konservatif (hanya term) sekali (CONNECTOR_SPEC §7). */
+  recompile: z.boolean().optional(),
 });
 export type CrawlDispatchPayload = z.infer<typeof CrawlDispatchPayload>;
 
@@ -179,7 +181,11 @@ export const FetchRequestPayload = z.strictObject({
     idempotencyKey: IdempotencyKey,
     platform: PlatformCode,
     operation: Operation,
-    query: z.strictObject({ native: z.string(), sourceNodeIds: z.array(z.string()) }).optional(),
+    /** Sub-query hasil compiler (CONNECTOR_SPEC §5); worker menjalankan SEMUA berurutan dalam satu attempt. */
+    queries: z
+      .array(z.strictObject({ native: z.string(), sourceNodeIds: z.array(z.string()) }))
+      .max(50)
+      .optional(),
     targetIds: z.array(z.string()).optional(),
     window: Window.optional(),
     cursor: z.string().nullable().optional(),
@@ -214,6 +220,22 @@ export const FetchResultPayload = z.strictObject({
   duration_ms: Count,
   rate_limit_info: z.strictObject({ remaining: Count.nullable(), resetAt: UtcDateTime.nullable() }),
 });
+
+/** QUEUE_SPEC §4.4 — worker-dispatch → worker-pipeline (TS saja). Run stream: tenant/topic/query null + collection_stream_id. */
+export const PipelineItemsPayload = z.strictObject({
+  crawl_run_id: Uuid,
+  attempt_no: z.number().int().min(1),
+  tenant_id: Uuid.nullable(),
+  topic_id: Uuid.nullable(),
+  topic_query_id: Uuid.nullable(),
+  collection_stream_id: Uuid.nullable().optional(),
+  query_ast_version: z.number().int().min(1),
+  items_ref: z.string().min(1),
+  items_count: Count,
+});
+export type PipelineItemsPayload = z.infer<typeof PipelineItemsPayload>;
+export type FetchRequestPayload = z.infer<typeof FetchRequestPayload>;
+export type FetchResultPayload = z.infer<typeof FetchResultPayload>;
 
 export const AiEnrichPayload = z.strictObject({
   batch_id: Uuid,
