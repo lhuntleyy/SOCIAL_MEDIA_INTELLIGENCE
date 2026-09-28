@@ -23,26 +23,26 @@ Uji kontrak nyata via Apify (kata kunci "koperasi merah putih", 10–20 item/run
 |---|---|---|---|---|---|---|
 | X | 1 | twitterapi.io · `twitterapi_io.x` | DOCS (API key belum ada) | $0,15 | min $0,00015/request | §6.1 |
 | X | 2 | Apify `xquik/x-tweet-scraper` · `apify.x.xquik` | **VERIFIED** (connector verify 2026-09-29, 5 sampel) | $0,15 | ~0 | 50/50 item valid, p50 5,5 s / p95 5,9 s, field janji 100%; inkremental via operator `since_time:`/`until_time:` di `searchTerms` (skema input actor); `queryType: Latest` = terbaru dulu; `createdAt` Twitter klasik. Evidence `docs/evidence/I-17/` |
-| X | 3 | Apify `apidojo/tweet-scraper` | **TESTED** | $0,40 | ~0 | 10/10 relevan, 52 detik |
+| X | 3 | Apify `apidojo/tweet-scraper` · `apify.x.apidojo` | **FAILED (plan)** 2026-09-29 | $0,40 | ~0 | plan FREE: **batas run bulanan per pengguna** (log: "Monthly run limit exceeded per user") → hanya placeholder `noResults`; connector memetakan ke `QUOTA_EXHAUSTED` (failover). Butuh plan Apify berbayar |
 | X | 4 | X API official | DOCS | $5,00 | — | cadangan mahal, cap 3 juta read/bln |
-| Instagram (keyword) | 1 | Apify `scraping_solutions/instagram-boolean-search-scraper-posts-reels` | **TESTED** | $1,55 | $0,01/halaman search | **tanpa login**; boolean AND/OR/NOT; 8/8 relevan, 1 cocok lewat caption saja; hasil **tidak terurut terbaru** (post Mei–Jun) → pakai `oldestPostDate` |
+| Instagram (keyword) | 1 | Apify `scraping_solutions/instagram-boolean-search-scraper-posts-reels` · `apify.instagram.boolean` | **VERIFIED** 2026-09-29 (5 sampel, p50 7,1 s) | $1,55 | $0,01/halaman search | **tanpa login**; boolean AND/OR/NOT (maks 32 cabang); hasil **tidak terurut terbaru** → `oldestPostDate`/`newestPostDate` + saring lokal |
 | Instagram (keyword) | 2 | Apify `crawlerbros/instagram-keyword-search-scraper` | **TESTED** | $5,00 | $0,05 per GB memori (pakai 1 GB) | hasil segar (≤ 3 hari), 9/10 relevan, 2 caption-only; **memakai pool sesi Instagram yang login** (risk tinggi, S-15); `pub_date` **tanpa zona waktu** |
 | Instagram (hashtag) | 3 | Apify `apidojo/instagram-scraper` / `apify/instagram-hashtag-scraper` | DOCS | $0,47 / $2,60 | — | cadangan recall via hashtag (§6.3) |
 | Instagram | 4 | ScrapeCreators `/v1/instagram/search` · EnsembleData IG keyword | DOCS | tidak publik / langganan | — | vendor non-Apify |
 | Instagram | — | Apify `viralanalyzer/instagram-keyword-search-scraper` | **TESTED → gagal** | $1,00 | — | `BLOCKED` (tembok login) tanpa cookie → tidak dipakai |
-| Facebook (keyword) | 1 | Apify `scraper_one/facebook-posts-search` | **TESTED** | $4,00 | ~0 | **keyword search FB ADA** — 11/11 relevan, semua ≤ 3 jam; `timestamp` epoch ms |
+| Facebook (keyword) | 1 | Apify `scraper_one/facebook-posts-search` · `apify.facebook.scraperone` | **VERIFIED** 2026-09-29 (5 sampel, p50 2,9 s) | $4,00 | ~0 | `startDate`/`endDate` + saring lokal; `timestamp` epoch ms; handle dari `profileUrl` |
 | Facebook (keyword) | 2 | Apify `scrapeforge/facebook-search-posts` | **TESTED** | $2,59 | ~0 | 7/8 relevan, tidak terurut waktu; `start_date`/`end_date`, `recent_posts`; `timestamp` epoch detik |
 | Facebook (Page) | 3 | Apify `apify/facebook-posts-scraper` | DOCS | $2,00 | — | daftar Page per topic (tetap berguna untuk akun resmi) |
 | Facebook | 4 | Data365 | DOCS | €300+/bln | — | vendor non-Apify (FB, IG, X, TikTok, Threads, Reddit) |
 | Threads | 1 | Threads API official | DOCS | gratis | — | butuh App Review `threads_keyword_search` |
-| Threads | 2 | Apify `scrapersdelight/threads-keyword-search-scraper` | DOCS | $1,00 | tidak ada start fee | tanpa cursor (~50–70 post/keyword) — murah untuk polling rapat |
+| Threads | 2 | Apify `scrapersdelight/threads-keyword-search-scraper` · `apify.threads.scrapersdelight` | **VERIFIED** 2026-09-29 (5 sampel, p50 7,1 s) | $1,00 | tidak ada start fee | tanpa cursor; `postedWithinDays`; `isPaidPartnership` = sinyal iklan; `countsHidden` → metrik null |
 | Threads | 3 | Apify `futurizerush/meta-threads-scraper` | **TESTED** | $2,50 | **$0,08/run** (paksa 4 GB × $0,02) | 10/10 relevan, terurut terbaru, `start_date`/`end_date`; **mengeluarkan email & telepon** → buang di normalizer; mahal untuk polling < 1 jam |
 | Threads | 4 | ScrapeCreators `/v1/threads/search` · EnsembleData Threads keyword | DOCS | tidak publik / 1 unit | — | vendor non-Apify |
-| TikTok | 1 | Apify `apidojo/tiktok-scraper` | **TESTED** | $0,30 | ~0 | 9/10 relevan, `keywords` + `dateRange`, `uploadedAt` epoch detik |
+| TikTok | 1 | Apify `apidojo/tiktok-scraper` · `apify.tiktok.apidojo` | **VERIFIED** 2026-09-29 (5 sampel, p50 9,4 s) | $0,30 | ~0 | `dateRange` kasar + saring lokal; `uploadedAt` epoch detik. Penerbit sama dgn apidojo X → risiko batas run bulanan plan FREE |
 | TikTok | 2 | Apify `clockworks/tiktok-scraper` | DOCS | $3,70 (FREE) / $1,70 (berbayar) | — | paling populer |
 | TikTok | 3 | ScrapeCreators `/v1/tiktok/search/keyword` · EnsembleData | DOCS | tidak publik / 1 unit | — | vendor non-Apify |
 | YouTube | 1 | YouTube Data API v3 official | DOCS | gratis | — | 100 `search.list`/hari |
-| YouTube | 2 | Apify `streamers/youtube-scraper` | **TESTED** | $4,00 | ~0 | 10/10 relevan, 73 detik |
+| YouTube | 2 | Apify `streamers/youtube-scraper` · `apify.youtube.streamers` | **VERIFIED** 2026-09-29 (1 sampel; latency 5 sampel ditunda) | $4,00 | ~0 | `oldestPostDate` **tidak dihormati** di mode search → `dateFilter` (hour/today/week/month/year) + saring lokal; ~$0,04/run |
 | YouTube | 3 | ScrapeCreators `/v1/youtube/search` · EnsembleData | DOCS | — | — | vendor non-Apify |
 
 Kandidat dicoret: `igview-owner/threads-search-scraper` (minimal 20 post × $0,02 = $20/1K), `datamagnet/instagram-search-posts-reels` ($6/1K), `khadinakbar/instagram-keyword-search-scraper` (hasilnya profil, bukan post), `automation-lab/instagram-keyword-search-scraper` (berbasis hashtag, tingkat gagal 30 hari tinggi).

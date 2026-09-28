@@ -14,7 +14,7 @@ import {
   type HealthProbeResult,
   type OperationSupport,
 } from "@smip/connector-sdk";
-import { APIFY_HOSTS, type ApifyRun, datasetItems, failIfBad, getRun, RUNNING, startRun } from "./client";
+import { APIFY_HOSTS, type ApifyRun, datasetItems, failIfBad, getRun, PLAN_LIMIT_LOG, RUNNING, runLog, startRun } from "./client";
 
 export interface ActorConfig {
   /** Override id actor (mis. fork) — default dari spec. */
@@ -101,7 +101,15 @@ export class ApifyActorConnector implements Connector {
         warnings: [],
       };
     }
-    const raw = (await datasetItems(ctx, run.defaultDatasetId, req.maxItems)) as Record<string, unknown>[];
+    const all = (await datasetItems(ctx, run.defaultDatasetId, req.maxItems)) as Record<string, unknown>[];
+    // placeholder `{ noResults: true }` (konvensi sebagian actor) bukan hasil & tidak ditagih → jangan dihitung
+    const raw = all.filter((r) => r?.noResults !== true);
+    if (all.length && !raw.length) {
+      const log = await runLog(ctx, run.id).catch(() => "");
+      if (PLAN_LIMIT_LOG.test(log)) {
+        throw new ConnectorError("QUOTA_EXHAUSTED", "actor menolak: batas run bulanan plan pengguna Apify habis", { scope: "account" });
+      }
+    }
     const fetchedAt = new Date().toISOString();
     const rawRef = raw.length
       ? await ctx.archiveRaw(raw, { platform: this.spec.platform, crawlRunId: req.idempotencyKey, attemptNo: 1, page: 1 })

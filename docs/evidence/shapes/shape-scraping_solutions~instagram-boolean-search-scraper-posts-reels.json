@@ -1,0 +1,205 @@
+{
+  "date": "2026-09-28T16:28:39.016Z",
+  "actor": "scraping_solutions/instagram-boolean-search-scraper-posts-reels",
+  "build": "0.0.23",
+  "input": {
+    "searchQuery": "\"koperasi merah putih\"",
+    "resultsLimit": 5,
+    "contentType": "posts_and_reels",
+    "hashtagFeedType": "recent",
+    "searchCoverage": "efficient"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 29541,
+  "items": 5,
+  "cost_usd": 0.01465,
+  "charged_events": {
+    "apify-default-dataset-item": 3,
+    "search-page": 1
+  },
+  "account_usage_usd": {
+    "before": 1.701490194637593,
+    "after": 1.7050013988206947,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "searchQuery": {
+      "type": "string",
+      "editor": "textarea",
+      "description": "Examples: #fitness; digital marketing; (#fitness OR \"home workout\") AND nutrition AND NOT giveaway. A query can expand to at most 32 Boolean search branches; an over-limit query is rejected before pro"
+    },
+    "resultsLimit": {
+      "type": "integer",
+      "description": "Maximum number of unique Instagram posts or Reels saved after all filters. This is not a guaranteed result count. Successful search pages are charged separately, including pages whose candidates are a"
+    },
+    "contentType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "posts_and_reels",
+        "reels_only"
+      ],
+      "description": "Search all public posts and Reels, or limit discovery to Reels."
+    },
+    "hashtagFeedType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "top",
+        "recent"
+      ],
+      "description": "Order used when a Boolean branch is discovered through a hashtag. Reels-only searches automatically use the Reels feed."
+    },
+    "searchCoverage": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "efficient",
+        "comprehensive"
+      ],
+      "description": "Efficient uses one combined Instagram query per Boolean branch and is recommended for first runs. Comprehensive adds individual keyword and hashtag searches as discovery fallbacks, while still requiri"
+    },
+    "oldestPostDate": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Optional inclusive start date in YYYY-MM-DD format. API inputs with a one-digit month or day are normalized automatically; invalid calendar dates are rejected. This filter is applied after Instagram d"
+    },
+    "newestPostDate": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Optional inclusive end date in YYYY-MM-DD format. API inputs with a one-digit month or day are normalized automatically; invalid calendar dates are rejected. Using the same historical date in both fie"
+    },
+    "minimumLikes": {
+      "type": "integer",
+      "description": "Save only content with at least this many likes. Use 0 to disable the filter."
+    },
+    "minimumComments": {
+      "type": "integer",
+      "description": "Save only content with at least this many comments. Use 0 to disable the filter."
+    },
+    "minimumViews": {
+      "type": "integer",
+      "description": "Save only Reels or videos with at least this many reported plays. Non-video posts are excluded when this value is above 0."
+    },
+    "strictBooleanSyntax": {
+      "type": "boolean",
+      "description": "Reject implicit expressions such as 'bank NOT jobs'. Leave disabled to normalize them to 'bank AND NOT jobs' with a warning."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "audioArtist": [
+      "null",
+      "string"
+    ],
+    "audioId": [
+      "null",
+      "string:numeric-id"
+    ],
+    "audioTitle": [
+      "null",
+      "string"
+    ],
+    "caption": [
+      "string"
+    ],
+    "commentCount": [
+      "int"
+    ],
+    "contentType": [
+      "string"
+    ],
+    "discoveryQuery": [
+      "string"
+    ],
+    "discoveryType": [
+      "string"
+    ],
+    "fullName": [
+      "string"
+    ],
+    "hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "hashtags[]": [
+      "string"
+    ],
+    "latitude": [
+      "float",
+      "null"
+    ],
+    "likeCount": [
+      "int"
+    ],
+    "locationId": [
+      "null",
+      "string:numeric-id"
+    ],
+    "locationName": [
+      "null",
+      "string"
+    ],
+    "longitude": [
+      "float",
+      "null"
+    ],
+    "matchType": [
+      "string"
+    ],
+    "matchedTerms": [
+      "array(…)"
+    ],
+    "matchedTerms[]": [
+      "string"
+    ],
+    "mediaUrl": [
+      "string:url"
+    ],
+    "normalizedQuery": [
+      "string"
+    ],
+    "postId": [
+      "string:numeric-id"
+    ],
+    "profileUrl": [
+      "string:url"
+    ],
+    "publishedAt": [
+      "string:iso-offset"
+    ],
+    "query": [
+      "string"
+    ],
+    "scrapedAt": [
+      "string:iso-z"
+    ],
+    "shareCount": [
+      "int"
+    ],
+    "shortCode": [
+      "string"
+    ],
+    "thumbnailUrl": [
+      "string:url"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "userId": [
+      "string",
+      "string:epoch-s"
+    ],
+    "username": [
+      "string"
+    ],
+    "verified": [
+      "boolean"
+    ],
+    "viewCount": [
+      "int"
+    ]
+  }
+}

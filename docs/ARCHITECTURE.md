@@ -234,7 +234,7 @@ social-intel/
 │   │   ├── twitterapi-io-x/       # X utama (PROVIDER_MATRIX §6.1)
 │   │   ├── apify/                 # SATU paket untuk semua actor Apify (aturan dependensi melarang connector saling impor):
 │   │   │                          #   client.ts (run/poll/dataset, maxTotalChargeUsd, memory), actor.ts (connector generik + async resume),
-│   │   │                          #   x-xquik.ts (apify.x.xquik — VERIFIED I-17), berikutnya: x-apidojo, instagram-*, facebook-*, threads, tiktok, youtube
+│   │   │                          #   x-xquik, x-apidojo, instagram-boolean, facebook-scraperone, tiktok-apidojo, youtube-streamers, threads-scrapersdelight (I-17/I-18)
 │   │   ├── x-official/            # X cadangan mahal
 │   │   ├── scrapecreators-*/      # vendor non-Apify (IG/TikTok/Threads/YouTube)
 │   │   ├── youtube-data-api/

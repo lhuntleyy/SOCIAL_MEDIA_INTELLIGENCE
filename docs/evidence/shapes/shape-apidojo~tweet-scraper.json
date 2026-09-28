@@ -1,0 +1,1095 @@
+{
+  "date": "2026-09-28T16:27:58.842Z",
+  "actor": "apidojo/tweet-scraper",
+  "build": "0.0.1533",
+  "input": {
+    "searchTerms": [
+      "koperasi merah putih"
+    ],
+    "maxItems": 5,
+    "sort": "Latest"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 4744,
+  "items": 5,
+  "cost_usd": 0,
+  "charged_events": {
+    "apify-default-dataset-item": 0
+  },
+  "account_usage_usd": {
+    "before": 1.701490194637593,
+    "after": 1.701490194637593,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "startUrls": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Twitter (X) URLs. Paste the URLs and get the results immediately. Tweet, Profile, Search or List URLs are supported."
+    },
+    "searchTerms": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Search terms you want to search from Twitter (X). You can refer to https://github.com/igorbrigadir/twitter-advanced-search."
+    },
+    "twitterHandles": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Twitter handles that you want to search on Twitter (X)"
+    },
+    "conversationIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Conversation IDs that you want to search on Twitter (X)"
+    },
+    "maxItems": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Maximum number of items that you want as output."
+    },
+    "sort": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "Top",
+        "Latest",
+        "Latest + Top"
+      ],
+      "description": "Sorts search results. If you are getting low results, try Top instead of Latest. Latest + Top runs both simultaneously to maximize results but may return some duplicate tweets."
+    },
+    "tweetLanguage": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "ab",
+        "aa",
+        "af",
+        "ak",
+        "sq",
+        "am",
+        "ar",
+        "an",
+        "hy",
+        "as",
+        "av",
+        "ae",
+        "ay",
+        "az",
+        "bm",
+        "ba",
+        "eu",
+        "be",
+        "bn",
+        "bi",
+        "bs",
+        "br",
+        "bg",
+        "my",
+        "ca",
+        "ch",
+        "ce",
+        "ny",
+        "zh",
+        "cu",
+        "cv",
+        "kw",
+        "co",
+        "cr",
+        "hr",
+        "cs",
+        "da",
+        "dv",
+        "nl",
+        "dz",
+        "en",
+        "eo",
+        "et",
+        "ee",
+        "fo",
+        "fj",
+        "fi",
+        "fr",
+        "fy",
+        "ff",
+        "gd",
+        "gl",
+        "lg",
+        "ka",
+        "de",
+        "el",
+        "kl",
+        "gn",
+        "gu",
+        "ht",
+        "ha",
+        "he",
+        "hz",
+        "hi",
+        "ho",
+        "hu",
+        "is",
+        "io",
+        "ig",
+        "id",
+        "ia",
+        "ie",
+        "iu",
+        "ik",
+        "ga",
+        "it",
+        "ja",
+        "jv",
+        "kn",
+        "kr",
+        "ks",
+        "kk",
+        "km",
+        "ki",
+        "rw",
+        "ky",
+        "kv",
+        "kg",
+        "ko",
+        "kj",
+        "ku",
+        "lo",
+        "la",
+        "lv",
+        "li",
+        "ln",
+        "lt",
+        "lu",
+        "lb",
+        "mk",
+        "mg",
+        "ms",
+        "ml",
+        "mt",
+        "gv",
+        "mi",
+        "mr",
+        "mh",
+        "mn",
+        "na",
+        "nv",
+        "nd",
+        "nr",
+        "ng",
+        "ne",
+        "no",
+        "nb",
+        "nn",
+        "ii",
+        "oc",
+        "oj",
+        "or",
+        "om",
+        "os",
+        "pi",
+        "ps",
+        "fa",
+        "pl",
+        "pt",
+        "pa",
+        "qu",
+        "ro",
+        "rm",
+        "rn",
+        "ru",
+        "se",
+        "sm",
+        "sg",
+        "sa",
+        "sc",
+        "sr",
+        "sn",
+        "sd",
+        "si",
+        "sk",
+        "sl",
+        "so",
+        "st",
+        "es",
+        "su",
+        "sw",
+        "ss",
+        "sv",
+        "tl",
+        "ty",
+        "tg",
+        "ta",
+        "tt",
+        "te",
+        "th",
+        "bo",
+        "ti",
+        "to",
+        "ts",
+        "tn",
+        "tr",
+        "tk",
+        "tw",
+        "ug",
+        "uk",
+        "ur",
+        "uz",
+        "ve",
+        "vi",
+        "vo",
+        "wa",
+        "cy",
+        "wo",
+        "xh",
+        "yi",
+        "yo",
+        "za",
+        "zu"
+      ],
+      "description": "Restricts tweets to the given language, given by an ISO 639-1 code."
+    },
+    "onlyVerifiedUsers": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "If selected, only returns tweets by users who are verified."
+    },
+    "onlyTwitterBlue": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "If selected, only returns tweets by users who are Twitter Blue subscribers."
+    },
+    "onlyImage": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "If selected, only returns tweets that contain images."
+    },
+    "onlyVideo": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "If selected, only returns tweets that contain videos."
+    },
+    "onlyQuote": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "If selected, only returns tweets that are quotes."
+    },
+    "author": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Returns tweets sent by the given user. It should be a Twitter (X) Handle."
+    },
+    "inReplyTo": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Returns tweets that are replies to the given user. It should be a Twitter (X) Handle."
+    },
+    "mentioning": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Returns tweets mentioning the given user. It should be a Twitter (X) Handle."
+    },
+    "geotaggedNear": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Returns tweets sent near the given location."
+    },
+    "withinRadius": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Returns tweets sent within the given radius of the given location."
+    },
+    "geocode": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Returns tweets sent by users located within a given radius of the given latitude/longitude."
+    },
+    "placeObjectId": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Returns tweets tagged with the given place."
+    },
+    "minimumRetweets": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Returns tweets with at least the given number of retweets."
+    },
+    "minimumFavorites": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Returns tweets with at least the given number of favorites."
+    },
+    "minimumReplies": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Returns tweets with at least the given number of replies."
+    },
+    "start": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Returns tweets sent after the given date."
+    },
+    "end": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Returns tweets sent before the given date."
+    },
+    "includeSearchTerms": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "If selected, a field will be added to each tweets about the search term that was used to find it."
+    },
+    "customMapFunction": {
+      "type": "string",
+      "editor": "javascript",
+      "description": "Function that takes each of the objects as argument and returns data that will be mapped by the function itself. This function is not intended for filtering, please don't use it for filtering purposes"
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "author": [
+      "object"
+    ],
+    "author.affiliatesHighlightedLabel": [
+      "object"
+    ],
+    "author.canDm": [
+      "boolean"
+    ],
+    "author.canMediaTag": [
+      "boolean"
+    ],
+    "author.coverPicture": [
+      "string",
+      "string:url"
+    ],
+    "author.createdAt": [
+      "string:twitter-date"
+    ],
+    "author.description": [
+      "string"
+    ],
+    "author.entities": [
+      "object"
+    ],
+    "author.entities.description": [
+      "object"
+    ],
+    "author.fastFollowersCount": [
+      "int"
+    ],
+    "author.favouritesCount": [
+      "int"
+    ],
+    "author.followers": [
+      "int"
+    ],
+    "author.following": [
+      "int"
+    ],
+    "author.hasCustomTimelines": [
+      "boolean"
+    ],
+    "author.id": [
+      "string:epoch-s",
+      "string:numeric-id"
+    ],
+    "author.isBlueVerified": [
+      "boolean"
+    ],
+    "author.isTranslator": [
+      "boolean"
+    ],
+    "author.isVerified": [
+      "boolean"
+    ],
+    "author.location": [
+      "string"
+    ],
+    "author.mediaCount": [
+      "int"
+    ],
+    "author.name": [
+      "string"
+    ],
+    "author.pinnedTweetIds": [
+      "array(…)"
+    ],
+    "author.pinnedTweetIds[]": [
+      "string:numeric-id"
+    ],
+    "author.possiblySensitive": [
+      "boolean"
+    ],
+    "author.profilePicture": [
+      "string:url"
+    ],
+    "author.protected": [
+      "boolean"
+    ],
+    "author.status": [
+      "string"
+    ],
+    "author.statusesCount": [
+      "int"
+    ],
+    "author.twitterUrl": [
+      "string:url"
+    ],
+    "author.type": [
+      "string"
+    ],
+    "author.url": [
+      "string:url"
+    ],
+    "author.userName": [
+      "string"
+    ],
+    "bookmarkCount": [
+      "int"
+    ],
+    "card": [
+      "object"
+    ],
+    "conversationId": [
+      "string:numeric-id"
+    ],
+    "createdAt": [
+      "string:twitter-date"
+    ],
+    "entities": [
+      "object"
+    ],
+    "entities.hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "entities.hashtags[]": [
+      "object"
+    ],
+    "entities.hashtags[].indices": [
+      "array(…)"
+    ],
+    "entities.hashtags[].indices[]": [
+      "int"
+    ],
+    "entities.hashtags[].text": [
+      "string"
+    ],
+    "entities.media": [
+      "array(…)"
+    ],
+    "entities.media[]": [
+      "object"
+    ],
+    "entities.media[].additional_media_info": [
+      "object"
+    ],
+    "entities.media[].additional_media_info.monetizable": [
+      "boolean"
+    ],
+    "entities.media[].allow_download_status": [
+      "object"
+    ],
+    "entities.media[].allow_download_status.allow_download": [
+      "boolean"
+    ],
+    "entities.media[].display_url": [
+      "string"
+    ],
+    "entities.media[].expanded_url": [
+      "string:url"
+    ],
+    "entities.media[].ext_media_availability": [
+      "object"
+    ],
+    "entities.media[].ext_media_availability.status": [
+      "string"
+    ],
+    "entities.media[].features": [
+      "object"
+    ],
+    "entities.media[].features.large": [
+      "object"
+    ],
+    "entities.media[].features.large.faces": [
+      "array(…)"
+    ],
+    "entities.media[].features.large.faces[]": [
+      "object"
+    ],
+    "entities.media[].features.large.faces[].h": [
+      "int"
+    ],
+    "entities.media[].features.large.faces[].w": [
+      "int"
+    ],
+    "entities.media[].features.large.faces[].x": [
+      "int"
+    ],
+    "entities.media[].features.large.faces[].y": [
+      "int"
+    ],
+    "entities.media[].features.medium": [
+      "object"
+    ],
+    "entities.media[].features.medium.faces": [
+      "array(…)"
+    ],
+    "entities.media[].features.medium.faces[]": [
+      "object"
+    ],
+    "entities.media[].features.medium.faces[].h": [
+      "int"
+    ],
+    "entities.media[].features.medium.faces[].w": [
+      "int"
+    ],
+    "entities.media[].features.medium.faces[].x": [
+      "int"
+    ],
+    "entities.media[].features.medium.faces[].y": [
+      "int"
+    ],
+    "entities.media[].features.orig": [
+      "object"
+    ],
+    "entities.media[].features.orig.faces": [
+      "array(…)"
+    ],
+    "entities.media[].features.orig.faces[]": [
+      "object"
+    ],
+    "entities.media[].features.orig.faces[].h": [
+      "int"
+    ],
+    "entities.media[].features.orig.faces[].w": [
+      "int"
+    ],
+    "entities.media[].features.orig.faces[].x": [
+      "int"
+    ],
+    "entities.media[].features.orig.faces[].y": [
+      "int"
+    ],
+    "entities.media[].features.small": [
+      "object"
+    ],
+    "entities.media[].features.small.faces": [
+      "array(…)"
+    ],
+    "entities.media[].features.small.faces[]": [
+      "object"
+    ],
+    "entities.media[].features.small.faces[].h": [
+      "int"
+    ],
+    "entities.media[].features.small.faces[].w": [
+      "int"
+    ],
+    "entities.media[].features.small.faces[].x": [
+      "int"
+    ],
+    "entities.media[].features.small.faces[].y": [
+      "int"
+    ],
+    "entities.media[].id_str": [
+      "string:numeric-id"
+    ],
+    "entities.media[].indices": [
+      "array(…)"
+    ],
+    "entities.media[].indices[]": [
+      "int"
+    ],
+    "entities.media[].media_key": [
+      "string"
+    ],
+    "entities.media[].media_results": [
+      "object"
+    ],
+    "entities.media[].media_results.result": [
+      "object"
+    ],
+    "entities.media[].media_results.result.media_key": [
+      "string"
+    ],
+    "entities.media[].media_url_https": [
+      "string:url"
+    ],
+    "entities.media[].original_info": [
+      "object"
+    ],
+    "entities.media[].original_info.focus_rects": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "entities.media[].original_info.focus_rects[]": [
+      "object"
+    ],
+    "entities.media[].original_info.focus_rects[].h": [
+      "int"
+    ],
+    "entities.media[].original_info.focus_rects[].w": [
+      "int"
+    ],
+    "entities.media[].original_info.focus_rects[].x": [
+      "int"
+    ],
+    "entities.media[].original_info.focus_rects[].y": [
+      "int"
+    ],
+    "entities.media[].original_info.height": [
+      "int"
+    ],
+    "entities.media[].original_info.width": [
+      "int"
+    ],
+    "entities.media[].sizes": [
+      "object"
+    ],
+    "entities.media[].sizes.large": [
+      "object"
+    ],
+    "entities.media[].sizes.large.h": [
+      "int"
+    ],
+    "entities.media[].sizes.large.resize": [
+      "string"
+    ],
+    "entities.media[].sizes.large.w": [
+      "int"
+    ],
+    "entities.media[].sizes.medium": [
+      "object"
+    ],
+    "entities.media[].sizes.medium.h": [
+      "int"
+    ],
+    "entities.media[].sizes.medium.resize": [
+      "string"
+    ],
+    "entities.media[].sizes.medium.w": [
+      "int"
+    ],
+    "entities.media[].sizes.small": [
+      "object"
+    ],
+    "entities.media[].sizes.small.h": [
+      "int"
+    ],
+    "entities.media[].sizes.small.resize": [
+      "string"
+    ],
+    "entities.media[].sizes.small.w": [
+      "int"
+    ],
+    "entities.media[].sizes.thumb": [
+      "object"
+    ],
+    "entities.media[].sizes.thumb.h": [
+      "int"
+    ],
+    "entities.media[].sizes.thumb.resize": [
+      "string"
+    ],
+    "entities.media[].sizes.thumb.w": [
+      "int"
+    ],
+    "entities.media[].type": [
+      "string"
+    ],
+    "entities.media[].url": [
+      "string:url"
+    ],
+    "entities.media[].video_info": [
+      "object"
+    ],
+    "entities.media[].video_info.aspect_ratio": [
+      "array(…)"
+    ],
+    "entities.media[].video_info.aspect_ratio[]": [
+      "int"
+    ],
+    "entities.media[].video_info.duration_millis": [
+      "int"
+    ],
+    "entities.media[].video_info.variants": [
+      "array(…)"
+    ],
+    "entities.media[].video_info.variants[]": [
+      "object"
+    ],
+    "entities.media[].video_info.variants[].bitrate": [
+      "int"
+    ],
+    "entities.media[].video_info.variants[].content_type": [
+      "string"
+    ],
+    "entities.media[].video_info.variants[].url": [
+      "string:url"
+    ],
+    "entities.symbols": [
+      "array(empty)"
+    ],
+    "entities.urls": [
+      "array(empty)"
+    ],
+    "entities.user_mentions": [
+      "array(empty)"
+    ],
+    "extendedEntities": [
+      "object"
+    ],
+    "extendedEntities.media": [
+      "array(…)"
+    ],
+    "extendedEntities.media[]": [
+      "object"
+    ],
+    "extendedEntities.media[].additional_media_info": [
+      "object"
+    ],
+    "extendedEntities.media[].additional_media_info.monetizable": [
+      "boolean"
+    ],
+    "extendedEntities.media[].allow_download_status": [
+      "object"
+    ],
+    "extendedEntities.media[].allow_download_status.allow_download": [
+      "boolean"
+    ],
+    "extendedEntities.media[].display_url": [
+      "string"
+    ],
+    "extendedEntities.media[].expanded_url": [
+      "string:url"
+    ],
+    "extendedEntities.media[].ext_media_availability": [
+      "object"
+    ],
+    "extendedEntities.media[].ext_media_availability.status": [
+      "string"
+    ],
+    "extendedEntities.media[].features": [
+      "object"
+    ],
+    "extendedEntities.media[].features.large": [
+      "object"
+    ],
+    "extendedEntities.media[].features.large.faces": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].features.large.faces[]": [
+      "object"
+    ],
+    "extendedEntities.media[].features.large.faces[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].features.large.faces[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].features.large.faces[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].features.large.faces[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].features.medium": [
+      "object"
+    ],
+    "extendedEntities.media[].features.medium.faces": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].features.medium.faces[]": [
+      "object"
+    ],
+    "extendedEntities.media[].features.medium.faces[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].features.medium.faces[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].features.medium.faces[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].features.medium.faces[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig": [
+      "object"
+    ],
+    "extendedEntities.media[].features.orig.faces": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].features.orig.faces[]": [
+      "object"
+    ],
+    "extendedEntities.media[].features.orig.faces[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig.faces[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig.faces[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].features.orig.faces[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].features.small": [
+      "object"
+    ],
+    "extendedEntities.media[].features.small.faces": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].features.small.faces[]": [
+      "object"
+    ],
+    "extendedEntities.media[].features.small.faces[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].features.small.faces[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].features.small.faces[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].features.small.faces[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].id_str": [
+      "string:numeric-id"
+    ],
+    "extendedEntities.media[].indices": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].indices[]": [
+      "int"
+    ],
+    "extendedEntities.media[].media_key": [
+      "string"
+    ],
+    "extendedEntities.media[].media_results": [
+      "object"
+    ],
+    "extendedEntities.media[].media_results.result": [
+      "object"
+    ],
+    "extendedEntities.media[].media_results.result.media_key": [
+      "string"
+    ],
+    "extendedEntities.media[].media_url_https": [
+      "string:url"
+    ],
+    "extendedEntities.media[].original_info": [
+      "object"
+    ],
+    "extendedEntities.media[].original_info.focus_rects": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[]": [
+      "object"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].h": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].w": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].x": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.focus_rects[].y": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.height": [
+      "int"
+    ],
+    "extendedEntities.media[].original_info.width": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes": [
+      "object"
+    ],
+    "extendedEntities.media[].sizes.large": [
+      "object"
+    ],
+    "extendedEntities.media[].sizes.large.h": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.large.resize": [
+      "string"
+    ],
+    "extendedEntities.media[].sizes.large.w": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.medium": [
+      "object"
+    ],
+    "extendedEntities.media[].sizes.medium.h": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.medium.resize": [
+      "string"
+    ],
+    "extendedEntities.media[].sizes.medium.w": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.small": [
+      "object"
+    ],
+    "extendedEntities.media[].sizes.small.h": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.small.resize": [
+      "string"
+    ],
+    "extendedEntities.media[].sizes.small.w": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.thumb": [
+      "object"
+    ],
+    "extendedEntities.media[].sizes.thumb.h": [
+      "int"
+    ],
+    "extendedEntities.media[].sizes.thumb.resize": [
+      "string"
+    ],
+    "extendedEntities.media[].sizes.thumb.w": [
+      "int"
+    ],
+    "extendedEntities.media[].type": [
+      "string"
+    ],
+    "extendedEntities.media[].url": [
+      "string:url"
+    ],
+    "extendedEntities.media[].video_info": [
+      "object"
+    ],
+    "extendedEntities.media[].video_info.aspect_ratio": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].video_info.aspect_ratio[]": [
+      "int"
+    ],
+    "extendedEntities.media[].video_info.duration_millis": [
+      "int"
+    ],
+    "extendedEntities.media[].video_info.variants": [
+      "array(…)"
+    ],
+    "extendedEntities.media[].video_info.variants[]": [
+      "object"
+    ],
+    "extendedEntities.media[].video_info.variants[].bitrate": [
+      "int"
+    ],
+    "extendedEntities.media[].video_info.variants[].content_type": [
+      "string"
+    ],
+    "extendedEntities.media[].video_info.variants[].url": [
+      "string:url"
+    ],
+    "fullText": [
+      "string"
+    ],
+    "id": [
+      "string:numeric-id"
+    ],
+    "isConversationControlled": [
+      "boolean"
+    ],
+    "isPinned": [
+      "boolean"
+    ],
+    "isQuote": [
+      "boolean"
+    ],
+    "isReply": [
+      "boolean"
+    ],
+    "isRetweet": [
+      "boolean"
+    ],
+    "lang": [
+      "string"
+    ],
+    "likeCount": [
+      "int"
+    ],
+    "media": [
+      "array(…)"
+    ],
+    "media[]": [
+      "string:url"
+    ],
+    "place": [
+      "object"
+    ],
+    "possiblySensitive": [
+      "boolean"
+    ],
+    "quoteCount": [
+      "int"
+    ],
+    "replyCount": [
+      "int"
+    ],
+    "retweetCount": [
+      "int"
+    ],
+    "source": [
+      "string"
+    ],
+    "text": [
+      "string"
+    ],
+    "twitterUrl": [
+      "string:url"
+    ],
+    "type": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "videos": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "videos[]": [
+      "object"
+    ],
+    "videos[].aspectRatio": [
+      "array(…)"
+    ],
+    "videos[].aspectRatio[]": [
+      "int"
+    ],
+    "videos[].durationMillis": [
+      "int"
+    ],
+    "videos[].variants": [
+      "array(…)"
+    ],
+    "videos[].variants[]": [
+      "object"
+    ],
+    "videos[].variants[].bitrate": [
+      "int"
+    ],
+    "videos[].variants[].contentType": [
+      "string"
+    ],
+    "videos[].variants[].url": [
+      "string:url"
+    ],
+    "viewCount": [
+      "int"
+    ]
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "date": "2026-09-28T16:42:51.911Z",
+  "actor": "scrapersdelight/threads-keyword-search-scraper",
+  "build": "0.1.3",
+  "input": {
+    "keywords": [
+      "koperasi merah putih"
+    ],
+    "searchType": "top",
+    "maxItems": 5,
+    "maxPostsPerKeyword": 5,
+    "postedWithinDays": 7,
+    "passesPerSurface": 1
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 13796,
+  "items": 5,
+  "cost_usd": 0,
+  "charged_events": {
+    "post-scraped": 0
+  },
+  "account_usage_usd": {
+    "before": 2.134920171569789,
+    "after": 2.134920171569789,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "keywords": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "One search term per line. Plain words (`coffee shop`), hashtags (`#marketing`) and pasted Threads search URLs all work. Leave empty to run the built-in sample so you can see the output shape."
+    },
+    "searchType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "both",
+        "top",
+        "tags"
+      ],
+      "description": "`top` is the main Threads search results page (serp_type=default). `tags` is the hashtag surface for the same term. They return overlapping but genuinely different sets — measured 2026-09-02, the two "
+    },
+    "passesPerSurface": {
+      "type": "integer",
+      "description": "How many times to re-request each surface. Threads has no logged-out pagination cursor, but the SERP rotates between requests, so extra passes surface posts the first one missed. Measured over 3 passe"
+    },
+    "maxPostsPerKeyword": {
+      "type": "integer",
+      "description": "Stop collecting a term once this many posts have been delivered for it. The realistic ceiling from the logged-out search surfaces is roughly 50-70 unique posts per term, so a higher number simply mean"
+    },
+    "maxItems": {
+      "type": "integer",
+      "description": "Hard stop for the whole run, across every keyword. Keeps a large keyword list from running away. 0 = no limit."
+    },
+    "minLikes": {
+      "type": "integer",
+      "description": "Only return posts with at least this many likes. Useful for cutting the long tail when you are looking for what actually got traction. 0 = keep everything."
+    },
+    "postedWithinDays": {
+      "type": "integer",
+      "description": "Threads search mixes fresh posts with older high-performers — the sample of 252 real results spanned 2023 to today. Set this to 7 or 30 for a monitoring run. 0 = no date filter."
+    },
+    "excludeReplies": {
+      "type": "boolean",
+      "description": "Drop posts that are a reply to someone else's post and keep only standalone posts. Measured fill: about 12% of search results are replies."
+    },
+    "onlyWithLinks": {
+      "type": "boolean",
+      "description": "Keep only posts that carry an outbound URL (in the text or as a link-preview card). This is the lead-gen filter — it finds the people promoting something. It is a strict filter: measured 2.4% of searc"
+    },
+    "requestConcurrency": {
+      "type": "integer",
+      "description": "How many keywords to search at the same time. 3 is a good balance; raising it past 5 makes threads.com serve its logged-out interstitial more often, which just costs retries."
+    },
+    "proxyConfiguration": {
+      "type": "object",
+      "editor": "proxy",
+      "description": "Apify datacenter proxy is the default and is what this Actor's reliability was measured on (12 of 12 search pages read, 9 first try, 3 on a retry). Switch to RESIDENTIAL only if a run reports blocked "
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "authorFullName": [
+      "string"
+    ],
+    "authorId": [
+      "string"
+    ],
+    "authorIsPrivate": [
+      "boolean"
+    ],
+    "authorIsVerified": [
+      "boolean"
+    ],
+    "authorProfilePicUrl": [
+      "string:url"
+    ],
+    "authorProfileUrl": [
+      "string:url"
+    ],
+    "authorUsername": [
+      "string"
+    ],
+    "carouselCount": [
+      "int",
+      "null"
+    ],
+    "countsHidden": [
+      "boolean"
+    ],
+    "engagementTotal": [
+      "int"
+    ],
+    "externalLinkDomain": [
+      "null"
+    ],
+    "externalLinks": [
+      "array(empty)"
+    ],
+    "hasAudio": [
+      "null"
+    ],
+    "hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "hashtags[]": [
+      "string"
+    ],
+    "imageUrl": [
+      "null",
+      "string:url"
+    ],
+    "isPaidPartnership": [
+      "boolean"
+    ],
+    "isReply": [
+      "boolean"
+    ],
+    "language": [
+      "null"
+    ],
+    "likeCount": [
+      "int"
+    ],
+    "linkPreviewTitle": [
+      "null"
+    ],
+    "mediaType": [
+      "string"
+    ],
+    "mentions": [
+      "array(empty)"
+    ],
+    "postCode": [
+      "string"
+    ],
+    "postId": [
+      "string:numeric-id"
+    ],
+    "postUrl": [
+      "string:url"
+    ],
+    "postedAt": [
+      "string:iso-z"
+    ],
+    "quoteCount": [
+      "int"
+    ],
+    "replyCount": [
+      "int"
+    ],
+    "replyToAuthor": [
+      "null"
+    ],
+    "repostCount": [
+      "int"
+    ],
+    "reshareCount": [
+      "int"
+    ],
+    "scrapedAt": [
+      "string:iso-z"
+    ],
+    "searchKeyword": [
+      "string"
+    ],
+    "searchSurface": [
+      "string"
+    ],
+    "searchUrl": [
+      "string:url"
+    ],
+    "text": [
+      "string"
+    ],
+    "textLength": [
+      "int"
+    ],
+    "videoUrl": [
+      "null"
+    ]
+  }
+}

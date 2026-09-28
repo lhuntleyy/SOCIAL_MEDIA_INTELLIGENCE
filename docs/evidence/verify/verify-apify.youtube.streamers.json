@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-28T16:42:09.771Z",
+  "connector": "apify.youtube.streamers",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "koperasi merah putih",
+  "window_hours": 168,
+  "max_items": 5,
+  "samples": 1,
+  "items_valid": 4,
+  "items_invalid": 0,
+  "usage_results_returned": 5,
+  "cost_usd": 0.016,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.views": 1,
+    "author.followers": 1
+  },
+  "latency_ms": {
+    "samples": [
+      18341
+    ],
+    "p50": 18341,
+    "p95": 18341
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

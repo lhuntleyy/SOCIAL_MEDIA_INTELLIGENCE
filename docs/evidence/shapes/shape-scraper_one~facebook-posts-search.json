@@ -1,0 +1,133 @@
+{
+  "date": "2026-09-28T16:28:47.590Z",
+  "actor": "scraper_one/facebook-posts-search",
+  "build": "0.0.322",
+  "input": {
+    "query": "koperasi merah putih",
+    "resultsCount": 5,
+    "searchType": "latest"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 7012,
+  "items": 5,
+  "cost_usd": 0,
+  "charged_events": {
+    "result-item": 0,
+    "init": 0
+  },
+  "account_usage_usd": {
+    "before": 1.7050013988206947,
+    "after": 1.7196554825305244,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "query": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "The search term to look for."
+    },
+    "resultsCount": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Number of search results to retrieve. If not set, only a few of the first posts will be returned. Note: Free-plan users can retrieve up to 100 posts per search query."
+    },
+    "searchType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "top",
+        "latest"
+      ],
+      "description": "What kind of posts you'd like to search for. Defaults to platform’s default if not specified."
+    },
+    "location": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Limit posts to a given **pinned** location. Enter a location name or a Facebook Location ID. For names, the first result from the Facebook location dropdown is selected. For example, entering 'Alaska'"
+    },
+    "startDate": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Get posts starting from given date (YYYY-MM-DD)."
+    },
+    "endDate": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Get posts ending on given date (YYYY-MM-DD)."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "attachments": [
+      "array(…)"
+    ],
+    "attachments[]": [
+      "object"
+    ],
+    "attachments[].accessibilityCaption": [
+      "string"
+    ],
+    "attachments[].id": [
+      "string:numeric-id"
+    ],
+    "attachments[].type": [
+      "string"
+    ],
+    "attachments[].url": [
+      "string:url"
+    ],
+    "author": [
+      "object"
+    ],
+    "author.id": [
+      "string:numeric-id"
+    ],
+    "author.name": [
+      "string"
+    ],
+    "author.profilePicture": [
+      "string:url"
+    ],
+    "author.profileUrl": [
+      "string:url"
+    ],
+    "commentsCount": [
+      "int"
+    ],
+    "postId": [
+      "string:numeric-id"
+    ],
+    "postText": [
+      "string"
+    ],
+    "reactions": [
+      "object"
+    ],
+    "reactions.haha": [
+      "int"
+    ],
+    "reactions.like": [
+      "int"
+    ],
+    "reactions.love": [
+      "int"
+    ],
+    "reactions.sorry": [
+      "int"
+    ],
+    "reactionsCount": [
+      "int"
+    ],
+    "sharesCount": [
+      "int"
+    ],
+    "timestamp": [
+      "int:epoch-ms?"
+    ],
+    "url": [
+      "string:url"
+    ]
+  }
+}

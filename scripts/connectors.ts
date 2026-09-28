@@ -2,9 +2,9 @@
 //   bun scripts/connectors.ts register                      → upsert provider/connector/capability(declared) dari manifest registry (nonaktif)
 //   bun scripts/connectors.ts account <provider> <label> <ENV_VAR> [secretField]
 //                                                           → credential disegel KMS dari env (nilai tidak pernah dicetak) + akun shared pool
-//   bun scripts/connectors.ts verify <connectorKey> "<query>" [--samples N] [--apply]
+//   bun scripts/connectors.ts verify <connectorKey> "<query>" [--samples N] [--max-items N] [--window-hours H] [--apply]
 //                                                           → panggil provider SUNGGUHAN (berbayar!) dgn window 24 jam, validasi, laporan
-//                                                             docs/evidence/I-17/verify-<key>.json; --apply → capability verified + measured
+//                                                             docs/evidence/verify/verify-<key>.json; --apply → capability verified + measured
 // Env: DATABASE_URL, KMS_* (lihat infra/compose/.env.dev). Config biaya connector (maxTotalChargeUsd, memoryMb) diambil dari connectors.config.
 import { CanonicalItem, type Operation } from "@smip/contracts";
 import { type Connector, HttpClient } from "@smip/connector-sdk";
@@ -75,7 +75,7 @@ async function account(providerKey: string, label: string, envVar: string, field
   console.log(`akun ${label} untuk ${providerKey} dibuat (secret disegel, tidak dicetak)`);
 }
 
-async function verify(key: string, query: string, samples: number, apply: boolean) {
+async function verify(key: string, query: string, samples: number, apply: boolean, maxItems = 10, windowHours = 24) {
   const c = registry.get(key) as Connector | undefined;
   if (!c) throw new Error(`connector ${key} tidak ada di registry`);
   const [row] =
@@ -97,7 +97,7 @@ async function verify(key: string, query: string, samples: number, apply: boolea
   const op = (Object.keys(c.manifest.operations)[0] ?? "search_keyword") as Operation;
   const sup = c.manifest.operations[op]!;
   const until = new Date();
-  const since = new Date(until.getTime() - 24 * 3600_000);
+  const since = new Date(until.getTime() - windowHours * 3600_000);
   const lat: number[] = [];
   const all: CanonicalItem[] = [];
   let returned = 0;
@@ -130,7 +130,7 @@ async function verify(key: string, query: string, samples: number, apply: boolea
       window: { since: since.toISOString(), until: until.toISOString() },
       cursor: null,
       pageLimit: 1,
-      maxItems: 10,
+      maxItems,
     };
     const t0 = performance.now();
     let r = await c.fetch(req, ctx);
@@ -162,7 +162,8 @@ async function verify(key: string, query: string, samples: number, apply: boolea
     version: c.manifest.version,
     operation: op,
     query,
-    window_hours: 24,
+    window_hours: windowHours,
+    max_items: maxItems,
     samples,
     items_valid: all.length,
     items_invalid: invalid,
@@ -174,7 +175,7 @@ async function verify(key: string, query: string, samples: number, apply: boolea
     status: pass ? "verified" : "failed",
     note: samples < 5 ? "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)" : null,
   };
-  const file = `docs/evidence/I-17/verify-${key}.json`;
+  const file = `docs/evidence/verify/verify-${key}.json`;
   await Bun.write(file, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify({ file, status: report.status, items: all.length, cost_usd: report.cost_usd, p50: report.latency_ms.p50 }));
   if (apply) {
@@ -193,8 +194,8 @@ try {
   if (cmd === "register") await register();
   else if (cmd === "account") await account(args[0]!, args[1]!, args[2]!, args[3]);
   else if (cmd === "verify") {
-    const n = args.indexOf("--samples");
-    await verify(args[0]!, args[1]!, n >= 0 ? Number(args[n + 1]) : 1, args.includes("--apply"));
+    const opt = (f: string, d: number) => (args.indexOf(f) >= 0 ? Number(args[args.indexOf(f) + 1]) : d);
+    await verify(args[0]!, args[1]!, opt("--samples", 1), args.includes("--apply"), opt("--max-items", 10), opt("--window-hours", 24));
   } else throw new Error("perintah: register | account | verify (lihat header skrip)");
 } finally {
   await sql.end();

@@ -1,0 +1,344 @@
+{
+  "date": "2026-09-28T16:29:05.148Z",
+  "actor": "streamers/youtube-scraper",
+  "build": "0.0.303",
+  "input": {
+    "searchQueries": [
+      "koperasi merah putih"
+    ],
+    "maxResults": 5,
+    "maxResultsShorts": 0,
+    "maxResultStreams": 0,
+    "sortingOrder": "date"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 15688,
+  "items": 5,
+  "cost_usd": 0.012,
+  "charged_events": {
+    "result": 3,
+    "date-filter": 0,
+    "ai-video-description": 0,
+    "ai-video-summary": 0,
+    "transcribeMinute": 0
+  },
+  "account_usage_usd": {
+    "before": 1.7196554825305244,
+    "after": 1.7328054825305244,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "searchQueries": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Enter search terms just like you would enter it in YouTube's search bar."
+    },
+    "maxResults": {
+      "type": "integer",
+      "description": "Limit the number of videos you want to crawl. If you scrape a channel, acts as a limit for regular videos."
+    },
+    "maxResultsShorts": {
+      "type": "integer",
+      "description": "Limit the number of Shorts videos you want to crawl."
+    },
+    "maxResultStreams": {
+      "type": "integer",
+      "description": "Limit the number of Stream videos you want to crawl."
+    },
+    "startUrls": {
+      "type": "array",
+      "editor": "requestListSources",
+      "description": "Enter a link to a <a href='https://www.youtube.com/watch?v=xObhZ0Ga7EQ' target='_blank' rel='noopener'>YouTube video</a>, <a href='https://www.youtube.com/c/Apify' target='_blank' rel='noopener'>chann"
+    },
+    "transcriptionAndSubtitle": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "NONE",
+        "ALWAYS_SUBTITLES",
+        "TRANSCRIPTION_AS_FALLBACK",
+        "ALWAYS_TRANSCRIBE"
+      ],
+      "description": "Choose whether to download subtitles, transcribe the video using speech-to-text AI, or both. Leave empty to skip subtitles and transcription. Subtitles are added to the dataset items, while transcript"
+    },
+    "subtitlesLanguage": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "any",
+        "en",
+        "de",
+        "es",
+        "fr",
+        "it",
+        "ja",
+        "ko",
+        "nl",
+        "pt",
+        "ru"
+      ],
+      "description": "Language to download subtitles in.<br><b>Note:</b> a subtitle-downloading option must be selected in <i>Transcription & subtitles</i> for this to work."
+    },
+    "subtitlesFormat": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "srt",
+        "vtt",
+        "xml",
+        "plaintext"
+      ],
+      "description": "Select in what format you want to download subtitles"
+    },
+    "sortingOrder": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "relevance",
+        "rating",
+        "date",
+        "views"
+      ],
+      "description": "Select Youtube sorting parameter for search"
+    },
+    "dateFilter": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "hour",
+        "today",
+        "week",
+        "month",
+        "year"
+      ],
+      "description": "Select Youtube upload date filter for search"
+    },
+    "videoType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "video",
+        "movie"
+      ],
+      "description": "Select Youtube video type filter for search"
+    },
+    "lengthFilter": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "under4",
+        "between420",
+        "plus20"
+      ],
+      "description": "Select Youtube video length filter for search"
+    },
+    "isHD": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the HD filter for search"
+    },
+    "hasSubtitles": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the Subtitles/CC filter for search"
+    },
+    "hasCC": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the Creative Commons filter for search"
+    },
+    "is3D": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the 3D filter for search"
+    },
+    "isLive": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the Live filter for search"
+    },
+    "isBought": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the Purchased filter for search"
+    },
+    "is4K": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the 4K filter for search"
+    },
+    "is360": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the 360 degrees filter for search"
+    },
+    "hasLocation": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the Location filter for search"
+    },
+    "isHDR": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the HDR filter for search"
+    },
+    "isVR180": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Will apply the VR180 filter for search"
+    },
+    "oldestPostDate": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Only posts uploaded after or on this date will be scraped. Alternatively, specify how old the scraped videos should be in days. Putting <code>1 day</code> will get you only today's posts, <code>2 days"
+    },
+    "sortVideosBy": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "NEWEST",
+        "POPULAR",
+        "OLDEST"
+      ],
+      "description": "Maps to the sorting buttons on the top of the channel's 'Videos', 'Shorts' and 'Live' pages."
+    },
+    "aiVideoDescription": {
+      "type": "boolean",
+      "description": "If enabled, uses AI to generate a time-segmented description of the video, covering both visual and audio content for each segment."
+    },
+    "aiVideoSummary": {
+      "type": "boolean",
+      "description": "If enabled, uses AI to generate a concise conceptual summary of the video covering both visual and audio content."
+    },
+    "saveSubsToKVS": {
+      "type": "boolean",
+      "editor": "hidden",
+      "description": "If set to true, the scraper will save the downloaded subtitles to the key-value store. Transcripts are always saved to the key-value store"
+    },
+    "preferAutoGeneratedSubtitles": {
+      "type": "boolean",
+      "editor": "hidden",
+      "description": "If set to true, automatically generated subtitles are preferred to user subtitles.<b> Note:</b> a subtitle language must be selected and a subtitle-downloading option must be selected in <i>Transcript"
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "aiVideoDescription": [
+      "null"
+    ],
+    "aiVideoSummary": [
+      "null"
+    ],
+    "channelId": [
+      "string"
+    ],
+    "channelName": [
+      "string"
+    ],
+    "channelUrl": [
+      "string:url"
+    ],
+    "channelUsername": [
+      "string"
+    ],
+    "collaborators": [
+      "null"
+    ],
+    "commentsCount": [
+      "int"
+    ],
+    "commentsTurnedOff": [
+      "boolean"
+    ],
+    "date": [
+      "string:iso-z"
+    ],
+    "descriptionLinks": [
+      "array(…)"
+    ],
+    "descriptionLinks[]": [
+      "object"
+    ],
+    "descriptionLinks[].text": [
+      "string",
+      "string:url"
+    ],
+    "descriptionLinks[].url": [
+      "string:url"
+    ],
+    "duration": [
+      "string"
+    ],
+    "fromYTUrl": [
+      "string:url"
+    ],
+    "hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "hashtags[]": [
+      "string"
+    ],
+    "id": [
+      "string"
+    ],
+    "input": [
+      "string"
+    ],
+    "isMembersOnly": [
+      "boolean"
+    ],
+    "isMonetized": [
+      "null"
+    ],
+    "isPaidContent": [
+      "boolean"
+    ],
+    "likes": [
+      "int"
+    ],
+    "location": [
+      "null"
+    ],
+    "numberOfSubscribers": [
+      "int"
+    ],
+    "order": [
+      "int"
+    ],
+    "subtitles": [
+      "null"
+    ],
+    "text": [
+      "string"
+    ],
+    "thumbnailUrl": [
+      "string:url"
+    ],
+    "title": [
+      "string"
+    ],
+    "transcriptionUrl": [
+      "null"
+    ],
+    "translatedText": [
+      "null",
+      "string"
+    ],
+    "translatedTitle": [
+      "null",
+      "string"
+    ],
+    "type": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "viewCount": [
+      "int"
+    ]
+  }
+}

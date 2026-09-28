@@ -1,5 +1,5 @@
 // X via Apify actor `xquik/x-tweet-scraper` — PROVIDER_MATRIX §2.0 prioritas 2 (TESTED 2026-09-28).
-// Bentuk output & skema input: docs/evidence/I-17/shape-xquik~x-tweet-scraper.json (probe 2026-09-29, build 1.12.324).
+// Bentuk output & skema input: docs/evidence/shapes/shape-xquik~x-tweet-scraper.json (probe 2026-09-29, build 1.12.324).
 //   - `searchTerms` menerima sintaks search X termasuk operator waktu Unix (`since_time:`/`until_time:`) → inkremental
 //   - `queryType: "Latest"` = terbaru dulu (resultOrder desc)
 //   - waktu `createdAt` = format Twitter klasik → toUtcIso(…, "twitter_classic")

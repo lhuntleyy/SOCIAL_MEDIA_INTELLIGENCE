@@ -91,7 +91,7 @@ const report = {
     : null,
   output_shape: Object.fromEntries([...shape.entries()].sort().map(([k, v]) => [k, [...v].sort()])),
 };
-const dir = "docs/evidence/I-17";
+const dir = "docs/evidence/shapes";
 await mkdir(dir, { recursive: true });
 const file = `${dir}/shape-${actor.replace("/", "~")}.json`;
 await Bun.write(file, `${JSON.stringify(report, null, 2)}\n`);

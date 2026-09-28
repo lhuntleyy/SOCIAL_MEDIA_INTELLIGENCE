@@ -74,3 +74,15 @@ export function failIfBad(run: ApifyRun): void {
   // ABORTED biasanya karena maxTotalChargeUsd tercapai / dibatalkan → bukan salah akun
   throw new ConnectorError("UPSTREAM_5XX", msg, { scope: "connector" });
 }
+
+/** Log run (gratis) — dipakai hanya untuk mendiagnosis run tanpa hasil nyata. */
+export async function runLog(ctx: ConnectorContext, runId: string): Promise<string> {
+  const res = await ctx.http.request(`${APIFY_API}/actor-runs/${encodeURIComponent(runId)}/log`, {
+    signal: ctx.signal,
+    headers: { Authorization: `Bearer ${token(ctx)}` },
+  });
+  return (await res.text()).slice(-20_000);
+}
+
+/** Pola log actor saat batas plan pengguna habis (teramati 2026-09-29: apidojo "Monthly run limit exceeded per user"). */
+export const PLAN_LIMIT_LOG = /monthly run limit exceeded|subscribe to a paid plan on apify if you want to use it without/i;
