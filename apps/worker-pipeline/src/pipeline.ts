@@ -78,7 +78,7 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
     }[];
     if (!run) return res;
     // terkirim ulang setelah commit → efek (counter, batch anak) sudah ada; jangan diulang
-    if (!(await claimMessage(tx, `pipe.${m.crawl_run_id}.${m.attempt_no}`))) {
+    if (!(await claimMessage(tx, `pipe.${m.crawl_run_id}.${m.attempt_no}${m.part ? `.${m.part}` : ""}`))) {
       res.duplicateMessage = true;
       return res;
     }
@@ -128,7 +128,8 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
     });
     res.matched = aiItems.length;
 
-    const base = `posts/${m.crawl_run_id}/${m.attempt_no}`;
+    const suffix = m.part ? `.${m.part}` : "";
+    const base = `posts/${m.crawl_run_id}/${m.attempt_no}${m.part ? `-${m.part}` : ""}`;
     const priority = run.kind === "backfill" ? "backfill" : "realtime";
     for (let b = 0; b * batchSize < aiItems.length; b++) {
       const chunk = aiItems.slice(b * batchSize, (b + 1) * batchSize);
@@ -139,7 +140,7 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
       );
       await writeJobOutbox(tx, m.crawl_run_id, {
         queue: "ai.enrich",
-        idempotencyKey: `ai.${m.crawl_run_id}.${m.attempt_no}.${b}`,
+        idempotencyKey: `ai.${m.crawl_run_id}.${m.attempt_no}${suffix}.${b}`,
         type: "ai.enrich",
         tenantId: m.tenant_id,
         payload: {
@@ -171,7 +172,7 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
       const postsRef = await d.blobs.putJsonl(`${base}/u.jsonl.gz`, unmatched);
       await writeJobOutbox(tx, m.crawl_run_id, {
         queue: "sink.analytics",
-        idempotencyKey: `sink.${m.crawl_run_id}.${m.attempt_no}.u`,
+        idempotencyKey: `sink.${m.crawl_run_id}.${m.attempt_no}${suffix}.u`,
         type: "sink.analytics",
         tenantId: null,
         payload: {

@@ -1,0 +1,878 @@
+{
+  "date": "2026-09-28T16:05:51.594Z",
+  "actor": "xquik/x-tweet-scraper",
+  "build": "1.12.324",
+  "input": {
+    "searchTerms": [
+      "koperasi merah putih"
+    ],
+    "maxItems": 5,
+    "queryType": "Latest"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 3841,
+  "items": 5,
+  "cost_usd": 0.0000923047317928738,
+  "charged_events": {
+    "apify-default-dataset-item": 0
+  },
+  "account_usage_usd": {
+    "before": 1.671401472784591,
+    "after": 1.671401472784591,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "startUrls": {
+      "type": "array",
+      "editor": "json",
+      "description": "Add Tweet, profile, search, or List URLs as strings or {\"url\":\"...\"} objects. Profile URLs may use /with_replies, /media, or best-effort /likes. Example: [\"https://x.com/elonmusk\", \"https://x.com/sear"
+    },
+    "twitterContent": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Search query using X advanced search syntax. Supports keywords, hashtags, exact phrases, boolean operators, and date or Unix time windows. Every returned tweet falls inside your dates. Example: web sc"
+    },
+    "searchTerms": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Run multiple searches in one Actor run. Max Items applies across the run. Every result matches the date and Unix time operators in its term. Example: from:elonmusk AI, #bitcoin lang:en"
+    },
+    "twitterHandles": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "X usernames whose posts to collect. Profile Tweets matches the Posts tab on X: posts, reposts & the author's replies to their own posts. Add Exclude replies under Tweet type filters for original posts"
+    },
+    "profileUrls": {
+      "type": "array",
+      "editor": "json",
+      "description": "Alias for Start URLs. Add profile URL strings or {\"url\":\"...\"} objects."
+    },
+    "tweetIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Tweet IDs to look up directly. Other sources in the same input run too, and Max Items applies across the run. Process up to 10,000 tweet IDs per run. Example: 1846987139428634858"
+    },
+    "listIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "X List IDs whose posts to collect. It is usually much faster than List URLs or the List ID filter below. Example: 1748648376080666720"
+    },
+    "mode": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "legacy",
+        "tweet",
+        "tweets",
+        "search",
+        "profileTweets",
+        "profileReplies",
+        "profileMedia",
+        "profileLikes",
+        "listTweets",
+        "article",
+        "replies",
+        "quotes",
+        "thread",
+        "retweeters",
+        "favoriters"
+      ],
+      "description": "Auto picks a mode from your input. Choose a mode to force one. Profile Tweets matches the Posts tab on X: posts, reposts & the author's replies to their own posts. Profile With Replies keeps target-au"
+    },
+    "maxItems": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Optional result cap across the whole run. Leave empty to use your Apify max total charge as the result limit when set. Without a spend cap, Xquik uses its built-in default. The Apify pricing box shows"
+    },
+    "maxItemsPerTarget": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Optional cap for each target in multi-target modes."
+    },
+    "queryType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "Latest",
+        "Top",
+        "Latest + Top"
+      ],
+      "description": "Latest returns newest first. Top is ranked by relevance and is not exhaustive. Latest + Top returns both without duplicates and fills your limit from either. Account timelines ignore this setting."
+    },
+    "content": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Build content filters without writing X search syntax."
+    },
+    "users": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Optional structured author, reply, mention, and list filters."
+    },
+    "time": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Keep posts from a date window. Use dates, Unix times, a recent window such as 2d, or post IDs."
+    },
+    "engagement": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Optional structured engagement filters."
+    },
+    "media": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Optional structured media filters."
+    },
+    "lang": {
+      "type": "string",
+      "editor": "select",
+      "description": "Filter tweets by language using a 2-letter ISO 639-1 code. Every returned tweet matches this language."
+    },
+    "tweetTypes": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Optional tweet type filters. Include only one type, or exclude replies, reposts or quote tweets."
+    },
+    "geo": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Optional structured location filters."
+    },
+    "cards": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Optional structured card filters."
+    },
+    "sources": {
+      "type": "object",
+      "editor": "schemaBased",
+      "description": "Optional structured source filters."
+    },
+    "conversation_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets belonging to this conversation thread. Use the first tweet's ID in the thread."
+    },
+    "conversationIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Alias for one or more conversation_id searches."
+    },
+    "quoted_tweet_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets that quote this specific tweet ID."
+    },
+    "quoted_user_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets that quote any tweet from this user ID."
+    },
+    "filter:has_engagement": {
+      "type": "boolean",
+      "description": "Only include tweets with at least one like, retweet, or reply."
+    },
+    "include:nativeretweets": {
+      "type": "boolean",
+      "description": "Include native retweets in results (excluded by default)."
+    },
+    "filter:twimg": {
+      "type": "boolean",
+      "description": "Only include tweets containing twimg.com images."
+    },
+    "filter:native_video": {
+      "type": "boolean",
+      "description": "Only include tweets with natively uploaded video."
+    },
+    "filter:vine": {
+      "type": "boolean",
+      "description": "X no longer supports this filter. A search with it ends with a free diagnostic."
+    },
+    "filter:consumer_video": {
+      "type": "boolean",
+      "description": "X no longer supports this filter. A search with it ends with a free diagnostic."
+    },
+    "filter:pro_video": {
+      "type": "boolean",
+      "description": "X no longer supports this filter. A search with it ends with a free diagnostic."
+    },
+    "filter:spaces": {
+      "type": "boolean",
+      "description": "Only include tweets containing a Spaces link."
+    },
+    "filter:mentions": {
+      "type": "boolean",
+      "description": "Only include tweets containing @mentions."
+    },
+    "filter:hashtags": {
+      "type": "boolean",
+      "description": "Only include tweets containing hashtags."
+    },
+    "outputVariant": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "legacy",
+        "rich",
+        "raw",
+        "compact",
+        "full"
+      ],
+      "description": "Legacy preserves compatibility. Rich adds normalized public fields. Raw snapshot also adds a sanitized source snapshot. Compact and Full are Legacy aliases."
+    },
+    "fieldStyle": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "legacy",
+        "camelCase",
+        "snake_case"
+      ],
+      "description": "Controls top-level and nested field names for rich and raw results, including reply diagnostics. Use camelCase for JavaScript and TypeScript. Use snake_case for Python, SQL, CSV, and warehouses. Legac"
+    },
+    "outputPreset": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "nested",
+        "flat"
+      ],
+      "description": "Nested preserves the current object shape. Flat + nested also adds CSV-friendly author and media URL fields."
+    },
+    "includeSearchTerms": {
+      "type": "boolean",
+      "description": "Attach the first matching search term as `searchTerm` on each unique Tweet. Use it to identify which query produced each deduplicated result."
+    },
+    "respectProfileSubpages": {
+      "type": "boolean",
+      "description": "Honor profile subpage paths such as /with_replies, /media, and /likes in profile URLs. /with_replies returns target-authored posts and replies. The Actor excludes conversation context from other autho"
+    },
+    "articleTweetIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Tweet IDs to read with mode article."
+    },
+    "replyTweetIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Tweet IDs whose direct replies to collect. Nested replies never count as direct. If replies look incomplete, the Actor adds a diagnostic when your limit allows. Real replies always come first."
+    },
+    "quoteTweetIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Tweet IDs to read with mode quotes."
+    },
+    "threadTweetIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Tweet IDs to read with mode thread."
+    },
+    "retweeterTweetIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Tweet IDs to read with mode retweeters."
+    },
+    "favoriterTweetIds": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Tweet IDs to read with mode favoriters. X may only expose liking users for eligible or owner-visible posts. If no users are available, the actor returns one diagnostic row."
+    },
+    "from": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets sent by this username (without the @ symbol). Example: elonmusk"
+    },
+    "to": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets that are replies to this username (without @). Example: OpenAI"
+    },
+    "@": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets that mention this username (without @). Example: Google"
+    },
+    "since": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Keep posts from this date onward. The Actor checks each post's date. Format: YYYY-MM-DD_HH:MM:SS_UTC. Example: 2026-01-01_00:00:00_UTC"
+    },
+    "until": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Keep posts from before this date. The Actor checks each post's date. Same format as Since date. Example: 2026-04-01_00:00:00_UTC"
+    },
+    "since_time": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Keep posts from this Unix time onward, in seconds. The Actor checks each post's time. Example: 1704067200"
+    },
+    "until_time": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Keep posts from before this Unix time, in seconds. The Actor checks each post's time. Example: 1711929600"
+    },
+    "within_time": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets from the last N days, hours, minutes or seconds. Put d, h, m or s after the number. Example: 12h"
+    },
+    "since_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets with an ID greater than (posted after) this tweet ID."
+    },
+    "max_id": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets with an ID less than (posted before) this tweet ID."
+    },
+    "min_faves": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Only include tweets with at least this many likes. Set to 0 to disable."
+    },
+    "-min_faves": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Only include tweets with at most this many likes. Set to 0 to disable."
+    },
+    "min_retweets": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Only include tweets with at least this many retweets. Set to 0 to disable."
+    },
+    "-min_retweets": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Only include tweets with at most this many retweets. Set to 0 to disable."
+    },
+    "min_replies": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Only include tweets with at least this many replies. Set to 0 to disable."
+    },
+    "-min_replies": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Only include tweets with at most this many replies. Set to 0 to disable."
+    },
+    "filter:blue_verified": {
+      "type": "boolean",
+      "description": "Only include tweets from X Premium (Blue) verified accounts."
+    },
+    "filter:nativeretweets": {
+      "type": "boolean",
+      "description": "Only include native retweets."
+    },
+    "filter:replies": {
+      "type": "boolean",
+      "description": "Only include reply tweets."
+    },
+    "filter:quote": {
+      "type": "boolean",
+      "description": "Only include quote tweets."
+    },
+    "filter:media": {
+      "type": "boolean",
+      "description": "Apply X's media search operator. Results usually include attached media, but X can also match media-like card content."
+    },
+    "filter:images": {
+      "type": "boolean",
+      "description": "Apply X's image search operator. Results usually include image media. X can also match card or link image content."
+    },
+    "filter:videos": {
+      "type": "boolean",
+      "description": "Apply X's video search operator. Results usually include native video media."
+    },
+    "filter:links": {
+      "type": "boolean",
+      "description": "Only include tweets containing external links."
+    },
+    "filter:news": {
+      "type": "boolean",
+      "description": "X no longer supports this filter. A search with it ends with a free diagnostic."
+    },
+    "filter:safe": {
+      "type": "boolean",
+      "description": "Only include tweets marked as safe (excludes sensitive content)."
+    },
+    "near": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets geotagged near this place. Example: San Francisco"
+    },
+    "within": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Radius for the Near Place filter. Format: integer + unit (km or mi), no spaces. Example: 10km, 25mi"
+    },
+    "geocode": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Filter by exact coordinates in lat,long,radius format. Use no spaces. Give the radius in km or mi. Example: 37.7749,-122.4194,10km"
+    },
+    "list": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Filter search results to Tweets from members of this X List. Use List IDs unless you need to combine this filter with other search operators."
+    },
+    "url": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only include tweets containing this URL or domain. Example: github.com"
+    },
+    "card_name": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Filter by poll or card type. Common values: poll2choice_text_only, poll3choice_text_only, poll4choice_text_only, poll2choice_image, poll3choice_image, poll4choice_image."
+    },
+    "alwaysSaveRunRecords": {
+      "type": "boolean",
+      "description": "Save run-report on every run. When off, small runs that go well skip it & cost less."
+    },
+    "includeRaw": {
+      "type": "boolean",
+      "description": "API alias for Output Variant raw."
+    },
+    "includeArticles": {
+      "type": "boolean",
+      "description": "Deprecated compatibility input. Article data is already included when X provides it."
+    },
+    "includeUnavailableFields": {
+      "type": "boolean",
+      "description": "Deprecated compatibility input. Safe availability fields are already included when X provides them."
+    },
+    "includeOriginalTweet": {
+      "type": "boolean",
+      "description": "Deprecated compatibility input. Look up source tweets separately with Tweet IDs."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "author": [
+      "object"
+    ],
+    "author.coverPicture": [
+      "string:url"
+    ],
+    "author.createdAt": [
+      "string:twitter-date"
+    ],
+    "author.description": [
+      "string"
+    ],
+    "author.favouritesCount": [
+      "int"
+    ],
+    "author.followers": [
+      "int"
+    ],
+    "author.following": [
+      "int"
+    ],
+    "author.grokTranslatedBio": [
+      "object"
+    ],
+    "author.grokTranslatedBio.is_available": [
+      "boolean"
+    ],
+    "author.hasGraduatedAccess": [
+      "boolean"
+    ],
+    "author.id": [
+      "string:numeric-id"
+    ],
+    "author.isBlueVerified": [
+      "boolean"
+    ],
+    "author.isTranslator": [
+      "boolean"
+    ],
+    "author.isVerified": [
+      "boolean"
+    ],
+    "author.location": [
+      "string"
+    ],
+    "author.mediaCount": [
+      "int"
+    ],
+    "author.name": [
+      "string"
+    ],
+    "author.parodyCommentaryFanLabel": [
+      "string"
+    ],
+    "author.possiblySensitive": [
+      "boolean"
+    ],
+    "author.profileBannerUrl": [
+      "string:url"
+    ],
+    "author.profileDescriptionLanguage": [
+      "string"
+    ],
+    "author.profileImageShape": [
+      "string"
+    ],
+    "author.profilePicture": [
+      "string:url"
+    ],
+    "author.profileTranslatorType": [
+      "string"
+    ],
+    "author.profile_bio": [
+      "object"
+    ],
+    "author.profile_bio.description": [
+      "string"
+    ],
+    "author.profile_bio.entities": [
+      "object"
+    ],
+    "author.profile_bio.entities.description": [
+      "object"
+    ],
+    "author.protected": [
+      "boolean"
+    ],
+    "author.statusesCount": [
+      "int"
+    ],
+    "author.superFollowEligible": [
+      "boolean"
+    ],
+    "author.username": [
+      "string"
+    ],
+    "author.verified": [
+      "boolean"
+    ],
+    "bookmarkCount": [
+      "int"
+    ],
+    "conversationId": [
+      "string:numeric-id"
+    ],
+    "createdAt": [
+      "string:twitter-date"
+    ],
+    "displayTextRange": [
+      "array(…)"
+    ],
+    "displayTextRange[]": [
+      "int"
+    ],
+    "edit": [
+      "object"
+    ],
+    "edit.editTweetIds": [
+      "array(…)"
+    ],
+    "edit.editTweetIds[]": [
+      "string:numeric-id"
+    ],
+    "edit.editableUntilMsecs": [
+      "string:epoch-ms"
+    ],
+    "entities": [
+      "object"
+    ],
+    "entities.hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "entities.hashtags[]": [
+      "object"
+    ],
+    "entities.hashtags[].indices": [
+      "array(…)"
+    ],
+    "entities.hashtags[].indices[]": [
+      "int"
+    ],
+    "entities.hashtags[].text": [
+      "string"
+    ],
+    "entities.urls": [
+      "array(empty)"
+    ],
+    "entities.user_mentions": [
+      "array(empty)"
+    ],
+    "id": [
+      "string:numeric-id"
+    ],
+    "isNoteTweet": [
+      "boolean"
+    ],
+    "isQuoteStatus": [
+      "boolean"
+    ],
+    "isReply": [
+      "boolean"
+    ],
+    "isRetweet": [
+      "boolean"
+    ],
+    "isTranslatable": [
+      "boolean"
+    ],
+    "lang": [
+      "string"
+    ],
+    "likeCount": [
+      "int"
+    ],
+    "media": [
+      "array(…)"
+    ],
+    "media[]": [
+      "object"
+    ],
+    "media[].allowDownload": [
+      "boolean"
+    ],
+    "media[].aspectRatio": [
+      "array(…)"
+    ],
+    "media[].aspectRatio[]": [
+      "int"
+    ],
+    "media[].availabilityStatus": [
+      "string"
+    ],
+    "media[].displayUrl": [
+      "string"
+    ],
+    "media[].durationMillis": [
+      "int"
+    ],
+    "media[].expandedUrl": [
+      "string:url"
+    ],
+    "media[].faceRects": [
+      "object"
+    ],
+    "media[].faceRects.large": [
+      "array(…)"
+    ],
+    "media[].faceRects.large[]": [
+      "object"
+    ],
+    "media[].faceRects.large[].h": [
+      "int"
+    ],
+    "media[].faceRects.large[].w": [
+      "int"
+    ],
+    "media[].faceRects.large[].x": [
+      "int"
+    ],
+    "media[].faceRects.large[].y": [
+      "int"
+    ],
+    "media[].faceRects.medium": [
+      "array(…)"
+    ],
+    "media[].faceRects.medium[]": [
+      "object"
+    ],
+    "media[].faceRects.medium[].h": [
+      "int"
+    ],
+    "media[].faceRects.medium[].w": [
+      "int"
+    ],
+    "media[].faceRects.medium[].x": [
+      "int"
+    ],
+    "media[].faceRects.medium[].y": [
+      "int"
+    ],
+    "media[].faceRects.orig": [
+      "array(…)"
+    ],
+    "media[].faceRects.orig[]": [
+      "object"
+    ],
+    "media[].faceRects.orig[].h": [
+      "int"
+    ],
+    "media[].faceRects.orig[].w": [
+      "int"
+    ],
+    "media[].faceRects.orig[].x": [
+      "int"
+    ],
+    "media[].faceRects.orig[].y": [
+      "int"
+    ],
+    "media[].faceRects.small": [
+      "array(…)"
+    ],
+    "media[].faceRects.small[]": [
+      "object"
+    ],
+    "media[].faceRects.small[].h": [
+      "int"
+    ],
+    "media[].faceRects.small[].w": [
+      "int"
+    ],
+    "media[].faceRects.small[].x": [
+      "int"
+    ],
+    "media[].faceRects.small[].y": [
+      "int"
+    ],
+    "media[].focusRects": [
+      "array(…)"
+    ],
+    "media[].focusRects[]": [
+      "object"
+    ],
+    "media[].focusRects[].h": [
+      "int"
+    ],
+    "media[].focusRects[].w": [
+      "int"
+    ],
+    "media[].focusRects[].x": [
+      "int"
+    ],
+    "media[].focusRects[].y": [
+      "int"
+    ],
+    "media[].height": [
+      "int"
+    ],
+    "media[].id": [
+      "string:numeric-id"
+    ],
+    "media[].indices": [
+      "array(…)"
+    ],
+    "media[].indices[]": [
+      "int"
+    ],
+    "media[].mediaKey": [
+      "string"
+    ],
+    "media[].mediaUrl": [
+      "string:url"
+    ],
+    "media[].monetizable": [
+      "boolean"
+    ],
+    "media[].sizes": [
+      "object"
+    ],
+    "media[].sizes.large": [
+      "object"
+    ],
+    "media[].sizes.large.h": [
+      "int"
+    ],
+    "media[].sizes.large.resize": [
+      "string"
+    ],
+    "media[].sizes.large.w": [
+      "int"
+    ],
+    "media[].sizes.medium": [
+      "object"
+    ],
+    "media[].sizes.medium.h": [
+      "int"
+    ],
+    "media[].sizes.medium.resize": [
+      "string"
+    ],
+    "media[].sizes.medium.w": [
+      "int"
+    ],
+    "media[].sizes.small": [
+      "object"
+    ],
+    "media[].sizes.small.h": [
+      "int"
+    ],
+    "media[].sizes.small.resize": [
+      "string"
+    ],
+    "media[].sizes.small.w": [
+      "int"
+    ],
+    "media[].sizes.thumb": [
+      "object"
+    ],
+    "media[].sizes.thumb.h": [
+      "int"
+    ],
+    "media[].sizes.thumb.resize": [
+      "string"
+    ],
+    "media[].sizes.thumb.w": [
+      "int"
+    ],
+    "media[].type": [
+      "string"
+    ],
+    "media[].url": [
+      "string:url"
+    ],
+    "media[].videoVariants": [
+      "array(…)"
+    ],
+    "media[].videoVariants[]": [
+      "object"
+    ],
+    "media[].videoVariants[].bitrate": [
+      "int"
+    ],
+    "media[].videoVariants[].contentType": [
+      "string"
+    ],
+    "media[].videoVariants[].url": [
+      "string:url"
+    ],
+    "media[].width": [
+      "int"
+    ],
+    "possiblySensitive": [
+      "boolean"
+    ],
+    "quoteCount": [
+      "int"
+    ],
+    "replyCount": [
+      "int"
+    ],
+    "retweetCount": [
+      "int"
+    ],
+    "source": [
+      "string"
+    ],
+    "text": [
+      "string"
+    ],
+    "type": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "viewCount": [
+      "int"
+    ],
+    "viewState": [
+      "string"
+    ]
+  }
+}

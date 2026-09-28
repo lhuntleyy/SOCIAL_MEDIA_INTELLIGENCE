@@ -193,6 +193,15 @@ export const FetchRequestPayload = z.strictObject({
     maxItems: z.number().int().min(1),
   }),
   deadline_at: UtcDateTime,
+  /** fetch.resume: lanjutkan eksekusi async (ASYNC_PENDING) dari sub-query/halaman ini. `seq` ≥ 1 = bagian ke-n. */
+  resume: z
+    .strictObject({
+      async_handle: z.strictObject({ kind: z.string(), id: z.string(), startedAt: UtcDateTime, pollAfterMs: Count }),
+      query_index: Count,
+      page: z.number().int().min(1),
+      seq: z.number().int().min(1),
+    })
+    .optional(),
 });
 
 export const FetchResultPayload = z.strictObject({
@@ -219,6 +228,13 @@ export const FetchResultPayload = z.strictObject({
   usage: Usage,
   duration_ms: Count,
   rate_limit_info: z.strictObject({ remaining: Count.nullable(), resetAt: UtcDateTime.nullable() }),
+  /** Bagian eksekusi (0 = awal, n = resume ke-n) — kunci batch item unik per bagian. */
+  part: Count.optional(),
+  /** Posisi lanjutan bila outcome ASYNC_PENDING. */
+  resume_state: z
+    .strictObject({ query_index: Count, page: z.number().int().min(1) })
+    .nullable()
+    .optional(),
 });
 
 /** QUEUE_SPEC §4.4 — worker-dispatch → worker-pipeline (TS saja). Run stream: tenant/topic/query null + collection_stream_id. */
@@ -230,6 +246,8 @@ export const PipelineItemsPayload = z.strictObject({
   topic_query_id: Uuid.nullable(),
   collection_stream_id: Uuid.nullable().optional(),
   query_ast_version: z.number().int().min(1),
+  /** Bagian eksekusi attempt (resume async) — ikut kunci idempotensi hilir. */
+  part: Count.optional(),
   items_ref: z.string().min(1),
   items_count: Count,
 });

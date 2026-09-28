@@ -3,6 +3,7 @@
 // Error connector di tengah jalan: item yang sudah diterima TETAP diteruskan (sudah dibayar; CONNECTOR_SPEC §4a).
 import { CanonicalItem, type FetchRequestPayload, type FetchResultPayload } from "@smip/contracts";
 import {
+  type AsyncHandle,
   type Connector,
   type ConnectorContext,
   ConnectorError,
@@ -12,6 +13,7 @@ import {
   toConnectorError,
 } from "@smip/connector-sdk";
 import { type Logger, redactString } from "@smip/observability";
+import { createEnvelope } from "@smip/queue";
 import type { BlobStore } from "@smip/storage";
 import type { AccountLoader } from "./accounts";
 
@@ -45,6 +47,9 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
   let error: ConnectorError | null = null;
   let lastCursor: string | null = null;
   let hasMore = false;
+  /** Connector mengembalikan asyncHandle → berhenti; dispatch menjadwalkan fetch.resume dari posisi ini. */
+  let pending: { handle: AsyncHandle; queryIndex: number; page: number } | null = null;
+  const part = msg.resume?.seq ?? 0;
   const log = d.logger?.child({ crawl_run_id: msg.crawl_run_id, attempt: msg.attempt_no, connector: msg.connector_key });
 
   const remainingMs = new Date(msg.deadline_at).getTime() - now();
@@ -72,9 +77,11 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
         d.blobs.putJsonl(`raw/${m.platform}/${msg.crawl_run_id}/${msg.attempt_no}-${m.page}-${Bun.randomUUIDv7()}.jsonl.gz`, [page]),
     };
     const queries = r.queries?.length ? r.queries : [undefined];
+    const start = msg.resume ? { qi: msg.resume.query_index, page: msg.resume.page } : { qi: 0, page: 1 };
     queryLoop: for (const [qi, q] of queries.entries()) {
+      if (qi < start.qi) continue;
       let cursor = r.cursor ?? null;
-      for (let page = 1; page <= r.pageLimit; page++) {
+      for (let page = qi === start.qi ? start.page : 1; page <= r.pageLimit; page++) {
         if (items.size >= r.maxItems) break queryLoop;
         const req: FetchRequest = {
           requestId: Bun.randomUUIDv7(),
@@ -88,7 +95,10 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
           pageLimit: r.pageLimit,
           maxItems: r.maxItems - items.size,
         };
-        const res = await conn.fetch(req, ctx);
+        const resuming = msg.resume && qi === start.qi && page === start.page;
+        if (resuming && !conn.resume)
+          throw new ConnectorError("NOT_SUPPORTED", "connector tidak mendukung resume async", { scope: "connector" });
+        const res = resuming ? await conn.resume!(msg.resume!.async_handle, ctx, req) : await conn.fetch(req, ctx);
         usage.requests += res.usage.requests;
         usage.results += res.usage.results;
         if (res.usage.costUnits !== null) usage.costUnits = (usage.costUnits ?? 0) + res.usage.costUnits;
@@ -100,6 +110,10 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
             continue;
           }
           items.set(`${v.data.platform}|${v.data.platform_post_id}`, v.data);
+        }
+        if (res.asyncHandle) {
+          pending = { handle: res.asyncHandle, queryIndex: qi, page };
+          break queryLoop;
         }
         lastCursor = res.nextCursor;
         hasMore = res.hasMore && !!res.nextCursor;
@@ -114,7 +128,15 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
   }
 
   const list = [...items.values()];
-  const items_ref = list.length ? await d.blobs.putJsonl(`batches/${msg.crawl_run_id}/${msg.attempt_no}.jsonl.gz`, list) : null;
+  const items_ref = list.length
+    ? await d.blobs.putJsonl(`batches/${msg.crawl_run_id}/${msg.attempt_no}${part ? `-${part}` : ""}.jsonl.gz`, list)
+    : null;
+  if (pending && !error) {
+    error = new ConnectorError("ASYNC_PENDING", "eksekusi provider masih berjalan", {
+      retryAfterMs: pending.handle.pollAfterMs,
+      scope: "request",
+    });
+  }
   const rl = rate as RateLimitInfo | null;
   return {
     ...base,
@@ -132,9 +154,31 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
     items_count: list.length,
     next_cursor: lastCursor,
     has_more: hasMore,
-    async_handle: null,
+    async_handle: pending && error?.code === "ASYNC_PENDING" ? pending.handle : null,
     usage,
     duration_ms: Math.max(0, Math.round(now() - t0)),
     rate_limit_info: { remaining: rl?.remaining ?? null, resetAt: rl?.resetAt ?? null },
+    part,
+    resume_state: pending && error?.code === "ASYNC_PENDING" ? { query_index: pending.queryIndex, page: pending.page } : null,
   };
+}
+
+/** jobId fetch.result — unik per bagian (resume async), kalau tidak BullMQ membuang hasil bagian berikutnya. */
+export const fetchResultKey = (r: Pick<FetchResultPayload, "crawl_run_id" | "attempt_no" | "part">) =>
+  `run.${r.crawl_run_id}.attempt.${r.attempt_no}.result${r.part ? `.${r.part}` : ""}`;
+
+/** Handler bersama consumer fetch.bun & fetch.resume: eksekusi lalu laporkan ke fetch.result. */
+export async function fetchAndReport(
+  d: FetchDeps,
+  queue: { enqueue: (q: "fetch.result", env: ReturnType<typeof createEnvelope<FetchResultPayload>>) => Promise<void> },
+  msg: FetchRequestPayload,
+  tenantId: string | null,
+  signal?: AbortSignal,
+): Promise<FetchResultPayload> {
+  const res = await executeFetch(d, msg, signal);
+  await queue.enqueue(
+    "fetch.result",
+    createEnvelope({ type: "fetch.result", idempotencyKey: fetchResultKey(res), tenantId, payload: res }),
+  );
+  return res;
 }

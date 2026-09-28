@@ -4,11 +4,11 @@ import { FetchRequestPayload } from "@smip/contracts";
 import { createKms } from "@smip/crypto";
 import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
-import { BullMqQueue, createEnvelope } from "@smip/queue";
+import { BullMqQueue } from "@smip/queue";
 import { RedisReserver } from "@smip/router";
 import { S3BlobStore } from "@smip/storage";
 import { dbAccountLoader } from "./accounts";
-import { executeFetch } from "./execute";
+import { fetchAndReport } from "./execute";
 import { connectorRegistry } from "./registry";
 
 const cfg = loadConfig("worker-fetch-bun");
@@ -33,26 +33,16 @@ const deps = {
   onRateLimit: (accountId: string, i: { retryAfterMs: number | null }) => reserver.setDynamicLimit(accountId, i.retryAfterMs ?? 0),
 };
 
-const sub = await queue.consume(
-  "fetch.bun",
-  async (m, ctx) => {
-    const res = await executeFetch(deps, m.payload, ctx.signal);
-    await queue.enqueue(
-      "fetch.result",
-      createEnvelope({
-        type: "fetch.result",
-        idempotencyKey: `run.${res.crawl_run_id}.attempt.${res.attempt_no}.result`,
-        tenantId: m.tenant_id,
-        payload: res,
-      }),
-    );
-  },
-  { parse: FetchRequestPayload.parse },
-);
+const handler = (m: { payload: FetchRequestPayload; tenant_id: string | null }, ctx: { signal: AbortSignal }) =>
+  fetchAndReport(deps, queue, m.payload, m.tenant_id, ctx.signal).then(() => {});
+const subs = [
+  await queue.consume("fetch.bun", handler, { parse: FetchRequestPayload.parse }),
+  await queue.consume("fetch.resume", handler, { parse: FetchRequestPayload.parse }),
+];
 logger.info("worker-fetch-bun mulai", { connectors: [...connectors.keys()] });
 
 async function shutdown() {
-  await sub.close(30_000);
+  for (const s of subs) await s.close(30_000);
   await queue.close();
   cache.close();
   await close();

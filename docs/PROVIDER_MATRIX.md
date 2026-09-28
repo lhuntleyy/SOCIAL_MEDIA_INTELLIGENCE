@@ -22,7 +22,7 @@ Uji kontrak nyata via Apify (kata kunci "koperasi merah putih", 10–20 item/run
 | Platform | Prioritas | Provider · connector | Status | Tarif/1K hasil | Biaya tetap / run | Catatan kunci |
 |---|---|---|---|---|---|---|
 | X | 1 | twitterapi.io · `twitterapi_io.x` | DOCS (API key belum ada) | $0,15 | min $0,00015/request | §6.1 |
-| X | 2 | Apify `xquik/x-tweet-scraper` | **TESTED** | $0,15 | ~0 | 20/20 relevan, 4 detik, `queryType: Latest`, `createdAt` format Twitter klasik |
+| X | 2 | Apify `xquik/x-tweet-scraper` · `apify.x.xquik` | **VERIFIED** (connector verify 2026-09-29, 5 sampel) | $0,15 | ~0 | 50/50 item valid, p50 5,5 s / p95 5,9 s, field janji 100%; inkremental via operator `since_time:`/`until_time:` di `searchTerms` (skema input actor); `queryType: Latest` = terbaru dulu; `createdAt` Twitter klasik. Evidence `docs/evidence/I-17/` |
 | X | 3 | Apify `apidojo/tweet-scraper` | **TESTED** | $0,40 | ~0 | 10/10 relevan, 52 detik |
 | X | 4 | X API official | DOCS | $5,00 | — | cadangan mahal, cap 3 juta read/bln |
 | Instagram (keyword) | 1 | Apify `scraping_solutions/instagram-boolean-search-scraper-posts-reels` | **TESTED** | $1,55 | $0,01/halaman search | **tanpa login**; boolean AND/OR/NOT; 8/8 relevan, 1 cocok lewat caption saja; hasil **tidak terurut terbaru** (post Mei–Jun) → pakai `oldestPostDate` |

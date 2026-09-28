@@ -1,0 +1,201 @@
+// Operasi connector (AGENTS §5, CONNECTOR_SPEC §9) — sampai Admin API (I-21) tersedia.
+//   bun scripts/connectors.ts register                      → upsert provider/connector/capability(declared) dari manifest registry (nonaktif)
+//   bun scripts/connectors.ts account <provider> <label> <ENV_VAR> [secretField]
+//                                                           → credential disegel KMS dari env (nilai tidak pernah dicetak) + akun shared pool
+//   bun scripts/connectors.ts verify <connectorKey> "<query>" [--samples N] [--apply]
+//                                                           → panggil provider SUNGGUHAN (berbayar!) dgn window 24 jam, validasi, laporan
+//                                                             docs/evidence/I-17/verify-<key>.json; --apply → capability verified + measured
+// Env: DATABASE_URL, KMS_* (lihat infra/compose/.env.dev). Config biaya connector (maxTotalChargeUsd, memoryMb) diambil dari connectors.config.
+import { CanonicalItem, type Operation } from "@smip/contracts";
+import { type Connector, HttpClient } from "@smip/connector-sdk";
+import { createKms, credentialAad, open, seal } from "@smip/crypto";
+import { connectorRegistry } from "@smip/worker-fetch-bun";
+import postgres from "postgres";
+
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("DATABASE_URL wajib");
+const sql = postgres(url, { max: 1, onnotice: () => {} });
+const kmsEnv = () => createKms({ NODE_ENV: process.env.NODE_ENV ?? "development", ...process.env });
+const registry = connectorRegistry(process.env.NODE_ENV ?? "development");
+const [cmd, ...args] = process.argv.slice(2);
+
+function pathValue(o: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((a, k) => (a && typeof a === "object" ? (a as Record<string, unknown>)[k] : undefined), o);
+}
+
+async function register() {
+  for (const c of registry.values()) {
+    const m = c.manifest;
+    if (m.providerKey === "fake") continue; // fake dikelola seed dev
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      // provider BARU dicatat disabled (kill-switch) — diaktifkan operator setelah verified
+      await tx`insert into providers (id, key, name, kind, risk_level, enabled) values (${Bun.randomUUIDv7()}, ${m.providerKey}, ${m.providerKey}, 'third_party', 'medium', false)
+        on conflict (key) do nothing`;
+      const [p] = await tx`select id from providers where key = ${m.providerKey}`;
+      await tx`insert into connectors (id, key, provider_id, platform_code, runtime, version, enabled, config_schema, manifest_hash)
+        values (${Bun.randomUUIDv7()}, ${m.key}, ${p!.id}, ${m.platform}, ${m.runtime}, ${m.version}, false, ${tx.json(m.configSchema as never)},
+                ${new Bun.CryptoHasher("sha256").update(JSON.stringify(m)).digest("hex")})
+        on conflict (key) do update set version = excluded.version, config_schema = excluded.config_schema, manifest_hash = excluded.manifest_hash, updated_at = now()`;
+      const [cr] = await tx`select id from connectors where key = ${m.key}`;
+      for (const [op, sup] of Object.entries(m.operations)) {
+        const declared = {
+          query_features: sup!.queryFeatures,
+          max_query_length: sup!.maxQueryLength,
+          supports_since: sup!.supportsSince,
+          supports_cursor: sup!.supportsCursor,
+          async_execution: sup!.asyncExecution,
+          result_order: sup!.resultOrder,
+          returns_fields: sup!.returnsFields,
+        };
+        // declared diperbarui; status verified TIDAK diubah di sini (hanya lewat verify)
+        await tx`insert into connector_capabilities (connector_id, operation, declared) values (${cr!.id}, ${op}, ${tx.json(declared as never)})
+          on conflict (connector_id, operation) do update set declared = excluded.declared`;
+      }
+      console.log(`terdaftar: ${m.key} (${Object.keys(m.operations).join(", ")})`);
+    });
+  }
+}
+
+async function account(providerKey: string, label: string, envVar: string, field = "api_token") {
+  const secret = process.env[envVar];
+  if (!secret) throw new Error(`env ${envVar} kosong`);
+  const kms = kmsEnv();
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL ROLE smip_system`;
+    const [p] = await tx`select id from providers where key = ${providerKey}`;
+    if (!p) throw new Error(`provider ${providerKey} belum terdaftar (jalankan register)`);
+    const credId = Bun.randomUUIDv7();
+    const s = await seal(kms, credentialAad(credId, null), { [field]: secret });
+    const fp = new Bun.CryptoHasher("sha256").update(`${providerKey}:${secret}`).digest();
+    await tx`insert into credentials (id, kind, ciphertext, iv, wrapped_dek, kek_id, aad, fingerprint)
+      values (${credId}, 'api_key', ${Buffer.from(s.ciphertext)}, ${Buffer.from(s.iv)}, ${Buffer.from(s.wrapped_dek)}, ${s.kek_id}, ${s.aad}, ${Buffer.from(fp)})`;
+    await tx`insert into provider_accounts (id, provider_id, label, credential_id, display_hint) values (${Bun.randomUUIDv7()}, ${p.id}, ${label}, ${credId}, ${`…${secret.slice(-4)}`})`;
+  });
+  console.log(`akun ${label} untuk ${providerKey} dibuat (secret disegel, tidak dicetak)`);
+}
+
+async function verify(key: string, query: string, samples: number, apply: boolean) {
+  const c = registry.get(key) as Connector | undefined;
+  if (!c) throw new Error(`connector ${key} tidak ada di registry`);
+  const [row] =
+    await sql`select c.id, c.config, pa.id as account_id, pa.tenant_id, cr.id as cred_id, cr.ciphertext, cr.iv, cr.wrapped_dek, cr.kek_id, cr.aad
+    from connectors c join provider_accounts pa on pa.provider_id = c.provider_id and pa.status = 'active' join credentials cr on cr.id = pa.credential_id
+    where c.key = ${key} order by pa.created_at limit 1`;
+  if (!row) throw new Error("tidak ada akun aktif untuk provider connector ini (jalankan account)");
+  const cred = await open<Record<string, string>>(
+    kmsEnv(),
+    {
+      ciphertext: new Uint8Array(row.ciphertext),
+      iv: new Uint8Array(row.iv),
+      wrapped_dek: new Uint8Array(row.wrapped_dek),
+      kek_id: row.kek_id,
+      aad: row.aad,
+    },
+    credentialAad(row.cred_id, row.tenant_id),
+  );
+  const op = (Object.keys(c.manifest.operations)[0] ?? "search_keyword") as Operation;
+  const sup = c.manifest.operations[op]!;
+  const until = new Date();
+  const since = new Date(until.getTime() - 24 * 3600_000);
+  const lat: number[] = [];
+  const all: CanonicalItem[] = [];
+  let returned = 0;
+  let cost = 0;
+  let invalid = 0;
+  for (let i = 0; i < samples; i++) {
+    const ctx = {
+      credential: { kind: "api_key" as const, secret: cred },
+      config: (row.config ?? {}) as Record<string, unknown>,
+      http: new HttpClient({ allowedHosts: ["api.apify.com"], timeoutMs: 90_000 }),
+      logger: {
+        debug() {},
+        info() {},
+        warn() {},
+        error() {},
+        child() {
+          return this;
+        },
+      } as never,
+      signal: AbortSignal.timeout(300_000),
+      reportRateLimit: () => {},
+      archiveRaw: async () => "verify://tidak-diarsip",
+    };
+    const req = {
+      requestId: Bun.randomUUIDv7(),
+      idempotencyKey: `verify.${Date.now()}.${i}`,
+      platform: c.manifest.platform,
+      operation: op,
+      query: { native: query, sourceNodeIds: [] },
+      window: { since: since.toISOString(), until: until.toISOString() },
+      cursor: null,
+      pageLimit: 1,
+      maxItems: 10,
+    };
+    const t0 = performance.now();
+    let r = await c.fetch(req, ctx);
+    while (r.asyncHandle && c.resume) {
+      await Bun.sleep(r.asyncHandle.pollAfterMs);
+      r = await c.resume(r.asyncHandle, ctx, req);
+    }
+    lat.push(Math.round(performance.now() - t0));
+    returned += r.usage.results;
+    cost += r.usage.costUnits ?? 0;
+    for (const it of r.items) {
+      if (CanonicalItem.safeParse(it).success) all.push(it);
+      else invalid++;
+    }
+  }
+  const fieldRate = Object.fromEntries(
+    sup.returnsFields.map((f) => [
+      f,
+      all.length ? all.filter((it) => pathValue(it, f) !== null && pathValue(it, f) !== undefined).length / all.length : 0,
+    ]),
+  );
+  const sinceOk = all.every((it) => it.published_at >= since.toISOString());
+  const sorted = [...lat].sort((a, b) => a - b);
+  const p = (q: number) => sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * q) - 1)] ?? null;
+  const pass = all.length > 0 && invalid === 0 && sinceOk && Object.values(fieldRate).every((v) => v >= 0.8);
+  const report = {
+    date: new Date().toISOString(),
+    connector: key,
+    version: c.manifest.version,
+    operation: op,
+    query,
+    window_hours: 24,
+    samples,
+    items_valid: all.length,
+    items_invalid: invalid,
+    usage_results_returned: returned,
+    cost_usd: Number(cost.toFixed(6)),
+    since_respected: sinceOk,
+    returns_fields_rate: fieldRate,
+    latency_ms: { samples: lat, p50: p(0.5), p95: p(0.95) },
+    status: pass ? "verified" : "failed",
+    note: samples < 5 ? "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)" : null,
+  };
+  const file = `docs/evidence/I-17/verify-${key}.json`;
+  await Bun.write(file, `${JSON.stringify(report, null, 2)}\n`);
+  console.log(JSON.stringify({ file, status: report.status, items: all.length, cost_usd: report.cost_usd, p50: report.latency_ms.p50 }));
+  if (apply) {
+    const measured = { p50_latency_ms: p(0.5), p95_latency_ms: p(0.95), sample_size: samples, returns_fields_rate: fieldRate };
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`update connector_capabilities set status = ${report.status}::e_verify_status, measured = measured || ${tx.json(measured as never)},
+        verified_at = now(), evidence_ref = ${file} where connector_id = ${row.id} and operation = ${op}`;
+      await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('connector_capability', ${row.id}, 'capability.verified', ${tx.json({ status: report.status } as never)})`;
+    });
+    console.log(`capability ${key}/${op} → ${report.status}`);
+  }
+}
+
+try {
+  if (cmd === "register") await register();
+  else if (cmd === "account") await account(args[0]!, args[1]!, args[2]!, args[3]);
+  else if (cmd === "verify") {
+    const n = args.indexOf("--samples");
+    await verify(args[0]!, args[1]!, n >= 0 ? Number(args[n + 1]) : 1, args.includes("--apply"));
+  } else throw new Error("perintah: register | account | verify (lihat header skrip)");
+} finally {
+  await sql.end();
+}

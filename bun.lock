@@ -71,6 +71,10 @@
       "name": "@smip/connector-sdk",
       "version": "0.0.0",
     },
+    "packages/connectors/apify": {
+      "name": "@smip/connector-apify",
+      "version": "0.0.0",
+    },
     "packages/connectors/fake": {
       "name": "@smip/connector-fake",
       "version": "0.0.0",
@@ -293,6 +297,8 @@
     "@smip/api": ["@smip/api@workspace:apps/api"],
 
     "@smip/config": ["@smip/config@workspace:packages/config"],
+
+    "@smip/connector-apify": ["@smip/connector-apify@workspace:packages/connectors/apify"],
 
     "@smip/connector-fake": ["@smip/connector-fake@workspace:packages/connectors/fake"],
 

@@ -21,7 +21,16 @@ export interface Routing {
   exclude_account_ids: string[];
   same_retries: number;
   recompiled: boolean;
+  /** Request fetch attempt aktif (dipakai ulang oleh fetch.resume). */
+  fetch?: FetchRequestPayload;
+  /** Jumlah resume async attempt aktif (= nomor bagian berikutnya yang diharapkan). */
+  resumes?: number;
+  /** Pemakaian yang dilaporkan bagian-bagian sebelumnya (di-commit sekali di hasil akhir). */
+  usage_acc?: { requests: number; results: number; costUnits: number | null };
 }
+
+/** Batas resume per attempt (× pollAfterMs ≈ lama maksimum menunggu run async) sebelum dianggap TIMEOUT → failover. */
+export const MAX_RESUMES = 40;
 
 export interface DispatchDeps {
   db: Db;
@@ -304,6 +313,12 @@ export async function handleDispatch(
       },
       deadline_at: iso(new Date(now.getTime() + f.timeoutMs)),
     };
+    routing.fetch = payload;
+    routing.resumes = 0;
+    routing.usage_acc = { requests: 0, results: 0, costUnits: null };
+    await tx.execute(
+      sql`update crawl_runs set routing = ${jsonbValue(routing)} where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`,
+    );
     await writeJobOutbox(tx, run.id, {
       queue: decision.runtime === "python" ? "fetch.py" : "fetch.bun",
       idempotencyKey: `run.${run.id}.attempt.${m.attempt_no}`,
@@ -331,16 +346,26 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
     if (run?.status !== "fetching" || run.attempts !== m.attempt_no) return "ignored";
     const plan = (await loadPlan(tx, run.crawl_plan_id!))!;
     const routing = routingOf(run.routing);
+    const part = m.part ?? 0;
+    if (part !== (routing.resumes ?? 0)) return "ignored"; // hasil bagian basi/duplikat
+    const acc = routing.usage_acc ?? { requests: 0, results: 0, costUnits: null };
+    const usage = {
+      requests: acc.requests + m.usage.requests,
+      results: acc.results + m.usage.results,
+      costUnits: acc.costUnits === null && m.usage.costUnits === null ? null : (acc.costUnits ?? 0) + (m.usage.costUnits ?? 0),
+    };
+    const tooLong = m.error?.code === "ASYNC_PENDING" && (routing.resumes ?? 0) >= MAX_RESUMES;
     const outcome: AttemptOutcome = {
       reservationId: m.reservation_id,
       connectorId: m.connector_id,
       accountId: m.provider_account_id,
       ok: m.outcome === "success",
-      errorCode: m.error?.code,
-      errorScope: m.error?.scope,
+      // terlalu lama menunggu run async → perlakukan TIMEOUT (failover), reservasi di-settle
+      errorCode: tooLong ? "TIMEOUT" : m.error?.code,
+      errorScope: tooLong ? "connector" : m.error?.scope,
       retryAfterMs: m.error?.retry_after_ms ?? undefined,
       latencyMs: m.duration_ms,
-      usage: { requests: m.usage.requests, results: m.usage.results, costUnits: m.usage.costUnits },
+      usage,
     };
     let decision: FailoverDecision = await d.router.reportOutcome(outcome, {
       policyId: routing.policy_id ?? "",
@@ -349,14 +374,16 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
       sameRetries: routing.same_retries,
       recompiled: routing.recompiled,
     });
-    // ASYNC_PENDING (actor Apify dsb.) → fetch.resume dirangkai bersama connector async (I-17)
-    if (decision.action === "resume") decision = { action: "fail", reason: "ASYNC_PENDING: fetch.resume belum didukung" };
+    if (decision.action === "resume" && !(m.async_handle && m.resume_state && routing.fetch)) {
+      decision = { action: "fail", reason: "ASYNC_PENDING tanpa async_handle/state — tidak bisa dilanjutkan" };
+    }
 
-    await tx.execute(sql`insert into provider_attempts (id, crawl_run_id, crawl_run_scheduled_for, tenant_id, connector_id, provider_account_id, attempt_no,
+    if (decision.action !== "resume")
+      await tx.execute(sql`insert into provider_attempts (id, crawl_run_id, crawl_run_scheduled_for, tenant_id, connector_id, provider_account_id, attempt_no,
         started_at, duration_ms, outcome, error_code, http_status, items, usage)
       values (${Bun.randomUUIDv7()}, ${run.id}, ${run.sf}::timestamptz, ${run.tenant_id}, ${m.connector_id}, ${m.provider_account_id}, ${m.attempt_no},
         ${iso(new Date(now.getTime() - m.duration_ms))}::timestamptz, ${m.duration_ms}, ${OUTCOME[decision.action]}::e_attempt_outcome,
-        ${m.error?.code ?? null}, ${m.error?.http_status ?? null}, ${m.items_count}, ${jsonbValue(m.usage)})`);
+        ${tooLong ? "TIMEOUT" : (m.error?.code ?? null)}, ${m.error?.http_status ?? null}, ${m.items_count}, ${jsonbValue(usage)})`);
 
     const itemsTotal = run.items_fetched + m.items_count;
     if (m.items_count > 0 && m.items_ref) {
@@ -367,12 +394,13 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
         topic_id: plan.topic_id,
         topic_query_id: plan.topic_query_id,
         query_ast_version: plan.query_ast.version ?? 1,
+        part,
         items_ref: m.items_ref,
         items_count: m.items_count,
       };
       await writeJobOutbox(tx, run.id, {
         queue: "pipeline.items",
-        idempotencyKey: `pipe.${run.id}.${m.attempt_no}`,
+        idempotencyKey: `pipe.${run.id}.${m.attempt_no}${part ? `.${part}` : ""}`,
         type: "pipeline.items",
         tenantId: run.tenant_id,
         payload,
@@ -384,6 +412,34 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
       where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`);
 
     const next = m.attempt_no + 1;
+    if (decision.action === "resume") {
+      // attempt masih berjalan di provider: pegang reservasi, jadwalkan fetch.resume dari posisi terakhir
+      routing.resumes = (routing.resumes ?? 0) + 1;
+      routing.usage_acc = usage;
+      await tx.execute(
+        sql`update crawl_runs set routing = ${jsonbValue(routing)} where id = ${run.id} and scheduled_for = ${run.sf}::timestamptz`,
+      );
+      const f = { timeoutMs: 120_000, ...d.fetch };
+      const resume: FetchRequestPayload = {
+        ...routing.fetch!,
+        deadline_at: iso(new Date(now.getTime() + decision.delayMs + f.timeoutMs)),
+        resume: {
+          async_handle: m.async_handle!,
+          query_index: m.resume_state!.query_index,
+          page: m.resume_state!.page,
+          seq: routing.resumes,
+        },
+      };
+      await writeJobOutbox(tx, run.id, {
+        queue: "fetch.resume",
+        idempotencyKey: `run.${run.id}.attempt.${m.attempt_no}.resume.${routing.resumes}`,
+        type: "fetch.resume",
+        tenantId: run.tenant_id,
+        payload: resume,
+        delayMs: decision.delayMs,
+      });
+      return "resume";
+    }
     switch (decision.action) {
       case "done":
         if (itemsTotal > 0) {

@@ -129,6 +129,7 @@ export interface Connector {
   /** Satu halaman/eksekusi. WAJIB menghormati ctx.signal dan melempar ConnectorError (bukan error mentah). */
   fetch(req: FetchRequest, ctx: ConnectorContext): Promise<FetchResult>;
   healthProbe(ctx: ConnectorContext): Promise<HealthProbeResult>;
-  resume?(handle: AsyncHandle, ctx: ConnectorContext): Promise<FetchResult>;
+  /** Lanjutkan eksekusi async (ASYNC_PENDING); `req` = request asal (batas item, window). */
+  resume?(handle: AsyncHandle, ctx: ConnectorContext, req?: FetchRequest): Promise<FetchResult>;
   dispose?(): Promise<void>;
 }

@@ -70,6 +70,7 @@ Semua perintah `bun run …` dijalankan dari **root repo** (`cd ~/social-intel`)
 - Bun ada di `~/.bun/bin` (tambahkan ke PATH). Paket baru **wajib** ditambah check di `scripts/compat/` dulu (Golden Rule 8).
 - `bun run dev:up` / `dev:down` — infra dev via Docker Compose + migrasi + seed (F-11). Sesi shell yang dibuat sebelum user masuk grup `docker` perlu `sg docker -c "…"`.
 - `bun run dev:workers` — jalankan scheduler + worker-dispatch + worker-fetch-bun + worker-pipeline + worker-ai-stub (label netral `stub-0`, dev saja) + worker-sink (env `.env.dev`, connector `fake.*` menghasilkan item demo); seed membuat topik "Demo KDMP" + akun provider fake sehingga alur run langsung jalan. Ctrl+C = shutdown graceful.
+- Connector nyata (sampai Admin API I-21): `bun scripts/connectors.ts register` (manifest → DB, nonaktif) · `account <provider> <label> <ENV_VAR>` (secret disegel KMS) · `verify <key> "<query>" --samples 5 --apply` (**berbayar** — cek `connectors.config.maxTotalChargeUsd` dulu). Bentuk output actor baru: `bun scripts/provider-probe/shape.ts <actor> '<input>' <maxUsd>` (hanya tipe field, tanpa konten).
 - Migrasi: `bun run db:migrate up|down|status` (Postgres, SQL-first), `bun run ch:migrate up|down|status` (ClickHouse).
 - Placeholder: `pytest`.
 

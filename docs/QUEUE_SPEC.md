@@ -53,6 +53,8 @@ Aturan:
 | `fetch.bun` | worker-dispatch | worker-fetch-bun (bun) | eksekusi connector runtime bun | 20 | 1 (retry diatur router) | — | per connector (default 120 s) | dari plan |
 | `fetch.py` | worker-dispatch | worker-fetch-py (python) | eksekusi connector runtime python | 4 | 1 | — | per connector | dari plan |
 | `fetch.resume` | worker-dispatch | worker-fetch-* | lanjutkan run async (poll) | 20 | 1 | delay `pollAfterMs` | 60 s | — |
+
+> **Run async (I-17).** Connector yang eksekusinya di provider belum selesai (actor Apify) mengembalikan `asyncHandle` → `fetch.result` ber-`ASYNC_PENDING` + `async_handle` + `resume_state` (sub-query/halaman). Item yang sudah diterima tetap diteruskan (`pipeline.items` per **`part`**). Dispatch: reservasi **tetap dipegang** (tidak di-commit, health tidak dicatat), `crawl_runs.routing.resumes++`, `fetch.resume` = request asal + `resume{async_handle, query_index, page, seq}` dengan delay `pollAfterMs`. Semua kunci hilir memuat `part` (`…result.<n>`, `pipe.<run>.<attempt>.<n>`). Hasil bagian basi (part ≠ resumes) diabaikan. > `MAX_RESUMES` (40) → diperlakukan `TIMEOUT` → failover. Pemakaian semua bagian diakumulasi dan di-commit sekali di hasil akhir.
 | `fetch.result` | worker-fetch-* | worker-dispatch | laporan sukses/gagal → failover decision, update run | 50 | 5 | exp 1s | 10 s | — |
 | `pipeline.items` | worker-dispatch (setelah fetch.result sukses) | worker-pipeline (bun) | match lokal, dedupe, geo, ads; post match → `ai.enrich`, post tak-match → `sink.analytics` langsung | 20 | 5 | exp 2s | 60 s | — |
 | `ai.enrich` | worker-pipeline | worker-ai (python) | lang, sentiment, keyphrase (batch ≤ 64 item) | 2 (GPU) / N (CPU) | 5 | exp 5s | 300 s | realtime > backfill |

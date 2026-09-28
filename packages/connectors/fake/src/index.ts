@@ -7,6 +7,7 @@
 import { CanonicalItem, type ConnectorErrorCode, type Operation } from "@smip/contracts";
 import {
   type Connector,
+  type AsyncHandle,
   type ConnectorContext,
   ConnectorError,
   type ConnectorManifest,
@@ -27,6 +28,8 @@ export interface FakeStep {
   respond?: FakeRespond;
   fail?: { code: ConnectorErrorCode; retryAfterMs?: number; httpStatus?: number };
   delayMs?: number;
+  /** Eksekusi async belum selesai → asyncHandle; langkah berikutnya diambil oleh resume(). */
+  pending?: { pollAfterMs?: number };
 }
 
 const OP: OperationSupport = {
@@ -128,6 +131,7 @@ export class FakeConnector implements Connector {
   reset(): this {
     this.steps = [];
     this.calls.length = 0;
+    this.resumes.length = 0;
     this.healthy = true;
     return this;
   }
@@ -143,6 +147,23 @@ export class FakeConnector implements Connector {
     const i = this.steps.findIndex((s) => !s.op || s.op === req.operation);
     const step = i >= 0 ? this.steps.splice(i, 1)[0]! : { respond: { items: this.autoRespond?.(req) ?? [] } };
     if (step.delayMs) await sleep(step.delayMs, ctx.signal);
+    if (step.pending) {
+      return {
+        items: [],
+        nextCursor: null,
+        hasMore: true,
+        asyncHandle: {
+          kind: "fake",
+          id: Bun.randomUUIDv7(),
+          startedAt: new Date().toISOString(),
+          pollAfterMs: step.pending.pollAfterMs ?? 10,
+        },
+        rawRefs: [],
+        usage: { requests: 1, results: 0, costUnits: null, costUnitLabel: null },
+        upstream: { httpStatuses: [202], requestIds: [] },
+        warnings: [],
+      };
+    }
     if (step.fail) {
       if (step.fail.code === "RATE_LIMITED") {
         ctx.reportRateLimit({ remaining: 0, resetAt: null, retryAfterMs: step.fail.retryAfterMs ?? null, scope: "provider_account" });
@@ -177,6 +198,15 @@ export class FakeConnector implements Connector {
       warnings: [],
     };
   }
+
+  /** Lanjutan async: langkah terskrip berikutnya (bisa pending lagi). */
+  async resume(handle: AsyncHandle, ctx: ConnectorContext, req?: FetchRequest): Promise<FetchResult> {
+    if (handle.kind !== "fake") throw new ConnectorError("INVALID_QUERY", "async handle bukan milik fake", { scope: "request" });
+    this.resumes.push(handle.id);
+    return this.fetch(req ?? ({ operation: "search_keyword", maxItems: 100, idempotencyKey: `resume.${handle.id}` } as FetchRequest), ctx);
+  }
+  /** Jejak resume (id handle). */
+  readonly resumes: string[] = [];
 
   async healthProbe(ctx: ConnectorContext): Promise<HealthProbeResult> {
     if (ctx.signal.aborted) return { ok: false, latencyMs: 0, errorCode: "TIMEOUT" };

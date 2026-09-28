@@ -1,0 +1,5 @@
+# I-17 live e2e dev 2026-09-28T16:17:18Z: routing X → apify.x.xquik, 1 run, lookback 6 jam, lalu dikembalikan ke fake.x
+# hanya hitungan (tanpa konten/akun)
+run: status=succeeded items_fetched=133 items_matched=118 items_new=133 connector=apify.x.xquik
+attempt: outcome=success items=133 duration_ms=8726 usage.requests=2 usage.results=133 costUnits(usd)=0.000165
+clickhouse posts(apify.x.xquik): n=133 matched=118 geo_region_code_terisi=13; topic_match_events total=122 (termasuk 4 dari fake sebelumnya)

@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-28T16:14:24.726Z",
+  "connector": "apify.x.xquik",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "\"koperasi merah putih\" OR kopdes",
+  "window_hours": 24,
+  "samples": 5,
+  "items_valid": 50,
+  "items_invalid": 0,
+  "usage_results_returned": 50,
+  "cost_usd": 0.000539,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.views": 1,
+    "author.followers": 1
+  },
+  "latency_ms": {
+    "samples": [
+      5874,
+      3685,
+      5883,
+      3312,
+      5545
+    ],
+    "p50": 5545,
+    "p95": 5883
+  },
+  "status": "verified",
+  "note": null
+}

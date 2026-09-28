@@ -97,7 +97,7 @@ export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date())
       min_published_at: Date | null;
       max_published_at: Date | null;
     }[];
-  if (!r || r.status !== "processing" || r.pending_batches > 0) return null;
+  if (r?.status !== "processing" || r.pending_batches > 0) return null;
   const outcome = r.error_code ? "partial" : "succeeded";
   // scheduled_for via teks: Date JS hanya milidetik, timestamptz Postgres mikrodetik → perbandingan Date bisa meleset
   await tx.execute(sql`update crawl_runs set status = ${outcome}::e_run_status, finished_at = ${now.toISOString()}::timestamptz

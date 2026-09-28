@@ -55,6 +55,11 @@ export class Router implements ProviderRouter {
 
   async reportOutcome(o: AttemptOutcome, ctx: AttemptContext): Promise<FailoverDecision> {
     const snap = await this.d.snapshots.get();
+    // ASYNC_PENDING = eksekusi provider masih berjalan: attempt BELUM selesai → reservasi (slot semaphore, quota)
+    // tetap dipegang sampai hasil akhir; health tidak dicatat. Pemakaian di-commit sekali di hasil akhir.
+    if (!o.ok && o.errorCode === "ASYNC_PENDING") {
+      return { action: "resume", delayMs: o.retryAfterMs ?? (this.d.failover ?? DEFAULT_FAILOVER).asyncPollMs };
+    }
     // Request sudah terkirim (sukses atau error dari provider) → commit pemakaian; default konservatif 1 request.
     await this.d.reserver.commit(o.reservationId, o.usage ?? { requests: 1, results: 0, costUnits: null }, snap);
     const policy = [...snap.policies.values()].find((p) => p.id === ctx.policyId);

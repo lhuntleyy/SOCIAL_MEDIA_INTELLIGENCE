@@ -288,6 +288,31 @@ class Request(BaseModel):
     maxItems: Annotated[int, Field(ge=1, le=9007199254740991)]
 
 
+class AsyncHandle(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: str
+    id: str
+    startedAt: Annotated[
+        str,
+        Field(
+            pattern='^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        ),
+    ]
+    pollAfterMs: Annotated[int, Field(ge=0, le=9007199254740991)]
+
+
+class Resume(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    async_handle: AsyncHandle
+    query_index: Annotated[int, Field(ge=0, le=9007199254740991)]
+    page: Annotated[int, Field(ge=1, le=9007199254740991)]
+    seq: Annotated[int, Field(ge=1, le=9007199254740991)]
+
+
 class FetchRequestPayload(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -321,6 +346,7 @@ class FetchRequestPayload(BaseModel):
             pattern='^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
         ),
     ]
+    resume: Resume | None = None
 
 
 class Outcome(StrEnum):
@@ -370,21 +396,6 @@ class Error(BaseModel):
     http_status: HttpStatus | None
 
 
-class AsyncHandle(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    kind: str
-    id: str
-    startedAt: Annotated[
-        str,
-        Field(
-            pattern='^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
-        ),
-    ]
-    pollAfterMs: Annotated[int, Field(ge=0, le=9007199254740991)]
-
-
 class CostUnits(RootModel[float]):
     root: Annotated[float, Field(ge=0.0)]
 
@@ -418,6 +429,14 @@ class RateLimitInfo(BaseModel):
     )
     remaining: Remaining | None
     resetAt: ResetAt | None
+
+
+class ResumeState(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    query_index: Annotated[int, Field(ge=0, le=9007199254740991)]
+    page: Annotated[int, Field(ge=1, le=9007199254740991)]
 
 
 class FetchResultPayload(BaseModel):
@@ -454,6 +473,8 @@ class FetchResultPayload(BaseModel):
     usage: Usage
     duration_ms: Annotated[int, Field(ge=0, le=9007199254740991)]
     rate_limit_info: RateLimitInfo
+    part: Annotated[int | None, Field(ge=0, le=9007199254740991)] = None
+    resume_state: ResumeState | None = None
 
 
 class PriorityClass(StrEnum):

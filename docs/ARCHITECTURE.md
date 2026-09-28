@@ -232,18 +232,10 @@ social-intel/
 │   ├── connectors/
 │   │   ├── fake/                  # connector deterministik untuk test & chaos
 │   │   ├── twitterapi-io-x/       # X utama (PROVIDER_MATRIX §6.1)
-│   │   ├── apify-base/            # klien Apify bersama (run, poll, dataset, maxTotalChargeUsd, memory) — dipakai connector apify-*
-│   │   ├── apify-x-xquik/         # X cadangan 1 (TESTED)
-│   │   ├── apify-x-apidojo/       # X cadangan 2 (TESTED)
+│   │   ├── apify/                 # SATU paket untuk semua actor Apify (aturan dependensi melarang connector saling impor):
+│   │   │                          #   client.ts (run/poll/dataset, maxTotalChargeUsd, memory), actor.ts (connector generik + async resume),
+│   │   │                          #   x-xquik.ts (apify.x.xquik — VERIFIED I-17), berikutnya: x-apidojo, instagram-*, facebook-*, threads, tiktok, youtube
 │   │   ├── x-official/            # X cadangan mahal
-│   │   ├── apify-instagram-boolean/    # IG keyword utama (TESTED, tanpa login)
-│   │   ├── apify-instagram-crawlerbros/# IG keyword cadangan (TESTED, sesi login pihak ketiga — risk tinggi)
-│   │   ├── apify-instagram-hashtag/    # IG hashtag (recall)
-│   │   ├── apify-facebook-search/      # FB keyword (TESTED)
-│   │   ├── apify-facebook-pages/       # FB daftar Page
-│   │   ├── apify-threads/
-│   │   ├── apify-tiktok/
-│   │   ├── apify-youtube/
 │   │   ├── scrapecreators-*/      # vendor non-Apify (IG/TikTok/Threads/YouTube)
 │   │   ├── youtube-data-api/
 │   │   ├── threads-official/      # bila S-13 membuktikan keyword search

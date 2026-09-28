@@ -35,6 +35,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Worker (I-13): `apps/worker-dispatch`, `apps/worker-fetch-bun`, `@smip/storage`, `bun run dev:workers`, migrasi 0013 (`crawl_runs.routing`), kontrak `queries[]`/`PipelineItemsPayload`; seed membuat akun fake + topik demo. CI GitHub Actions (F-12) hijau.
   - Pipeline (I-14): `apps/worker-pipeline`, `@smip/geo` + ADR-010 (gazetteer provinsi, UNVERIFIED), migrasi 0014 (counter penutupan run) & 0015 (38 provinsi), `finalizeRunIfDone`/`settleGap`, kontrak `PostRecord`.
   - Sink (I-15): `apps/worker-sink` (ClickHouse + guard dedup + penutupan run + realtime.notify), ledger `processed_messages` (migrasi 0016), `apps/worker-ai-stub` (dev), `FakeConnector.autoRespond`; `dev:workers` kini mengalir sampai ClickHouse.
+  - Connector nyata #1 (I-17): `packages/connectors/apify` (`apify.x.xquik`, VERIFIED live), run async `fetch.resume`, `scripts/connectors.ts` (register/account/verify), `scripts/provider-probe/shape.ts`. ADR-010: daftar 38 provinsi dikonfirmasi pemilik.
+  - Fix: jobId `fetch.result` sama untuk semua bagian async → hasil resume dibuang BullMQ.
   - Fix (tes): flaky `admin.test.ts` — bagian acak secret API key (base64url) bisa diawali `_`, `split("_")` menghasilkan string kosong (CI run 36410366283 gagal karenanya).
   - Fix: `engagement_known=false` dari AI menimpa metrik post yang diketahui.
   - Fix: pembanding `scheduled_for` lewat `Date` JS kehilangan mikrodetik (UPDATE meleset diam-diam).

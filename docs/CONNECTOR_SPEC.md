@@ -420,6 +420,8 @@ State ringkas:
 
 ## 9. Verifikasi Capability (anti "mengarang capability")
 
+> **Implementasi sementara (I-17):** `bun scripts/connectors.ts verify <key> "<query>" --samples N [--apply]` — memanggil provider sungguhan (berbayar; biaya dibatasi `connectors.config.maxTotalChargeUsd`), window 24 jam, validasi skema, `returnsFields` ≥ 80%, `supportsSince`, latensi p50/p95; laporan `docs/evidence/I-17/verify-<key>.json`; `--apply` → `status`, `measured`, `evidence_ref` + outbox (snapshot router ter-invalidasi). Job `connector.verify` terjadwal menyusul bersama Admin API (I-21).
+
 Job `connector.verify` (manual dari admin UI atau terjadwal harian):
 1. Jalankan operation dengan query uji (dikonfigurasi operator per platform, mis. term umum).
 2. Validasi setiap item terhadap JSON Schema canonical.

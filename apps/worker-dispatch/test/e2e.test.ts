@@ -7,11 +7,11 @@ import { FakeConnector, fakeItem } from "@smip/connector-fake";
 import { credentialAad, LocalDevKms, seal } from "@smip/crypto";
 import { createDb, loadRoutingSnapshot, markAccountAttention, markCapabilityFailed, publishOutbox, setAccountCooldown, up } from "@smip/db";
 import { astHash, compileQuery } from "@smip/query";
-import { createEnvelope, BullMqQueue } from "@smip/queue";
+import { BullMqQueue } from "@smip/queue";
 import { HealthCache, HealthMonitor, RedisReserver, Router, SnapshotStore } from "@smip/router";
 import { jobRelay, schedulerTick } from "@smip/scheduler";
 import { MemoryBlobStore } from "@smip/storage";
-import { dbAccountLoader, executeFetch } from "@smip/worker-fetch-bun";
+import { dbAccountLoader, fetchAndReport } from "@smip/worker-fetch-bun";
 import postgres from "postgres";
 import { type DispatchDeps, handleDispatch, handleFetchResult } from "../src";
 
@@ -145,24 +145,14 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
         parse: CrawlDispatchPayload.parse,
       }),
     );
-    subs.push(
-      await queue.consume(
-        "fetch.bun",
-        async (m, ctx) => {
-          const res = await executeFetch({ connectors, accounts: dbAccountLoader(db, kms), blobs }, m.payload, ctx.signal);
-          await queue.enqueue(
-            "fetch.result",
-            createEnvelope({
-              type: "fetch.result",
-              idempotencyKey: `run.${res.crawl_run_id}.attempt.${res.attempt_no}.result`,
-              tenantId: m.tenant_id,
-              payload: res,
-            }),
-          );
-        },
-        { parse: FetchRequestPayload.parse },
-      ),
-    );
+    const fdeps = { connectors, accounts: dbAccountLoader(db, kms), blobs };
+    for (const q of ["fetch.bun", "fetch.resume"] as const) {
+      subs.push(
+        await queue.consume(q, async (m, ctx) => void (await fetchAndReport(fdeps, queue, m.payload, m.tenant_id, ctx.signal)), {
+          parse: FetchRequestPayload.parse,
+        }),
+      );
+    }
     subs.push(
       await queue.consume("fetch.result", async (m) => void (await handleFetchResult(deps, m.payload)), {
         parse: FetchResultPayload.parse,
@@ -291,5 +281,28 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
       inflight_run_id: null,
     });
     await sql`delete from quota_policies`;
+  });
+
+  test("async (ASYNC_PENDING): item sebelum jeda diteruskan (part 0), fetch.resume ×2 melanjutkan sub-query → part 2; reservasi & attempt dicatat sekali", async () => {
+    fakes.a.script([
+      { respond: { items: items(40, 2) } }, // sub-query 0 selesai
+      { pending: { pollAfterMs: 20 } }, // sub-query 1: run provider masih berjalan
+      { pending: { pollAfterMs: 20 } },
+      { respond: { items: items(50, 1) } },
+    ]);
+    await pump(async () => (await runRow()).status === "processing" && pipelineJobs.length >= 2);
+    const run = await runRow();
+    expect(run).toMatchObject({ attempts: 1, items_fetched: 3, final_connector_id: C.a });
+    expect(fakes.a.resumes).toHaveLength(2);
+    expect(pipelineJobs.map((p) => [p.part ?? 0, p.items_count]).sort()).toEqual([
+      [0, 2],
+      [2, 1], // part = nomor resume yang menghasilkan item (resume ke-1 masih pending)
+    ]);
+    const att = await sql`select outcome, items, usage from provider_attempts where crawl_run_id = ${run.id}`;
+    expect(att.map((a) => [a.outcome, a.items])).toEqual([["success", 1]]);
+    expect(att[0]!.usage).toMatchObject({ requests: 4, results: 3 }); // akumulasi semua bagian
+    const [r] = await sql`select routing from crawl_runs where id = ${run.id}`;
+    expect(r!.routing.resumes).toBe(2);
+    await sql`update crawl_runs set status = 'succeeded' where id = ${run.id}`;
   });
 });
