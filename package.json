@@ -1,0 +1,54 @@
+{
+  "name": "smip",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "packages/connectors/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "compat": "bun run scripts/compat-check.ts",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "typecheck": "tsc -p .",
+    "deps": "bun run scripts/check-deps.ts",
+    "check": "bun run lint && bun run typecheck && bun run deps && bun run gen:contracts --check",
+    "test": "bun test packages apps scripts",
+    "gen:contracts": "bun run scripts/gen-contracts.ts",
+    "db:migrate": "bun run scripts/db-migrate.ts",
+    "ch:migrate": "bun run scripts/ch-migrate.ts",
+    "dev:up": "bun run scripts/dev-up.ts up",
+    "dev:down": "bun run scripts/dev-up.ts down",
+    "seed": "bun run scripts/seed.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@clickhouse/client": "1.23.1",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/context-async-hooks": "2.11.0",
+    "@opentelemetry/core": "2.11.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.222.0",
+    "@opentelemetry/resources": "2.11.0",
+    "@opentelemetry/sdk-trace-base": "2.11.0",
+    "@types/bun": "1.4.2",
+    "@vitejs/plugin-react": "6.1.1",
+    "bullmq": "6.3.9",
+    "drizzle-kit": "0.31.11",
+    "drizzle-orm": "0.45.3",
+    "embedded-postgres": "16.14.0-beta.17",
+    "hono": "4.13.9",
+    "ioredis": "6.0.0",
+    "jose": "6.2.12",
+    "playwright": "1.63.0",
+    "postgres": "3.4.9",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.1",
+    "zod": "4.6.5"
+  },
+  "trustedDependencies": [
+    "@embedded-postgres/linux-x64"
+  ]
+}

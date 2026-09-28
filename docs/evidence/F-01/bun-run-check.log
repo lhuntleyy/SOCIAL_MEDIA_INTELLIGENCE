@@ -1,0 +1,10 @@
+# F-01 — 2026-09-27T21:54:33Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun run check
+$ bun run lint && bun run typecheck && bun run deps
+$ biome lint .
+Checked 31 files in 99ms. No fixes applied.
+$ tsc -p .
+$ bun run scripts/check-deps.ts
+dependency-rule: OK
+# exit 0

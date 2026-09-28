@@ -1,0 +1,10 @@
+# F-10 — 2026-09-28T02:41:21Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test --timeout 30000 apps/api/test/admin.test.ts packages/db
+bun test v1.4.2 (744846f84)
+
+ 25 pass
+ 0 fail
+ 85 expect() calls
+Ran 25 tests across 3 files. [5.82s]
+# exit 0

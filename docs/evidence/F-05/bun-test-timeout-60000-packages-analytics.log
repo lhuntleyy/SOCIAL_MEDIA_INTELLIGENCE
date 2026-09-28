@@ -1,0 +1,10 @@
+# F-05 — 2026-09-28T02:22:32Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test --timeout 60000 packages/analytics
+bun test v1.4.2 (744846f84)
+
+ 5 pass
+ 0 fail
+ 25 expect() calls
+Ran 5 tests across 1 file. [2.63s]
+# exit 0

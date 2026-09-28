@@ -1,0 +1,12 @@
+# I-03 — 2026-09-28T08:22:15Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun run check
+$ bun run lint && bun run typecheck && bun run deps && bun run gen:contracts --check
+$ biome lint .
+Checked 126 files in 780ms. No fixes applied.
+$ tsc -p .
+$ bun run scripts/check-deps.ts
+dependency-rule: OK
+$ bun run scripts/gen-contracts.ts --check
+kontrak sinkron
+# exit 0

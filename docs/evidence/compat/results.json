@@ -1,0 +1,280 @@
+{
+  "env": {
+    "date": "2026-09-28T02:02:03.964Z",
+    "bun": "1.4.2",
+    "bun_revision": "744846f844374847c902b5e7fd59b4342a51ef99",
+    "os": "linux x64",
+    "cpus": 2,
+    "mem_gb": 1.9
+  },
+  "versions": {
+    "hono": "4.13.9",
+    "zod": "4.6.5",
+    "jose": "6.2.12",
+    "bullmq": "6.3.9",
+    "ioredis": "6.0.0",
+    "@clickhouse/client": "1.23.1",
+    "drizzle-orm": "0.45.3",
+    "postgres": "3.4.9",
+    "@opentelemetry/sdk-trace-base": "2.11.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.222.0",
+    "@opentelemetry/context-async-hooks": "2.11.0",
+    "vite": "8.3.1",
+    "@vitejs/plugin-react": "6.1.1",
+    "react": "19.3.0",
+    "embedded-postgres": "16.14.0-beta.17",
+    "drizzle-kit": "0.31.11",
+    "playwright": "1.63.0",
+    "@biomejs/biome": "2.5.14"
+  },
+  "results": [
+    {
+      "id": "biome",
+      "task": "S-01",
+      "packages": [
+        "@biomejs/biome"
+      ],
+      "durationMs": 115,
+      "status": "COMPATIBLE",
+      "notes": [
+        "biome lint via `bun --bun` mendeteksi noExplicitAny & noDoubleEquals, exit ≠ 0"
+      ]
+    },
+    {
+      "id": "hono",
+      "task": "S-02",
+      "packages": [
+        "hono"
+      ],
+      "durationMs": 24014,
+      "status": "WORKAROUND",
+      "notes": [
+        "routing + middleware OK",
+        "SSE streaming inkremental OK (event pertama 0 ms, 3 event)",
+        "GOTCHA: Bun.serve default idleTimeout (10 s) MEMUTUS SSE yang diam 12 s (dapat 1/2 event). API_SPEC heartbeat 25 s → wajib Bun.serve({ idleTimeout: 0 }) untuk route SSE atau heartbeat < 10 s.",
+        "workaround Bun.serve({ idleTimeout: 0 }) terbukti: 2/2 event"
+      ]
+    },
+    {
+      "id": "zod",
+      "task": "S-02",
+      "packages": [
+        "zod"
+      ],
+      "durationMs": 13,
+      "status": "COMPATIBLE",
+      "notes": [
+        "safeParse/default/issue path OK",
+        "z.toJSONSchema → https://json-schema.org/draft/2020-12/schema (kontrak packages/contracts bisa digenerate tanpa lib tambahan)"
+      ]
+    },
+    {
+      "id": "jose",
+      "task": "S-02",
+      "packages": [
+        "jose"
+      ],
+      "durationMs": 14,
+      "status": "COMPATIBLE",
+      "notes": [
+        "EdDSA: sign/verify/tamper-reject OK",
+        "ES256: sign/verify/tamper-reject OK"
+      ]
+    },
+    {
+      "id": "bun-builtins",
+      "task": "S-08",
+      "packages": [
+        "Bun.password",
+        "Bun.randomUUIDv7"
+      ],
+      "durationMs": 198,
+      "status": "COMPATIBLE",
+      "notes": [
+        "Bun.password argon2id OK (m=19456 KiB, t=2: 43 ms/hash di host spike)",
+        "Bun.randomUUIDv7: 20k unik, terurut monoton dalam proses"
+      ]
+    },
+    {
+      "id": "bullmq",
+      "task": "S-03",
+      "packages": [
+        "bullmq",
+        "ioredis"
+      ],
+      "durationMs": 4504,
+      "status": "COMPATIBLE",
+      "notes": [
+        "jobId dengan ':' → DITOLAK (\"Custom Id cannot contain :\") → format jobId v0.4: run.{id}.attempt.{n}",
+        "enqueue/consume + jobId idempotency OK (enqueue ganda diabaikan)",
+        "delay 1500 ms → diproses setelah 1526 ms",
+        "retry attempts=3 backoff fixed: sukses di panggilan ke-3 (attemptsMade=2)",
+        "priority: urutan 1→3→5 OK",
+        "stalled: worker di-SIGKILL saat job aktif → job diproses ulang worker lain setelah 2010 ms (lockDuration 2 s)",
+        "ioredis SCRIPT LOAD + EVALSHA token bucket OK",
+        "Bun.RedisClient SET NX EX (dedupe seen:*) OK"
+      ]
+    },
+    {
+      "id": "bullmq-interop-py",
+      "task": "S-04",
+      "packages": [
+        "bullmq",
+        "bullmq (PyPI)"
+      ],
+      "durationMs": 1308,
+      "status": "COMPATIBLE",
+      "notes": [
+        "TS enqueue → Python Worker consume → returnvalue kembali ke TS (waitUntilFinished) OK",
+        "Python enqueue (jobId=py-1, attempts=2) → TS Worker consume OK"
+      ]
+    },
+    {
+      "id": "keda-bullmq-scaler",
+      "task": "S-05",
+      "packages": [
+        "KEDA",
+        "kind/minikube"
+      ],
+      "durationMs": 0,
+      "status": "UNTESTED",
+      "notes": [
+        "BLOCKED: host tanpa Docker/Kubernetes. Hanya relevan untuk profil Kubernetes (DEPLOYMENT §4); profil MVP single-node tidak butuh KEDA."
+      ]
+    },
+    {
+      "id": "opentelemetry",
+      "task": "S-06",
+      "packages": [
+        "@opentelemetry/sdk-trace-base",
+        "@opentelemetry/exporter-trace-otlp-proto",
+        "@opentelemetry/context-async-hooks"
+      ],
+      "durationMs": 49,
+      "status": "COMPATIBLE",
+      "notes": [
+        "AsyncLocalStorageContextManager: konteks span bertahan melewati setTimeout/await",
+        "inject/extract traceparent W3C OK (00-b53697666e3345b77b6bf862286fbf3a-482092e67a299762-01)",
+        "OTLP/HTTP protobuf exporter → collector lokal: 2 request, span & resource terkirim"
+      ]
+    },
+    {
+      "id": "clickhouse",
+      "task": "S-07",
+      "packages": [
+        "@clickhouse/client",
+        "ClickHouse server"
+      ],
+      "durationMs": 1332,
+      "status": "COMPATIBLE",
+      "notes": [
+        "ClickHouse 26.10.1.832, @clickhouse/client di Bun: query/insert JSONEachRow OK",
+        "DDL subset DATA_MODEL §6 (events, agg_topic_1h, topic_matches, agg_author_1d, media_items + MV) terbuat",
+        "override sentiment via pasangan sign -1/+1 → agregat benar tanpa UPDATE; engagement_known_posts memisahkan 'tidak diketahui' dari 0",
+        "topic_matches (ReplacingMergeTree, MV sign=1) + FINAL → 1 baris label terbaru",
+        "server default async_insert=1, async_insert_deduplicate=0",
+        "insert_deduplication_token, batch berbeda isi tapi token sama 2×: default server → 1 baris; async_insert=0 → 1 baris; async_insert=1+async_insert_deduplicate=1 → 1 baris",
+        "tanpa SETTING non_replicated_deduplication_window: token sama 2× → 2 baris (token DIABAIKAN — setting tabel WAJIB untuk MergeTree non-replicated)",
+        "token dedup berlaku di default server; tetap set eksplisit di worker-sink agar tidak bergantung default versi",
+        "BUKTI bug v0.3: SummingMergeTree menjumlahkan followers (1000+1100=2100) saat merge; fix v0.4 AggregatingMergeTree+SimpleAggregateFunction(anyLast) = 1100",
+        "media_items via MV ARRAY JOIN kolom media (kolom baru v0.4) → 2 baris/post; tanpa kolom ini MV tidak bisa dibuat",
+        "ORDER BY kolom Nullable ditolak: \"Sorting key contains nullable columns, but merge tree setting `allow_nullable_key` is disabled. \" → agregat geo memakai '' = unknown (C16)"
+      ]
+    },
+    {
+      "id": "postgres-drizzle-rls",
+      "task": "S-08",
+      "packages": [
+        "drizzle-orm",
+        "postgres (porsager)",
+        "Bun.SQL",
+        "PostgreSQL 16"
+      ],
+      "durationMs": 437,
+      "status": "WORKAROUND",
+      "notes": [
+        "FK ke tabel partisi wajib menyertakan kolom partisi: FK (id) ditolak (\"there is no unique constraint matching given keys for referenced table…\"); FK (id, scheduled_for) OK",
+        "`SET LOCAL app.tenant_id = $1` DITOLAK Postgres (\"syntax error at or near \"$1\"\") → pakai `SELECT set_config('app.tenant_id', $1, true)` (efek sama, transaction-scoped)",
+        "drizzle(postgres-js) transaksi + set_config(local) + RLS: tenant A hanya melihat datanya",
+        "GOTCHA koneksi pool: query di luar transaksi setelah set_config lokal → ERROR \"invalid input syntax for type uuid: \"\"\" — policy naif `current_setting(...)::uuid` gagal karena nilai kembali '' (bukan NULL)",
+        "fix: `nullif(current_setting('app.tenant_id', true), '')::uuid` → tanpa konteks tenant = 0 baris (default deny), bukan error",
+        "Bun.SQL builtin (begin + set_config + RLS) OK; drizzle-orm/bun-sql transaksi OK",
+        "Status WORKAROUND karena dua pola di DATA_MODEL/SECURITY harus diganti (set_config & nullif) — keduanya perilaku Postgres, bukan Bun."
+      ]
+    },
+    {
+      "id": "drizzle-kit",
+      "task": "S-08",
+      "packages": [
+        "drizzle-kit"
+      ],
+      "durationMs": 970,
+      "status": "COMPATIBLE",
+      "notes": [
+        "drizzle-kit generate + migrate via `bun --bun` OK (0000_certain_flatman.sql, enum e_ + timestamptz)"
+      ]
+    },
+    {
+      "id": "bun-s3",
+      "task": "S-08",
+      "packages": [
+        "Bun.S3Client",
+        "versitygw (S3-compatible)"
+      ],
+      "durationMs": 57,
+      "status": "COMPATIBLE",
+      "notes": [
+        "put/get/exists/size OK (48 byte gzip)",
+        "presign GET (dipakai export download_url) OK",
+        "delete OK",
+        "CATATAN: MinIO open-source DIARSIPKAN (dl.min.io → 410 'no longer maintained, no security updates'); spike memakai versitygw 1.8.0. DEPLOYMENT diperbarui."
+      ]
+    },
+    {
+      "id": "vite-build",
+      "task": "S-08",
+      "packages": [
+        "vite",
+        "@vitejs/plugin-react",
+        "react"
+      ],
+      "durationMs": 687,
+      "status": "COMPATIBLE",
+      "notes": [
+        "vite build dijalankan dengan `bun --bun` (runtime Bun, bukan Node): 1 asset, 685 ms"
+      ]
+    },
+    {
+      "id": "playwright",
+      "task": "S-08",
+      "packages": [
+        "playwright",
+        "chromium-headless-shell"
+      ],
+      "durationMs": 1573,
+      "status": "COMPATIBLE",
+      "notes": [
+        "Playwright library dijalankan DI RUNTIME BUN: launch chromium-headless-shell, goto, click, textContent OK",
+        "library sistem Chromium lengkap (install-deps sudah dijalankan) — tanpa workaround"
+      ]
+    },
+    {
+      "id": "webcrypto-aesgcm-python",
+      "task": "S-09",
+      "packages": [
+        "crypto.subtle (Bun)",
+        "cryptography (PyPI)"
+      ],
+      "durationMs": 607,
+      "status": "COMPATIBLE",
+      "notes": [
+        "Bun encrypt → Python decrypt OK (format ciphertext||tag identik)",
+        "Python encrypt → Bun decrypt OK",
+        "ciphertext diubah 1 byte → ditolak Bun & Python (SEC-03)",
+        "AAD tenant lain → ditolak Bun & Python (SEC-04)",
+        "envelope (DEK dibungkus KEK, adapter local-dev) Bun → Python OK",
+        "Vault transit wrap/unwrap DEK OK (vault:v1:…) via fetch Bun"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+# F-11 — 2026-09-28T02:26:14Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ sg docker -c PATH=/home/ubuntu/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/ubuntu/.claude/remote/plugins/8afdc6cc/120eaa03b63874b1/bin:/home/ubuntu/.claude/remote/plugins/8afdc6cc/536221b668913494/bin bun run dev:up
+$ bun run scripts/dev-up.ts up
+$ docker compose -f /home/ubuntu/social-intel/infra/compose/docker-compose.yml up -d --wait
+ Container smip-dev-vault-1 Running 
+ Container smip-dev-postgres-1 Running 
+ Container smip-dev-redis-queue-1 Running 
+ Container smip-dev-redis-cache-1 Running 
+ Container smip-dev-clickhouse-1 Running 
+ Container smip-dev-s3-1 Running 
+ Container smip-dev-redis-cache-1 Waiting 
+ Container smip-dev-clickhouse-1 Waiting 
+ Container smip-dev-s3-1 Waiting 
+ Container smip-dev-vault-1 Waiting 
+ Container smip-dev-postgres-1 Waiting 
+ Container smip-dev-redis-queue-1 Waiting 
+ Container smip-dev-s3-1 Healthy 
+ Container smip-dev-clickhouse-1 Healthy 
+ Container smip-dev-postgres-1 Healthy 
+ Container smip-dev-redis-queue-1 Healthy 
+ Container smip-dev-redis-cache-1 Healthy 
+ Container smip-dev-vault-1 Healthy 
+$ docker compose -f /home/ubuntu/social-intel/infra/compose/docker-compose.yml exec -T s3 mkdir -p /data/smip-raw /data/smip-exports /data/smip-training
+$ bun run db:migrate up
+$ bun run scripts/db-migrate.ts up
+diterapkan: []
+$ bun run ch:migrate up
+$ bun run scripts/ch-migrate.ts up
+diterapkan: []
+$ bun scripts/seed.ts
+seed OK {
+  platforms: 8,
+  connectors: 6,
+  policies: 6,
+  tenants: 1,
+}
+vault transit key smip-kek: HTTP 200
+
+dev siap. Env: infra/compose/.env.dev
+# exit 0

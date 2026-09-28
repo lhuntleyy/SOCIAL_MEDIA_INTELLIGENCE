@@ -1,0 +1,13 @@
+# I-06 — 2026-09-28T04:43:44Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test packages/router/test/store.test.ts
+bun test v1.4.2 (744846f84)
+
+packages/router/test/store.test.ts:
+R-12: perubahan weight terlihat 294 ms setelah publish (pollMs=300)
+
+ 3 pass
+ 0 fail
+ 17 expect() calls
+Ran 3 tests across 1 file. [1.67s]
+# exit 0

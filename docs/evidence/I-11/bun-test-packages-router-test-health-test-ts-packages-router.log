@@ -1,0 +1,10 @@
+# I-11 — 2026-09-28T04:57:56Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test packages/router/test/health.test.ts packages/router/test/router.test.ts
+bun test v1.4.2 (744846f84)
+
+ 9 pass
+ 0 fail
+ 53 expect() calls
+Ran 9 tests across 2 files. [1.79s]
+# exit 0

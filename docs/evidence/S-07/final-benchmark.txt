@@ -1,0 +1,26 @@
+== FINAL
+localhost:9010, queries: 14, QPS: 13.546, RPS: 2885200.784, MiB/s: 159.152, result RPS: 677.303, result MiB/s: 0.023.
+50%		0.072 sec.	
+95%		0.073 sec.	
+99%		0.089 sec.	
+== tanpa FINAL
+localhost:9010, queries: 30, QPS: 54.102, RPS: 4890008.981, MiB/s: 149.387, result RPS: 2705.098, result MiB/s: 0.093.
+50%		0.013 sec.	
+95%		0.016 sec.	
+99%		0.019 sec.	
+== FINAL, ORDER BY dengan published_at
+localhost:9010, queries: 30, QPS: 43.263, RPS: 2126457.526, MiB/s: 85.398, result RPS: 2163.144, result MiB/s: 0.074.
+50%		0.018 sec.	
+95%		0.022 sec.	
+99%		0.025 sec.	
+
+# --- Perintah reproduksi (clickhouse client/benchmark --port 9010) ---
+# CREATE TABLE compat_s07.tm_perf (tenant_id UUID, topic_id UUID, platform LowCardinality(String), post_id String,
+#   sentiment Enum8('negative'=-1,'neutral'=0,'positive'=1), published_at DateTime64(3,'UTC'), event_at DateTime64(3,'UTC'))
+#   ENGINE = ReplacingMergeTree(event_at) PARTITION BY toYYYYMM(published_at) ORDER BY (tenant_id, topic_id, platform, post_id);
+# INSERT … SELECT … FROM numbers(2000000)   -- tenant = number%3, topic = number%5, published_at = 2026-08-01 + (number*3 % 5184000) s
+# INSERT versi kedua (sentiment positive, event_at lebih baru) untuk cityHash64(post_id) % 20 = 0
+# tm_perf2: sama, ORDER BY (tenant_id, topic_id, published_at, platform, post_id)
+# Query: SELECT post_id, sentiment, published_at FROM <tabel> [FINAL] WHERE tenant_id='…000' AND topic_id='…0a0'
+#        AND published_at >= '2026-09-20' AND published_at < '2026-09-27' ORDER BY published_at DESC LIMIT 50
+# clickhouse benchmark --port 9010 -i 30 -c 1

@@ -1,0 +1,10 @@
+# F-03 — 2026-09-27T22:04:50Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test packages/observability
+bun test v1.4.2 (744846f84)
+
+ 9 pass
+ 0 fail
+ 37 expect() calls
+Ran 9 tests across 1 file. [126.00ms]
+# exit 0

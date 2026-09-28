@@ -1,0 +1,21 @@
+# I-01 — 2026-09-28T04:29:21Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test --coverage packages/query
+bun test v1.4.2 (744846f84)
+---------------------------------|---------|---------|-------------------
+File                             | % Funcs | % Lines | Uncovered Line #s
+---------------------------------|---------|---------|-------------------
+All files                        |  100.00 |   99.77 |
+ packages/query/src/ast.ts       |  100.00 |  100.00 | 
+ packages/query/src/index.ts     |  100.00 |  100.00 | 
+ packages/query/src/matcher.ts   |  100.00 |  100.00 | 
+ packages/query/src/normalize.ts |  100.00 |  100.00 | 
+ packages/query/src/parser.ts    |  100.00 |  100.00 | 
+ packages/query/src/query.ts     |  100.00 |   98.59 | 90
+---------------------------------|---------|---------|-------------------
+
+ 15 pass
+ 0 fail
+ 57 expect() calls
+Ran 15 tests across 1 file. [34.00ms]
+# exit 0

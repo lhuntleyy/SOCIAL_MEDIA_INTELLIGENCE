@@ -1,0 +1,45 @@
+# I-11 — 2026-09-28T04:57:57Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun run check
+$ bun run lint && bun run typecheck && bun run deps && bun run gen:contracts --check
+$ biome lint .
+packages/router/test/reserve.test.ts:210:115 lint/complexity/noCommaOperator ━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! The comma operator is disallowed.
+  
+    208 │     );
+    209 │     const calls: string[] = [];
+  > 210 │     const reserver = { tryReserve: (p: Parameters<RedisReserver["tryReserve"]>[0]) => (calls.push(p.connector.key), r.tryReserve(p)) };
+        │                                                                                                                   ^
+    211 │     const { decision } = await select(s, input(), { health: { get: () => ({ circuit: "closed", score: null }) }, reserver });
+    212 │     expect(decision).toMatchObject({ kind: "none_available", reason: "QUOTA_EXHAUSTED" });
+  
+  i Its use is often confusing and obscures side effects.
+  
+
+packages/router/test/reserve.test.ts:9:10 lint/correctness/noUnusedImports  FIXABLE  ━━━━━━━━━━━━━━━
+
+  ! Several of these imports are unused.
+  
+     7 │ import postgres from "postgres";
+     8 │ import { periodInfo, RedisReserver, type Snapshot, select, type ThresholdEvent } from "../src";
+   > 9 │ import { account, connector, input, rule, snapshot, T_A } from "./fixtures";
+       │          ^^^^^^^
+    10 │ 
+    11 │ const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
+  
+  i Unused imports might be the result of an incomplete refactoring.
+  
+  i Unsafe fix: Remove the unused imports.
+  
+    9 │ import·{·account,·connector,·input,·rule,·snapshot,·T_A·}·from·"./fixtures";
+      │          ---------                                                          
+
+Checked 119 files in 621ms. No fixes applied.
+Found 2 warnings.
+$ tsc -p .
+$ bun run scripts/check-deps.ts
+dependency-rule: OK
+$ bun run scripts/gen-contracts.ts --check
+kontrak sinkron
+# exit 0

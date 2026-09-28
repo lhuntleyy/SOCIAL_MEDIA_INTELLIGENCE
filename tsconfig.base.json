@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": [
+      "bun"
+    ],
+    "paths": {
+      "@smip/connector-sdk": [
+        "./packages/connector-sdk/src/index.ts"
+      ],
+      "@smip/connector-sdk/contract": [
+        "./packages/connector-sdk/src/contract.ts"
+      ],
+      "@smip/connector-*": [
+        "./packages/connectors/*/src/index.ts"
+      ],
+      "@smip/*": [
+        "./packages/*/src/index.ts"
+      ]
+    }
+  }
+}

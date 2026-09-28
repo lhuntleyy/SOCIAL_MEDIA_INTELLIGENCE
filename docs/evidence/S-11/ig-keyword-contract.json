@@ -1,0 +1,154 @@
+{
+  "date": "2026-09-28T01:50:44.925Z",
+  "phrase": "koperasi merah putih",
+  "usage_before": {
+    "monthlyUsageUsd": 1.15440172659121,
+    "maxMonthlyUsageUsd": 5
+  },
+  "usage_after": {
+    "monthlyUsageUsd": 1.15440172659121,
+    "maxMonthlyUsageUsd": 5
+  },
+  "results": [
+    {
+      "actor": "viralanalyzer/instagram-keyword-search-scraper",
+      "status": "SUCCEEDED",
+      "duration_s": 44,
+      "cost_usd": 0.0013003112566603557,
+      "charged_events": {
+        "apify-actor-start": 2,
+        "post-discovered": 0
+      },
+      "items_returned": 1,
+      "posts": 0,
+      "diagnostics": [
+        "BLOCKED"
+      ],
+      "caption_contains_all_terms": 0,
+      "caption_only_match_no_hashtag": 0,
+      "unrelated_posts": 0,
+      "timestamp_field": null,
+      "timestamp_sample": [],
+      "id_field": null,
+      "likes_field": null,
+      "comments_field": null,
+      "author_field": null,
+      "fields": []
+    },
+    {
+      "actor": "crawlerbros/instagram-keyword-search-scraper",
+      "status": "SUCCEEDED",
+      "duration_s": 31.9,
+      "cost_usd": 0.05005946420162916,
+      "charged_events": {
+        "apify-default-dataset-item": 0,
+        "apify-actor-start": 1
+      },
+      "items_returned": 10,
+      "posts": 10,
+      "diagnostics": [],
+      "caption_contains_all_terms": 9,
+      "caption_only_match_no_hashtag": 2,
+      "unrelated_posts": 1,
+      "timestamp_field": "pub_date",
+      "timestamp_sample": [
+        "2026-09-27T03:27:01",
+        "2026-09-25T15:21:32"
+      ],
+      "id_field": "shortcode",
+      "likes_field": "like_count",
+      "comments_field": "comment_count",
+      "author_field": "username",
+      "fields": [
+        "accessibility_caption",
+        "author_meta",
+        "caption",
+        "caption_is_edited",
+        "collaborators",
+        "comment_count",
+        "comments_disabled",
+        "hashtags",
+        "input_keyword",
+        "is_ad",
+        "is_paid_partnership",
+        "like_count",
+        "likes_hidden",
+        "location",
+        "media_count",
+        "media_items",
+        "media_type",
+        "mentions",
+        "music",
+        "post_id",
+        "post_url",
+        "pub_date",
+        "scraped_at",
+        "shortcode",
+        "sponsor_tags",
+        "status",
+        "tagged_users",
+        "thumbnail_url",
+        "username"
+      ]
+    },
+    {
+      "actor": "scraping_solutions/instagram-boolean-search-scraper-posts-reels",
+      "status": "SUCCEEDED",
+      "duration_s": 7,
+      "cost_usd": 0,
+      "charged_events": {
+        "apify-default-dataset-item": 0,
+        "search-page": 0
+      },
+      "items_returned": 8,
+      "posts": 8,
+      "diagnostics": [],
+      "caption_contains_all_terms": 8,
+      "caption_only_match_no_hashtag": 1,
+      "unrelated_posts": 0,
+      "timestamp_field": "publishedAt",
+      "timestamp_sample": [
+        "2026-06-21T01:07:45+00:00",
+        "2026-05-06T12:15:02+00:00"
+      ],
+      "id_field": "shortCode",
+      "likes_field": "likeCount",
+      "comments_field": "commentCount",
+      "author_field": "username",
+      "fields": [
+        "audioArtist",
+        "audioId",
+        "audioTitle",
+        "caption",
+        "commentCount",
+        "contentType",
+        "discoveryQuery",
+        "discoveryType",
+        "fullName",
+        "hashtags",
+        "latitude",
+        "likeCount",
+        "locationId",
+        "locationName",
+        "longitude",
+        "matchType",
+        "matchedTerms",
+        "mediaUrl",
+        "normalizedQuery",
+        "postId",
+        "profileUrl",
+        "publishedAt",
+        "query",
+        "scrapedAt",
+        "shareCount",
+        "shortCode",
+        "thumbnailUrl",
+        "url",
+        "userId",
+        "username",
+        "verified",
+        "viewCount"
+      ]
+    }
+  ]
+}

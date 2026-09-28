@@ -1,0 +1,10 @@
+# I-10 — 2026-09-28T04:57:54Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test packages/router/test/failover.test.ts packages/router/test/router.test.ts
+bun test v1.4.2 (744846f84)
+
+ 10 pass
+ 0 fail
+ 47 expect() calls
+Ran 10 tests across 2 files. [1.73s]
+# exit 0

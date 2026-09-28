@@ -1,0 +1,10 @@
+# F-02 — 2026-09-27T21:55:39Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test packages/config
+bun test v1.4.2 (744846f84)
+
+ 9 pass
+ 0 fail
+ 17 expect() calls
+Ran 9 tests across 1 file. [64.00ms]
+# exit 0

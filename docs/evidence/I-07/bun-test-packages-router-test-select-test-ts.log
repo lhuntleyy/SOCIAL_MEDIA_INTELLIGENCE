@@ -1,0 +1,10 @@
+# I-07 — 2026-09-28T04:43:46Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test packages/router/test/select.test.ts
+bun test v1.4.2 (744846f84)
+
+ 12 pass
+ 0 fail
+ 37 expect() calls
+Ran 12 tests across 1 file. [231.00ms]
+# exit 0
