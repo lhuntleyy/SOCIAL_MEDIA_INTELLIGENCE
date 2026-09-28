@@ -50,7 +50,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | F-09 | done | claude | [evidence/F-09](evidence/F-09/) | `apps/api` (Hono): login argon2id (anti-enumerasi + hash tiruan), JWT EdDSA 15m (`kid`), refresh opaque 256-bit hash SHA-256 + rotasi + **reuse → family dicabut + audit (SEC-05)**, lockout bertahap + limit per IP, MFA TOTP wajib owner/admin/operator (token terbatas `setup_required`), RBAC + viewer read-only (**SEC-06**), envelope error, request id; role DB `smip_auth` (migrasi 0008). 9 test integrasi + smoke server nyata (menemukan kebocoran email di log → diperbaiki). Impersonasi `X-Tenant-Id` operator → F-10 |
 | F-10 | done | claude | [evidence/F-10](evidence/F-10/) | Admin tenant (operator), user & membership (undang + token sekali pakai + accept-invite, aturan owner + trigger owner terakhir), API key (secret sekali, SHA-256, scope→peran, verifikasi waktu-konstan, manusia-only untuk rute akses), `X-API-Key` authn, impersonasi operator (alasan wajib + audit per request). **2 bug 🔴 ditemukan & diperbaiki: users bocor lintas tenant (RLS baru, migrasi 0009) & JSONB ter-encode ganda di drizzle bun-sql.** 7 test integrasi; total suite 97 test |
 | F-11 | done | claude | [evidence/F-11](evidence/F-11/) | `bun run dev:up` jalan dari nol (6 container sehat, migrasi PG+CH, seed idempoten, kunci Vault); test F-04 & F-05 juga lulus terhadap Postgres 16 resmi & **ClickHouse 26.3 LTS** di compose. Service aplikasi ditambahkan saat kodenya ada |
-| F-12 | blocked | | | Butuh repo git + remote CI (GitHub Actions) — lihat "Menunggu pemilik" |
+| F-12 | review | claude | `.github/workflows/ci.yml` | Workflow GitHub Actions: bun (dari `.bun-version`) + venv codegen dipin → `bun run check` → `bun run dev:up` (compose) → `bun test`. Tanpa call provider eksternal. Disimulasikan di clone bersih (install frozen + check lulus); **run pertama di GitHub belum ada** — terjadi setelah pemilik push. Build image/SBOM menyusul saat Dockerfile ada (DEPLOYMENT §7) |
 
 ## Fase 2 — Ingest MVP
 | ID | Status | PIC | Bukti | Catatan |
@@ -119,7 +119,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 | ~~Docker Engine + compose~~ | F-11, S-05 | **SUDAH** (2026-09-28). Sesi shell lama perlu `sg docker -c …` atau login ulang |
 | kind + kubectl + helm (+KEDA) | S-05 (hanya profil Kubernetes) | lihat blok perintah di jawaban agent 2026-09-28 / DEPLOYMENT §4 |
 | ~~Library sistem Chromium~~ | Playwright E2E | **SUDAH** (2026-09-28) — check Playwright kini COMPATIBLE tanpa workaround |
-| Repo git + remote (GitHub) | F-12 CI, link bukti CI | `git init` + buat repo remote; agent tidak commit tanpa diminta |
+| Push pertama ke GitHub | F-12 (run CI pertama) | Repo lokal sudah `git init` (branch `main`, remote `origin` = github.com/lhuntleyy/SOCIAL_MEDIA_INTELLIGENCE). Host agent tak punya kredensial GitHub → pemilik jalankan `cd ~/social-intel && git push -u origin main` (login pakai Personal Access Token) |
 | API key twitterapi.io | S-14 (X utama), I-17 | pemilik akan memberikan; Apify sudah ada (plan FREE $5/bln — sisa ≈ $3,35 per 2026-09-28) |
 | Reviewer manusia ke-2 | S-10..S-13, S-16, S-17, S-21 → `done` | review dokumen & ADR-001 |
 
