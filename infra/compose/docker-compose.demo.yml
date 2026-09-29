@@ -1,0 +1,53 @@
+# Profil DEMO publik (VPS dev): API + semua worker Bun (1 proses) + Caddy HTTPS di atas stack dev.
+#   bun run demo:up     (build web → compose up)     — lihat DEPLOYMENT §3.2
+# Kode repo di-mount read-only; secret dari ~/.config/smip (di luar repo).
+services:
+  api:
+    image: oven/bun:1.4.2
+    working_dir: /app
+    command: ["bun", "apps/api/src/main.ts"]
+    env_file: .env.dev
+    environment: &net
+      DATABASE_URL: postgres://smip_owner:smip_owner_dev@postgres:5432/smip
+      REDIS_URL: redis://redis-queue:6379
+      REDIS_CACHE_URL: redis://redis-cache:6379
+      CLICKHOUSE_URL: http://clickhouse:8123
+      S3_ENDPOINT: http://s3:7070
+      VAULT_ADDR: http://vault:8200
+      JWT_PRIVATE_KEY_PATH: /run/secrets/jwt.pem
+      JWT_KID: demo-1
+      CORS_ORIGINS: https://${SITE_HOST}
+      API_PORT: "8080"
+      API_TRUST_PROXY: "true"
+    volumes:
+      - ../..:/app:ro
+      - ${HOME}/.config/smip/jwt-demo.pem:/run/secrets/jwt.pem:ro
+    depends_on: [postgres, redis-queue, redis-cache, clickhouse, vault, s3]
+    restart: unless-stopped
+
+  workers:
+    image: oven/bun:1.4.2
+    working_dir: /app
+    command: ["bun", "scripts/workers-all.ts"]
+    env_file: .env.dev
+    environment:
+      <<: *net
+      SCHEDULER_METRICS_PORT: "9464"
+    volumes: ["../..:/app:ro"]
+    depends_on: [postgres, redis-queue, redis-cache, clickhouse, vault, s3]
+    restart: unless-stopped
+
+  web:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_HOST: ${SITE_HOST}
+      PUBLIC_IP: ${PUBLIC_IP}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../apps/web/dist:/srv:ro
+      - caddy_data:/data
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes: { caddy_data: {} }

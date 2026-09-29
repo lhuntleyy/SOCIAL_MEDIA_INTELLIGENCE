@@ -84,12 +84,14 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 ## Fase 3 — AI & Dashboard
 | ID | Status | PIC | Bukti | Catatan |
 |---|---|---|---|---|
-| A-01 … A-10, D-01 … D-04, U-01 … U-07 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
+| U-01 | in_progress | claude | `apps/web` · demo https://43-156-61-233.sslip.io | Web shell React+Vite+Tailwind+TanStack Query+ECharts: login + pendaftaran MFA (TOTP QR), sesi dipulihkan via cookie refresh (token hanya di memori), layout + nav, Dashboard ringkasan ingest (KPI, post per platform, run terakhir), Topik (daftar + detail + riwayat run). Belum: filter bar URL state, auto-refresh selector, SSE. Deploy publik HTTPS (Caddy + Let's Encrypt, DEPLOYMENT §3.2) |
+| A-01 … A-10, D-01 … D-04, U-02 … U-07 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
 
 ## Fase 4 — Provider Ops & Alert
 | ID | Status | PIC | Bukti | Catatan |
 |---|---|---|---|---|
-| O-01 … O-07 | todo | | | |
+| O-01 | in_progress | claude | `apps/web/src/pages/AdminProviders.tsx` | Daftar connector (provider/kind, capability, health) + aktif/nonaktif + cek health (I-21). Belum: priority/weight, rate, quota, verify |
+| O-02 … O-07 | todo | | | |
 
 ## Fase 5 — Hardening
 | ID | Status | PIC | Bukti | Catatan |

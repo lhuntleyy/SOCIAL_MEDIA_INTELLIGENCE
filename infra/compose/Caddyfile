@@ -1,0 +1,24 @@
+# Profil demo (DEPLOYMENT §3.2): HTTPS otomatis Let's Encrypt untuk hostname sslip.io (IP publik tanpa domain).
+{$SITE_HOST} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+	handle /v1/* {
+		reverse_proxy api:8080
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# akses lewat IP langsung → arahkan ke hostname HTTPS (cookie sesi wajib Secure)
+http://{$PUBLIC_IP} {
+	redir https://{$SITE_HOST}{uri}
+}

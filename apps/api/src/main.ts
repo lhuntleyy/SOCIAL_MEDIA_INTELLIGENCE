@@ -38,13 +38,18 @@ const providers = new ProviderAdminService(db, {
 const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, keys, logger });
 
 const INTERNAL_IP_HEADER = "x-smip-client-ip";
+const isPrivate = (ip: string) =>
+  /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$|::ffff:(10|127|192\.168|172\.(1[6-9]|2\d|3[01]))\.)/.test(ip);
 const server = Bun.serve({
   port: cfg.API_PORT,
   // idleTimeout default Bun 10 s memutus SSE (S-02); route SSE (D-03) akan memakai server.timeout(req, 0).
   async fetch(req, srv) {
     // Header IP internal SELALU ditimpa dari socket → klien tidak bisa memalsukan IP untuk mengakali rate limit.
     const headers = new Headers(req.headers);
-    headers.set(INTERNAL_IP_HEADER, srv.requestIP(req)?.address ?? "unknown");
+    const peer = srv.requestIP(req)?.address ?? "unknown";
+    // di belakang proxy tepercaya (jaringan privat) → IP klien = entri X-Forwarded-For paling kanan (ditulis proxy)
+    const xff = cfg.API_TRUST_PROXY && isPrivate(peer) ? req.headers.get("x-forwarded-for")?.split(",").pop()?.trim() : undefined;
+    headers.set(INTERNAL_IP_HEADER, xff || peer);
     return app.fetch(new Request(req, { headers }));
   },
 });

@@ -70,6 +70,17 @@ echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-smip.conf && sudo sysctl -p 
 Tambahan bila masih sesak: matikan service yang tidak dipakai saat itu (`docker compose stop vault` bila KMS local-dev; ClickHouse saat
 hanya mengerjakan API/router), dan jangan menjalankan model NLP lokal di VPS ini (Fase 3: inference encoder di mesin lain / LLM API).
 
+### 3.2 Demo publik (VPS dev) — `bun run demo:up`
+Stack dev + `infra/compose/docker-compose.demo.yml`: **api** & **workers** (semua worker Bun 1 proses) sebagai container `oven/bun`
+(repo di-mount read-only), **web** = Caddy: file statis `apps/web/dist` + reverse proxy `/v1/*` → api, **HTTPS otomatis** Let's Encrypt
+untuk `SITE_HOST` (`infra/compose/.env.demo`: `43-156-61-233.sslip.io` — layanan DNS wildcard yang menunjuk ke IP, tanpa beli domain).
+HTTPS wajib: cookie refresh `Secure`. Akses via IP langsung dialihkan ke hostname HTTPS. Port 80/443 di-publish Docker (tidak lewat ufw).
+- Secret di luar repo: `~/.config/smip/jwt-demo.pem` (kunci JWT EdDSA, chmod 600).
+- `demo:up` = build web → migrasi PG + CH → compose up. `demo:down` menghentikan api/workers/web.
+- Akun: `bun --env-file=infra/compose/.env.dev scripts/set-password.ts <email> [--operator]` (password dicetak sekali; MFA daftar ulang).
+- API di belakang proxy: `API_TRUST_PROXY=true` → IP klien dari X-Forwarded-For bila peer jaringan privat (rate limit login tetap per klien).
+- Bukan produksi: Vault dev mode, DB owner role, tanpa backup.
+
 ## 3a. Profil MVP single-node (produksi awal ≤ ~30 topic)
 
 Arsitektur (port, queue, kontrak) **tidak berubah**; hanya cara menjalankannya. Profil ini yang cocok dengan angka infra COST_MODEL ($30–85/bln); profil Kubernetes §4 adalah skala lanjut dengan biaya jauh lebih tinggi.
