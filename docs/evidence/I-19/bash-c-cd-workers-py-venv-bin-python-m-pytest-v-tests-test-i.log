@@ -1,0 +1,39 @@
+# I-19 — 2026-09-29T07:49:34Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bash -c cd workers-py && ../.venv/bin/python -m pytest -v tests/test_instagrapi.py && cd .. && bun test packages/router/test/select.test.ts apps/api/test/admin-providers.test.ts
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.4.2, pluggy-1.6.0 -- /home/ubuntu/social-intel/workers-py/../.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/ubuntu/social-intel/workers-py
+configfile: pytest.ini
+plugins: anyio-4.15.1, typeguard-4.6.0, asyncio-1.2.0, platformdirs-4.12.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 18 items
+
+tests/test_instagrapi.py::test_manifest_unofficial_standby_rules PASSED  [  5%]
+tests/test_instagrapi.py::test_scenario[hashtag sukses] PASSED           [ 11%]
+tests/test_instagrapi.py::test_scenario[user timeline] PASSED            [ 16%]
+tests/test_instagrapi.py::test_scenario[post detail] PASSED              [ 22%]
+tests/test_instagrapi.py::test_scenario[challenge] PASSED                [ 27%]
+tests/test_instagrapi.py::test_scenario[sesi kedaluwarsa] PASSED         [ 33%]
+tests/test_instagrapi.py::test_scenario[throttle] PASSED                 [ 38%]
+tests/test_instagrapi.py::test_scenario[diblokir] PASSED                 [ 44%]
+tests/test_instagrapi.py::test_scenario[error mentah library] PASSED     [ 50%]
+tests/test_instagrapi.py::test_scenario[keyword tak didukung] PASSED     [ 55%]
+tests/test_instagrapi.py::test_scenario[hashtag tidak valid] PASSED      [ 61%]
+tests/test_instagrapi.py::test_deadline PASSED                           [ 66%]
+tests/test_instagrapi.py::test_no_secret_leak PASSED                     [ 72%]
+tests/test_instagrapi.py::test_hashtag_normalization_and_window PASSED   [ 77%]
+tests/test_instagrapi.py::test_session_only_no_password_login PASSED     [ 83%]
+tests/test_instagrapi.py::test_challenge_message_has_no_secret PASSED    [ 88%]
+tests/test_instagrapi.py::test_egress_guard_blocks_foreign_hosts PASSED  [ 94%]
+tests/test_instagrapi.py::test_naive_time_rejected PASSED                [100%]
+
+============================== 18 passed in 0.95s ==============================
+bun test v1.4.2 (744846f84)
+
+ 29 pass
+ 0 fail
+ 202 expect() calls
+Ran 29 tests across 2 files. [2.80s]
+# exit 0

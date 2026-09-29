@@ -19,6 +19,8 @@ export interface RouteInput {
   topicId?: string | null;
   /** Collection stream lintas tenant: hanya akun shared pool (R-15). */
   sharedPoolOnly?: boolean;
+  /** true = connector provider berisiko tinggi dilarang (run shared yang melayani tenant opt-out, I-19). */
+  denyHighRisk?: boolean;
 }
 
 export type NoRouteReason = "NO_POLICY" | "POLICY_DISABLED" | "NO_CANDIDATE" | "ALL_THROTTLED" | "ALL_UNHEALTHY" | "QUOTA_EXHAUSTED";
@@ -37,7 +39,8 @@ export type EliminationReason =
   | "INTERVAL_TOO_SHORT"
   | "SHARE_CAP"
   | "NO_ELIGIBLE_ACCOUNT"
-  | "STANDBY";
+  | "STANDBY"
+  | "TENANT_RISK_OPT_OUT";
 
 export type RouteDecision =
   | {

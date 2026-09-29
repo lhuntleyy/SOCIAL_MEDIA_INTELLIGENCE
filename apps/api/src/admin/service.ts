@@ -1,6 +1,19 @@
 // F-10: admin tenant / user / membership / API key (API_SPEC §10). Semua mutasi diaudit (SECURITY §8).
 import type { TenantId } from "@smip/core";
-import { apiKeys, auditLogs, type Db, memberships, plans, tenants, type Tx, users, withAuthRole, withSystem, withTenant } from "@smip/db";
+import {
+  apiKeys,
+  auditLogs,
+  type Db,
+  memberships,
+  plans,
+  type Tx,
+  tenants,
+  users,
+  withAuthRole,
+  withSystem,
+  withTenant,
+  writeOutbox,
+} from "@smip/db";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { AccessClaims, Role } from "../auth/jwt";
 import { ApiError } from "../errors";
@@ -93,7 +106,11 @@ export class AdminService {
     });
   }
 
-  async updateTenant(a: Actor, id: string, b: { status?: "active" | "suspended" | "closed"; plan_code?: string; name?: string }) {
+  async updateTenant(
+    a: Actor,
+    id: string,
+    b: { status?: "active" | "suspended" | "closed"; plan_code?: string; name?: string; deny_high_risk_providers?: boolean },
+  ) {
     return withSystem(this.db, async (tx) => {
       const patch: Partial<typeof tenants.$inferInsert> = { updatedAt: new Date() };
       if (b.status) patch.status = b.status;
@@ -102,6 +119,12 @@ export class AdminService {
         const [plan] = await tx.select({ id: plans.id }).from(plans).where(eq(plans.code, b.plan_code));
         if (!plan) throw new ApiError("VALIDATION_FAILED", "Plan tidak dikenal", [{ path: "plan_code", issue: "tidak ada" }]);
         patch.planId = plan.id;
+      }
+      if (b.deny_high_risk_providers !== undefined) {
+        // opt-out provider berisiko tinggi (unofficial) — dibaca snapshot router (I-19); outbox → snapshot invalidasi
+        patch.settings =
+          sql`${tenants.settings} || ${JSON.stringify({ deny_high_risk_providers: b.deny_high_risk_providers })}::text::jsonb` as never;
+        await writeOutbox(tx, { aggregate: "tenant", aggregateId: id, eventType: "tenant.risk_setting" });
       }
       const r = await tx.update(tenants).set(patch).where(eq(tenants.id, id)).returning({ id: tenants.id, status: tenants.status });
       if (!r.length) throw new ApiError("NOT_FOUND", "Tenant tidak ditemukan");

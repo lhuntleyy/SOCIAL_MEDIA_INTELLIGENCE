@@ -2,7 +2,7 @@
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
-import { API_KEY_SCOPES, type Actor, type AdminService } from "../admin/service";
+import { type Actor, type AdminService, API_KEY_SCOPES } from "../admin/service";
 import type { AppEnv } from "../context";
 import { ApiError } from "../errors";
 import { requireOperator, requireRole } from "../middleware/auth";
@@ -58,6 +58,8 @@ export function adminRoutes(svc: AdminService) {
         status: z.enum(["active", "suspended", "closed"]).optional(),
         plan_code: z.string().optional(),
         name: z.string().min(2).max(120).optional(),
+        /** I-19: true = connector provider unofficial (risk high) tidak pernah melayani tenant ini. */
+        deny_high_risk_providers: z.boolean().optional(),
       }),
     );
     return c.json({ data: await svc.updateTenant(actor(c), param(c, "id"), b) });

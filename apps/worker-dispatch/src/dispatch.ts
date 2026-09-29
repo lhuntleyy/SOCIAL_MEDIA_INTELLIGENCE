@@ -98,6 +98,8 @@ type PlanRow = {
   shared_pool_only: boolean;
   /** post_detail: id post yang di-refresh. */
   target_ids?: string[];
+  /** Run shared yang melayani tenant opt-out provider berisiko tinggi (I-19). */
+  deny_high_risk?: boolean;
 };
 
 /** Interval acuan run refresh (hanya untuk eliminasi min_interval router & backoff; tak ada plan yang dijadwalkan ulang). */
@@ -164,6 +166,8 @@ async function loadPlan(
       route_tenant_id: SHARED_TENANT,
       shared_pool_only: true,
       target_ids: run.refresh_target.post_ids,
+      // post bisa milik tenant mana pun → konservatif: ada tenant opt-out → tanpa provider berisiko tinggi
+      deny_high_risk: await anyHighRiskOptOut(tx, sql`true`),
     };
   }
   if (run.crawl_plan_id) {
@@ -186,6 +190,7 @@ async function loadPlan(
     visibility_tenant_id: string | null;
   }[];
   if (!s) return undefined;
+  const denyHighRisk = await anyHighRiskOptOut(tx, sql`t.id in (select tenant_id from stream_topic_links where stream_id = ${s.id})`);
   // query stream = OR semua term penutup anggota (recall); presisi di pipeline per AST asli anggota
   const leaves: Node[] = s.terms.map((t) => (t.includes(" ") ? { type: "phrase", value: t } : { type: "term", value: t }));
   return {
@@ -202,7 +207,14 @@ async function loadPlan(
     topic_status: "active",
     route_tenant_id: s.visibility_tenant_id ?? SHARED_TENANT,
     shared_pool_only: s.visibility_tenant_id === null,
+    deny_high_risk: denyHighRisk,
   };
+}
+
+async function anyHighRiskOptOut(tx: Tx, where: ReturnType<typeof sql>): Promise<boolean> {
+  const [r] = (await tx.execute(sql`select exists (select 1 from tenants t
+    where ${where} and coalesce((t.settings->>'deny_high_risk_providers')::boolean, false)) as deny`)) as unknown as { deny: boolean }[];
+  return !!r?.deny;
 }
 
 async function finishRun(
@@ -332,6 +344,7 @@ export async function handleDispatch(
     const input: RouteInput = {
       tenantId: plan.route_tenant_id,
       sharedPoolOnly: plan.shared_pool_only,
+      denyHighRisk: plan.deny_high_risk,
       platform: plan.platform_code,
       operation: plan.operation,
       runKind: run.kind,

@@ -90,6 +90,19 @@ describe("I-07 selector", () => {
     expect(await picked(onlyB)).toBe("NO_CANDIDATE");
   });
 
+  test("I-19: tenant opt-out provider berisiko tinggi → connector unofficial tak pernah dipilih; run shared denyHighRisk sama", async () => {
+    const s = snapshot([connector("a", { providerHighRisk: true }), connector("b")], [rule("a", 1, 100), rule("b", 2, 100)]);
+    expect(await picked(s)).toBe("a"); // tanpa opt-out: prioritas 1
+    const out = { ...s, highRiskOptOut: new Set([T_A]) };
+    expect(await picked(out)).toBe("b");
+    expect(await picked(out, input({ tenantId: T_B }))).toBe("a"); // tenant lain tidak terpengaruh
+    expect(await picked(s, input({ denyHighRisk: true }))).toBe("b");
+    const { trace } = await select(out, input(), deps());
+    expect(trace.find((t) => t.connectorKey === "a")?.eliminatedBy).toBe("TENANT_RISK_OPT_OUT");
+    const onlyRisky = { ...snapshot([connector("a", { providerHighRisk: true })], [rule("a", 1, 100)]), highRiskOptOut: new Set([T_A]) };
+    expect(await picked(onlyRisky)).toBe("NO_CANDIDATE");
+  });
+
   test("weight 0 = standby: hanya dipakai bila semua rule berbobot di grup gagal reservasi", async () => {
     const s = snapshot([connector("a"), connector("b")], [rule("a", 1, 100), rule("b", 1, 0)]);
     const seen = new Set<string>();

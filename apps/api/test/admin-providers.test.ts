@@ -2,6 +2,7 @@
 // config divalidasi config_schema + SSRF guard, routing policy versioned (If-Match), simulate read-only, rate limit wajib bersumber, DLQ.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { credentialAad, LocalDevKms, open } from "@smip/crypto";
+import { createDb, loadRoutingSnapshot } from "@smip/db";
 import { ProviderAdminService } from "../src/admin/providers";
 import { type ApiHarness, apiHarness, infraUp, tid } from "./helpers";
 
@@ -364,6 +365,31 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     expect((await call("POST", "/admin/dlq/fetch.bun/zz/redrive", opTok)).status).toBe(404);
     expect((await call("DELETE", "/admin/dlq/fetch.bun/k2", opTok)).status).toBe(204);
     expect(dlqCalls).toEqual(["redrive:fetch.bun:k1", "discard:fetch.bun:k2"]);
+  });
+
+  test("I-19: operator set tenant deny_high_risk_providers → snapshot router memuat opt-out + connector provider unofficial ditandai", async () => {
+    await h.sql`insert into connectors (id, key, provider_id, platform_code, runtime, version, enabled) values
+      (${tid(0x303)}, 'provu.instagram', ${PROV_UNOFF}, 'instagram', 'python', '0.1.0', false)`;
+    const r = await call("PATCH", `/admin/tenants/${T2}`, opTok, { deny_high_risk_providers: true });
+    expect(r.status).toBe(200);
+    expect((await call("PATCH", `/admin/tenants/${T2}`, adm2, { deny_high_risk_providers: false })).status).toBe(403); // operator saja
+    const [t] = await h.sql`select settings from tenants where id = ${T2}`;
+    expect(t!.settings).toMatchObject({ deny_high_risk_providers: true });
+    const [ev] = await h.sql`select count(*)::int as n from outbox where aggregate = 'tenant' and aggregate_id = ${T2}`;
+    expect(ev!.n).toBe(1);
+    const url = (await h.sql`select current_database() as d`)[0]!.d as string;
+    const db = createDb(
+      `${process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres"}`.replace(/\/[^/]*$/, `/${url}`),
+      { max: 1 },
+    );
+    try {
+      const snap = await loadRoutingSnapshot(db.db, 1);
+      expect([...(snap.highRiskOptOut ?? [])]).toEqual([T2]);
+      expect(snap.connectors.get(tid(0x303))?.providerHighRisk).toBe(true);
+      expect(snap.connectors.get(CONN)?.providerHighRisk).toBe(false);
+    } finally {
+      await db.close();
+    }
   });
 
   test("audit log mencatat semua mutasi; SEC-02: secret tidak muncul di respons, audit, maupun outbox", async () => {

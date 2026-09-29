@@ -16,6 +16,7 @@ export const CONFIG_AGGREGATES = new Set([
   "routing_policy",
   "rate_limit_policy",
   "quota_policy",
+  "tenant", // settings.deny_high_risk_providers (I-19)
 ]);
 
 export interface OutboxEvent {

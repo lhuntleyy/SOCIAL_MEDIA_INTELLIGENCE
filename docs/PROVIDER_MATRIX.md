@@ -65,7 +65,7 @@ Kolom "Catatan awal" di tabel per platform di bawah adalah catatan historis; **�
 |---|---|---|---|---|---|
 | Instagram Graph API (Meta) | official | bun | search_hashtag, user_timeline (akun bisnis sendiri) | **DOCS** (§6.3) | Business/Creator + fitur "Instagram Public Content Access" (App Review); **30 hashtag unik / 7 hari rolling**; keyword bebas: tidak ada |
 | Apify actor `apidojo/instagram-scraper` (utama) / `apify/instagram-scraper` | third_party | bun | search_hashtag, user_timeline, post_comments | **DOCS** (§6.3) | **Keyword caption: NOT_AVAILABLE (DOCS)** — input hanya hashtag/profil/lokasi. apidojo $0,47/1K; apify $1,50–2,70/1K |
-| instagrapi | unofficial | python | search_hashtag, user_timeline, post_comments, profile, search_keyword? | UNVERIFIED | Library Python private API; butuh login akun IG → risiko challenge/ban & pelanggaran ToS. Hanya fallback, akun khusus, di worker terisolasi. |
+| instagrapi | unofficial | python | search_hashtag, user_timeline, post_detail (connector `instagrapi.instagram`, I-19) | DECLARED (contract test; verify live butuh akun IG khusus) | Library Python private API; butuh sesi akun IG → risiko challenge/ban & pelanggaran ToS. Standby weight 0, disabled default, akun khusus, worker terisolasi; tenant bisa opt-out (`deny_high_risk_providers`). Review: `docs/security/I-19-instagrapi-review.md` |
 
 ### 2.3 Facebook
 | Provider | Kind | Runtime | Operation kandidat | Status | Catatan awal |

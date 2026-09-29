@@ -18,6 +18,8 @@ export interface ConnectorInfo {
   key: string;
   providerId: string;
   providerEnabled: boolean;
+  /** providers.risk_level = high (unofficial) — tenant yang opt-out tidak pernah dilayani connector ini (I-19). */
+  providerHighRisk?: boolean;
   platform: string;
   runtime: "bun" | "python";
   version: string;
@@ -96,6 +98,8 @@ export interface RoutingSnapshot {
   /** Kunci `scopeKey(scopeType, scopeId)`. Hanya policy enabled. */
   rateLimits: Map<string, RateLimit[]>;
   quotas: Map<string, QuotaRule[]>;
+  /** Tenant dengan `settings.deny_high_risk_providers = true` (PROVIDER_MATRIX §3: unofficial bisa dimatikan per tenant). */
+  highRiskOptOut?: Set<string>;
 }
 
 export const GLOBAL = "*";

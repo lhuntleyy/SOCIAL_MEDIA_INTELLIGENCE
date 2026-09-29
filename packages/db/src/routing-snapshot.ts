@@ -11,7 +11,7 @@ const num = (v: unknown) => (v === null || v === undefined ? undefined : Number(
 
 export async function loadRoutingSnapshot(db: Db, version: number): Promise<RoutingSnapshot> {
   const [providers, connectors, caps, policies, rules, accounts, rls, quotas] = await Promise.all([
-    q(db, sql`select id, enabled from providers`),
+    q(db, sql`select id, enabled, risk_level = 'high' as high_risk from providers`),
     q(db, sql`select id, key, provider_id, platform_code, runtime, version, enabled from connectors`),
     q(db, sql`select connector_id, operation, status, declared, measured from connector_capabilities`),
     q(
@@ -30,6 +30,8 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
     ),
   ]);
   const provEnabled = new Map(providers.map((p) => [String(p.id), Boolean(p.enabled)]));
+  const provHighRisk = new Map(providers.map((p) => [String(p.id), Boolean(p.high_risk)]));
+  const optOut = await q(db, sql`select id from tenants where coalesce((settings->>'deny_high_risk_providers')::boolean, false)`);
   const cmap = new Map<string, ConnectorInfo>();
   for (const c of connectors) {
     cmap.set(String(c.id), {
@@ -37,6 +39,7 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
       key: String(c.key),
       providerId: String(c.provider_id),
       providerEnabled: provEnabled.get(String(c.provider_id)) ?? false,
+      providerHighRisk: provHighRisk.get(String(c.provider_id)) ?? false,
       platform: String(c.platform_code),
       runtime: c.runtime as "bun" | "python",
       version: String(c.version),
@@ -137,5 +140,14 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
     const k = scopeKey(qr.scopeType, qr.scopeId);
     quotaMap.set(k, [...(quotaMap.get(k) ?? []), qr]);
   }
-  return { version, loadedAt: new Date(), policies: pmap, connectors: cmap, accountsByProvider, rateLimits, quotas: quotaMap };
+  return {
+    version,
+    loadedAt: new Date(),
+    policies: pmap,
+    connectors: cmap,
+    accountsByProvider,
+    rateLimits,
+    quotas: quotaMap,
+    highRiskOptOut: new Set(optOut.map((t) => String(t.id))),
+  };
 }

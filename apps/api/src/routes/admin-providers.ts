@@ -15,7 +15,7 @@ import { parseJson } from "../validate";
 const Id = z.uuid();
 const Iso = z.iso.datetime({ offset: true });
 const Secret = z
-  .record(z.string().regex(/^[a-z][a-z0-9_]{0,40}$/), z.string().min(1).max(8192))
+  .record(z.string().regex(/^[a-z][a-z0-9_]{0,40}$/), z.string().min(1).max(32_768)) // settings sesi instagrapi (JSON) bisa beberapa KB
   .refine((o) => Object.keys(o).length > 0 && Object.keys(o).length <= 8, {
     message: "1–8 field",
   });

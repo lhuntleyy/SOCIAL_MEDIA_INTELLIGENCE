@@ -113,6 +113,7 @@ export function evaluate(
       if (!rule.enabled) return "RULE_DISABLED";
       if (!c?.enabled) return "CONNECTOR_DISABLED";
       if (!c.providerEnabled) return "PROVIDER_DISABLED";
+      if (c.providerHighRisk && (input.denyHighRisk || snap.highRiskOptOut?.has(input.tenantId))) return "TENANT_RISK_OPT_OUT";
       if (input.excludeConnectorIds.includes(c.id)) return "EXCLUDED";
       if (rule.runKinds && !rule.runKinds.includes(input.runKind)) return "RUN_KIND_MISMATCH";
       if (!cap) return "CAPABILITY_MISSING";
