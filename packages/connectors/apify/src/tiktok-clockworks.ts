@@ -2,10 +2,11 @@
 // Bentuk: docs/evidence/shapes/shape-clockworks~free-tiktok-scraper.json. Search video: `searchSection: "/video"`,
 // `videoSearchSorting: LATEST`, `videoSearchDateFilter` (PAST_24_HOURS … ALL_TIME) + saring lokal. Filter berbayar kecil
 // per run (event `filter-applied`) — dikendalikan maxTotalChargeUsd. Sinyal iklan: `isAd`/`isSponsored`; bahasa: `textLanguage`.
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
-import { arr, type NormMeta, type Obj, noGeo, obj, plainQuery, provenance, str, url, windowAgeDays } from "./util";
+import { arr, type NormMeta, noGeo, type Obj, obj, plainQuery, provenance, str, url, windowAgeDays } from "./util";
 
 export function clockworksDateFilter(ageDays: number | null): string {
   if (ageDays === null) return "ALL_TIME";

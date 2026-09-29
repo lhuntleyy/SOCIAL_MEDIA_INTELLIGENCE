@@ -1,7 +1,7 @@
 // Klien Apify bersama untuk semua connector berbasis actor (I-17). Fakta API: docs.apify.com/api/v2
 // (run actor, `waitForFinish` ≤ 60 s, `maxTotalChargeUsd`, `memory`, dataset items). Semua HTTP lewat ctx.http
 // (SSRF guard + allowlist api.apify.com). Token dari credential `{ api_token }` — tidak pernah di-log.
-import { type ConnectorContext, ConnectorError } from "@smip/connector-sdk";
+import { type ConnectorContext, ConnectorError, codeForStatus, parseRetryAfter } from "@smip/connector-sdk";
 
 export const APIFY_API = "https://api.apify.com/v2";
 export const APIFY_HOSTS = ["api.apify.com"];
@@ -33,12 +33,34 @@ function token(ctx: ConnectorContext): string {
   return t;
 }
 
+/** Tipe error 402 Apify yang SEMENTARA: batas memori/run bersamaan plan (hilang saat run lain selesai) — bukan kredit habis. */
+export const TRANSIENT_402 = /actor-memory-limit-exceeded|concurrent-runs-limit|memory limit/i;
+/** Jeda sebelum mencoba lagi saat batas memori plan penuh (kebijakan internal; run Apify biasanya selesai < 1 menit). */
+export const MEMORY_LIMIT_RETRY_MS = 30_000;
+
 async function call<T>(ctx: ConnectorContext, path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const res = await ctx.http.request(`${APIFY_API}${path}`, {
     ...init,
     signal: ctx.signal,
+    throwOnStatus: false,
     headers: { Authorization: `Bearer ${token(ctx)}`, "content-type": "application/json", ...init.headers },
   });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    const type = /"type"\s*:\s*"([^"]+)"/.exec(body)?.[1] ?? "";
+    // 402 dua makna (teramati live 2026-09-30, 8 run paralel di plan FREE): batas memori → RATE_LIMITED (akun ditahan sebentar,
+    // router menjadwalkan ulang); kredit habis → QUOTA_EXHAUSTED.
+    if (res.status === 402 && TRANSIENT_402.test(`${type} ${body}`))
+      throw new ConnectorError("RATE_LIMITED", `Apify: batas memori run bersamaan plan tercapai (${type || "402"})`, {
+        httpStatus: 402,
+        retryAfterMs: MEMORY_LIMIT_RETRY_MS,
+        scope: "account",
+      });
+    throw new ConnectorError(codeForStatus(res.status), `HTTP ${res.status}${type ? ` ${type}` : ""}`, {
+      httpStatus: res.status,
+      retryAfterMs: parseRetryAfter(res.headers.get("retry-after")),
+    });
+  }
   try {
     return (await res.json()) as T;
   } catch (e) {
@@ -47,19 +69,29 @@ async function call<T>(ctx: ConnectorContext, path: string, init: RequestInit & 
 }
 
 const actorPath = (actorId: string) => actorId.replace("/", "~");
+/** Server Apify menahan respons s/d `waitForFinish` detik → timeout HTTP harus lebih panjang (default HttpClient 30 s memutus
+ * run yang sedang ditunggu — 3 connector X gagal TIMEOUT tepat 30 s, teramati live 2026-09-30). */
+export const httpTimeout = (waitSecs: number) => (waitSecs + 20) * 1000;
 
 export async function startRun(ctx: ConnectorContext, actorId: string, input: unknown, o: RunOptions): Promise<ApifyRun> {
   const qs = new URLSearchParams({ waitForFinish: String(Math.min(60, Math.max(0, Math.floor(o.waitSecs)))) });
   if (o.memoryMb) qs.set("memory", String(o.memoryMb));
   if (o.maxTotalChargeUsd !== undefined) qs.set("maxTotalChargeUsd", String(o.maxTotalChargeUsd));
   if (o.timeoutSecs) qs.set("timeout", String(o.timeoutSecs));
-  return (await call<{ data: ApifyRun }>(ctx, `/acts/${actorPath(actorId)}/runs?${qs}`, { method: "POST", body: JSON.stringify(input) }))
-    .data;
+  const w = Number(qs.get("waitForFinish"));
+  return (
+    await call<{ data: ApifyRun }>(ctx, `/acts/${actorPath(actorId)}/runs?${qs}`, {
+      method: "POST",
+      body: JSON.stringify(input),
+      timeoutMs: httpTimeout(w),
+    })
+  ).data;
 }
 
 export async function getRun(ctx: ConnectorContext, runId: string, waitSecs: number): Promise<ApifyRun> {
   const w = Math.min(60, Math.max(0, Math.floor(waitSecs)));
-  return (await call<{ data: ApifyRun }>(ctx, `/actor-runs/${encodeURIComponent(runId)}?waitForFinish=${w}`)).data;
+  return (await call<{ data: ApifyRun }>(ctx, `/actor-runs/${encodeURIComponent(runId)}?waitForFinish=${w}`, { timeoutMs: httpTimeout(w) }))
+    .data;
 }
 
 export async function datasetItems(ctx: ConnectorContext, datasetId: string, limit: number): Promise<unknown[]> {

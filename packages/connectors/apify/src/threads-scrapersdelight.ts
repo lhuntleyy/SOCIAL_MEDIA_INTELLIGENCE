@@ -3,10 +3,11 @@
 //   - `keywords` teks biasa; tanpa cursor (SERP logged-out); `postedWithinDays` (hari) + saring lokal
 //   - hasil campuran baru & lama (dokumen actor) → resultOrder null
 //   - `isPaidPartnership` = sinyal iklan (FR-I07); `countsHidden` → metrik tidak diketahui (null, bukan 0)
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
-import { arr, type NormMeta, type Obj, noGeo, plainQuery, provenance, str, url, windowAgeDays } from "./util";
+import { arr, type NormMeta, noGeo, type Obj, plainQuery, provenance, str, url, windowAgeDays } from "./util";
 
 export function normalizeThreads(r: Obj, meta: NormMeta): CanonicalItem | null {
   const id = str(r.postId);

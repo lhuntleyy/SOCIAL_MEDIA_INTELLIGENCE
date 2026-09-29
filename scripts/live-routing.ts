@@ -5,9 +5,25 @@
 import postgres from "postgres";
 
 const PLAN: Record<string, { rules: [string, number, number][] }> = {
-  x: { rules: [["apify.x.xquik", 1, 100], ["apify.x.kaito", 2, 100], ["apify.x.scraperone", 3, 100]] },
-  youtube: { rules: [["youtube_data_api.youtube", 1, 100], ["apify.youtube.streamers", 2, 0]] }, // Apify = standby (mahal)
-  tiktok: { rules: [["apify.tiktok.xmolodtsov", 1, 100], ["apify.tiktok.clockworks", 2, 100]] },
+  x: {
+    rules: [
+      ["apify.x.xquik", 1, 100],
+      ["apify.x.kaito", 2, 100],
+      ["apify.x.scraperone", 3, 100],
+    ],
+  },
+  youtube: {
+    rules: [
+      ["youtube_data_api.youtube", 1, 100],
+      ["apify.youtube.streamers", 2, 0],
+    ],
+  }, // Apify = standby (mahal)
+  tiktok: {
+    rules: [
+      ["apify.tiktok.xmolodtsov", 1, 100],
+      ["apify.tiktok.clockworks", 2, 100],
+    ],
+  },
   instagram: { rules: [["apify.instagram.boolean", 1, 100]] },
   facebook: { rules: [["apify.facebook.scraperone", 1, 100]] },
   threads: { rules: [["apify.threads.scrapersdelight", 1, 100]] },
@@ -40,15 +56,29 @@ try {
       await tx`update connectors set enabled = true, config = ${tx.json(cfg as never)}, updated_at = now() where id = ${c.id}`;
       const usd = MONTHLY_USD[c.key];
       if (usd !== undefined) {
-        const [q] = await tx`select id from quota_policies where scope_type = 'connector' and scope_id = ${c.id} and period = 'month' and unit = 'cost_units'`;
+        const [q] =
+          await tx`select id from quota_policies where scope_type = 'connector' and scope_id = ${c.id} and period = 'month' and unit = 'cost_units'`;
         if (q) await tx`update quota_policies set limit_value = ${usd}, hard = true, enabled = true where id = ${q.id}`;
         else
           await tx`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard, alert_thresholds, reset_tz)
             values (${Bun.randomUUIDv7()}, 'connector', ${c.id}, 'month', 'cost_units', ${usd}, true, '{50,80,95}', 'UTC')`;
       }
     }
+    // run Apify bersamaan dibatasi per akun: plan FREE menolak run baru bila total memori run aktif melebihi batas plan
+    // (HTTP 402 actor-memory-limit-exceeded, teramati live 2026-09-30 saat 8 run paralel × 1 GB)
+    for (const acc of await tx`select pa.id from provider_accounts pa join providers p on p.id = pa.provider_id where p.key = 'apify' and pa.status = 'active'`) {
+      const [rl] =
+        await tx`select id from rate_limit_policies where scope_type = 'provider_account' and scope_id = ${acc.id} and algorithm = 'concurrency'`;
+      const ref = "internal_safety: 4 run × 1 GB < batas memori plan FREE Apify; 402 actor-memory-limit-exceeded teramati 2026-09-30";
+      if (rl) await tx`update rate_limit_policies set capacity = 4, source_ref = ${ref}, enabled = true where id = ${rl.id}`;
+      else
+        await tx`insert into rate_limit_policies (id, scope_type, scope_id, algorithm, capacity, refill_tokens, refill_interval_ms, source, source_ref, enabled)
+          values (${Bun.randomUUIDv7()}, 'provider_account', ${acc.id}, 'concurrency', 4, 0, 1000, 'internal_safety', ${ref}, true)`;
+      await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('rate_limit_policy', ${acc.id}, 'rate_limit.updated', '{}')`;
+    }
     for (const [platform, p] of Object.entries(PLAN)) {
-      const [pol] = await tx`select id from routing_policies where tenant_id is null and platform_code = ${platform} and operation = 'search_keyword'`;
+      const [pol] =
+        await tx`select id from routing_policies where tenant_id is null and platform_code = ${platform} and operation = 'search_keyword'`;
       if (!pol) throw new Error(`policy ${platform}/search_keyword tidak ada`);
       await tx`delete from routing_rules where policy_id = ${pol.id}`;
       for (const [key, prio, weight] of p.rules)

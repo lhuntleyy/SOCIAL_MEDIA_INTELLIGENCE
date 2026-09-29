@@ -2,8 +2,9 @@
 // Bentuk: docs/evidence/shapes/shape-kaitoeasyapi~….json (probe 2026-09-29). Input: `twitterContent` + field operator
 // terpisah (`since_time`/`until_time` detik Unix) — skema input actor; `maxItems` minimal 20 (catatan actor, PROVIDER_MATRIX).
 // Dipilih menggantikan apidojo (ditolak pemilik 2026-09-29: batas run bulanan plan FREE).
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
 import { arr, type NormMeta, type Obj, obj, provenance, str, url } from "./util";
 

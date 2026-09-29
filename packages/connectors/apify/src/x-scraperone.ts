@@ -1,9 +1,10 @@
 // X via Apify `scraper_one/x-posts-search` — cadangan X #3. Bentuk: docs/evidence/shapes/shape-scraper_one~x-posts-search.json.
 // Input: `query`, `searchType: latest`, `timeWindowHours` (hanya berlaku utk latest), `resultsCount` (plan FREE: maks 100/query).
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
-import { arr, type NormMeta, type Obj, noGeo, obj, plainQuery, provenance, str, url, windowAgeDays } from "./util";
+import { arr, type NormMeta, noGeo, type Obj, obj, plainQuery, provenance, str, url, windowAgeDays } from "./util";
 
 export const SCRAPERONE_X_MAX = 100; // catatan skema input: plan FREE maks 100 post per query
 const MEDIA: Record<string, "image" | "video" | "gif"> = { photo: "image", video: "video", animated_gif: "gif" };

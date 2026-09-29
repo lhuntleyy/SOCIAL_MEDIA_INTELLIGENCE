@@ -89,6 +89,9 @@ TikTok & YouTube masuk **MVP** (6 platform, sesuai volume referensi & COST_MODEL
 | Bluesky | AT Protocol public API (`app.bsky.feed.searchPosts`), Jetstream/firehose | UNVERIFIED — cek rate limit docs Bluesky |
 | Reddit | Reddit Data API (butuh registrasi & syarat penggunaan) | UNVERIFIED — cek terms & limit terbaru |
 
+
+> **Temuan data live 2026-09-30 (Apify, plan FREE):** (1) run paralel melebihi batas memori plan → HTTP **402 `actor-memory-limit-exceeded`** — kini diklasifikasi `RATE_LIMITED` (tunggu 30 s), bukan `QUOTA_EXHAUSTED` (yang menahan akun 1 jam); 402 kredit habis tetap `QUOTA_EXHAUSTED`. (2) Batas run bersamaan per akun Apify = policy `concurrency` 4 (4 × 1 GB, `internal_safety`, `scripts/live-routing.ts`). (3) Timeout HTTP klien Apify = `waitForFinish` + 20 s (default 30 s memutus run yang sedang ditunggu). Biaya satu siklus 6 platform ≈ $0,01 (IG ≈ $0,01/run karena biaya start; X xquik ≈ $0,0002/run; YouTube resmi gratis).
+
 ## 3. Template fakta per connector (isi saat verifikasi)
 
 ```yaml

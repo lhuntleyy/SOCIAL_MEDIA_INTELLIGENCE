@@ -1,13 +1,13 @@
 // I-17 contract suite + normalizer connector Apify (xquik X). HTTP di-mock — CI tidak memanggil Apify.
 import { describe, expect, test } from "bun:test";
-import { CanonicalItem } from "@smip/contracts";
 import { HttpClient } from "@smip/connector-sdk";
 import { contractContext, runContractSuite } from "@smip/connector-sdk/contract";
-import { ApifyActorConnector, X_XQUIK, normalizeXquik, xWindowOperators } from "../src";
+import { CanonicalItem } from "@smip/contracts";
+import { ApifyActorConnector, normalizeXquik, X_XQUIK, xWindowOperators } from "../src";
 import fixture from "./fixtures/xquik-items.json";
 
 const TOKEN = "apify_api_TEST_rahasia_1234567890";
-type Mode = "ok" | "running" | "failed" | "401" | "402" | "429" | "500";
+type Mode = "ok" | "running" | "failed" | "401" | "402" | "402mem" | "429" | "500";
 let mode: Mode = "ok";
 const setMode = (m: Mode) => () => {
   mode = m;
@@ -24,6 +24,11 @@ async function mockFetch(input: string | URL | Request, init?: RequestInit): Pro
   if ((init?.headers as Record<string, string>)?.Authorization !== `Bearer ${TOKEN}` || mode === "401")
     return json(401, { error: { type: "token-not-valid" } });
   if (mode === "402") return json(402, { error: { type: "not-enough-usage-to-run-paid-actor" } });
+  // teramati live 2026-09-30: 8 run paralel di plan FREE → batas memori total
+  if (mode === "402mem")
+    return json(402, {
+      error: { type: "actor-memory-limit-exceeded", message: "By launching this job you will exceed the memory limit of 8192MB" },
+    });
   if (mode === "429") return json(429, { error: { type: "rate-limit-exceeded" } }, { "retry-after": "20" });
   if (mode === "500") return json(503, { error: { type: "internal" } });
   if (u.pathname === "/v2/users/me/limits") return json(200, { data: { current: { monthlyUsageUsd: 1 } } });
@@ -68,6 +73,7 @@ runContractSuite("apify.x.xquik", () => ({
     { name: "sukses", setup: setMode("ok"), request: req(), expect: "ok" },
     { name: "token salah", setup: setMode("401"), request: req(), expect: "AUTH_INVALID" },
     { name: "kredit Apify habis", setup: setMode("402"), request: req(), expect: "QUOTA_EXHAUSTED" },
+    { name: "batas memori run bersamaan (402 sementara)", setup: setMode("402mem"), request: req(), expect: "RATE_LIMITED" },
     { name: "rate limit", setup: setMode("429"), request: req(), expect: "RATE_LIMITED" },
     { name: "5xx", setup: setMode("500"), request: req(), expect: "UPSTREAM_5XX" },
     { name: "run FAILED", setup: setMode("failed"), request: req(), expect: "UPSTREAM_5XX" },
@@ -145,4 +151,21 @@ describe("apify.x.xquik", () => {
     expect(normalizeXquik({ ...fixture[0], createdAt: "2 jam lalu" }, meta)).toBeNull();
     expect(normalizeXquik({ ...fixture[0], createdAt: "2026-09-29T01:00:00" }, meta)).toBeNull();
   });
+});
+
+test("timeout HTTP > waitForFinish (regresi live 2026-09-30: run X terputus tepat 30 s)", async () => {
+  const { startRun, getRun, httpTimeout } = await import("../src");
+  const seen: number[] = [];
+  const http = {
+    request: async (_u: string, o: { timeoutMs?: number }) => {
+      seen.push(o.timeoutMs ?? 0);
+      return new Response(JSON.stringify({ data: { id: "r", status: "RUNNING", defaultDatasetId: "d" } }), { status: 201 });
+    },
+  };
+  const ctx = { http, signal: new AbortController().signal, credential: { kind: "api_key", secret: { api_token: TOKEN } } } as never;
+  await startRun(ctx, "a/b", {}, { waitSecs: 50 });
+  await getRun(ctx, "r", 60);
+  expect(seen).toEqual([httpTimeout(50), httpTimeout(60)]);
+  expect(seen.every((t) => t > 60_000 || t === httpTimeout(50))).toBe(true);
+  expect(httpTimeout(50)).toBeGreaterThan(50_000);
 });

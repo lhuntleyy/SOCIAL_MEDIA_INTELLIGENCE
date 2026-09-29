@@ -1,23 +1,23 @@
 // I-18 contract suite + normalizer connector Apify per platform. Fixture SINTETIS mengikuti bentuk hasil probe
 // (docs/evidence/shapes/*.json) — tanpa konten/akun asli; HTTP di-mock (CI tidak memanggil Apify).
 import { describe, expect, test } from "bun:test";
-import { CanonicalItem } from "@smip/contracts";
 import { HttpClient } from "@smip/connector-sdk";
 import { contractContext, runContractSuite } from "@smip/connector-sdk/contract";
+import { CanonicalItem } from "@smip/contracts";
 import {
-  ApifyActorConnector,
   type ActorSpec,
+  ApifyActorConnector,
+  clockworksDateFilter,
   FACEBOOK_SCRAPERONE,
   fbHandle,
   INSTAGRAM_BOOLEAN,
-  THREADS_SCRAPERSDELIGHT,
-  clockworksDateFilter,
   KAITO_MIN_ITEMS,
+  THREADS_SCRAPERSDELIGHT,
   TIKTOK_CLOCKWORKS,
   TIKTOK_XMOLODTSOV,
+  windowAgeDays,
   X_KAITO,
   X_SCRAPERONE,
-  windowAgeDays,
   YOUTUBE_STREAMERS,
   youtubeDateFilter,
 } from "../src";

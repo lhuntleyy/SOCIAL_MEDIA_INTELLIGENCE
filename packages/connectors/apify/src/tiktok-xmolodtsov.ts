@@ -1,8 +1,9 @@
 // TikTok via Apify `xmolodtsov/tiktok-search-scraper` — TikTok #2 (murah $0,30/1K, cadangan).
 // Bentuk: docs/evidence/shapes/shape-xmolodtsov~tiktok-search-scraper.json. TANPA filter tanggal (sort diterapkan
 // setelah fetch menurut skema input) → saring lokal saja; kurang efisien untuk inkremental → prioritas rendah.
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
 import { arr, type NormMeta, type Obj, obj, plainQuery, provenance, str, url } from "./util";
 

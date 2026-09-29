@@ -1,6 +1,7 @@
 // Helper normalisasi bersama connector Apify. Aturan: tak tahu = null, JANGAN menebak (CONNECTOR_SPEC §4).
-import type { CanonicalItem } from "@smip/contracts";
+
 import type { FetchRequest } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 
 export type Obj = Record<string, unknown>;
 export type NormMeta = { key: string; version: string; fetchedAt: string; rawRef: string | null };

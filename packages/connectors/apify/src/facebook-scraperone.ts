@@ -1,10 +1,11 @@
 // Facebook keyword via Apify `scraper_one/facebook-posts-search` — PROVIDER_MATRIX §2.0 prioritas 1 (TESTED).
 // Bentuk: docs/evidence/shapes/shape-scraper_one~facebook-posts-search.json. `query` teks biasa, `searchType: latest`,
 // `startDate`/`endDate` (YYYY-MM-DD) + saring lokal. `timestamp` epoch ms. Output tanpa handle → dari profileUrl.
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
-import { arr, type NormMeta, type Obj, noGeo, obj, plainQuery, provenance, str, url, ymd } from "./util";
+import { arr, type NormMeta, noGeo, type Obj, obj, plainQuery, provenance, str, url, ymd } from "./util";
 
 /** Handle FB dari URL profil: /<username> atau profile.php?id=<id> → id. Bukan tebakan: identitas dari URL resmi. */
 export function fbHandle(profileUrl: string | null, id: string | null): string | null {

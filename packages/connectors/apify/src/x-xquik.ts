@@ -4,8 +4,9 @@
 //   - `queryType: "Latest"` = terbaru dulu (resultOrder desc)
 //   - waktu `createdAt` = format Twitter klasik → toUtcIso(…, "twitter_classic")
 // Hanya field CanonicalItem yang dipetakan; bio/profil/lainnya dibuang (minimisasi PII, SECURITY §9).
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, type FetchRequest, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
 
 type Obj = Record<string, unknown>;

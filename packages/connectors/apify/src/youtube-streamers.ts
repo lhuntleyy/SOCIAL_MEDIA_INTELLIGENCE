@@ -2,10 +2,11 @@
 // Bentuk: docs/evidence/shapes/shape-streamers~youtube-scraper.json. `date` ISO Z. Teks = judul + deskripsi.
 // Inkremental: `oldestPostDate` TIDAK dihormati untuk mode search (verify live 2026-09-29: video Mei–Sep tetap
 // kembali) → pakai filter bawaan YouTube `dateFilter` (hour/today/week/month/year) + saring lokal.
-import type { CanonicalItem } from "@smip/contracts";
+
 import { count, toUtcIso } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
-import { arr, type NormMeta, type Obj, noGeo, plainQuery, provenance, str, url, windowAgeDays } from "./util";
+import { arr, type NormMeta, noGeo, type Obj, plainQuery, provenance, str, url, windowAgeDays } from "./util";
 
 /** Filter unggah YouTube terkecil yang pasti mencakup window. */
 export function youtubeDateFilter(ageDays: number | null): string | undefined {
