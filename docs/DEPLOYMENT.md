@@ -111,6 +111,7 @@ Angka replika = titik awal; kalibrasi dari load test. KEDA scaler Redis untuk Bu
 | `LOG_LEVEL` | semua | |
 | `ANTHROPIC_API_KEY` | worker-ai | hanya jika LLM fallback aktif; dari secret manager |
 | `SCHEDULER_TICK_MS` | scheduler | default 15000 |
+| `SCHEDULER_COST_GUARD_INTERVAL_SEC` | scheduler | default 3600 — interval efektif plan/stream saat soft cap biaya tercapai (I-23) |
 | `EGRESS_PROXY_URL` | worker-fetch-py | |
 
 Semua divalidasi saat boot oleh `packages/config` (`loadConfig(service)`, Zod); service gagal start jika tidak valid, pesan error hanya menyebut nama variabel (tanpa nilai). Service `workers` = profil MVP single-node (gabungan kebutuhan semua worker Bun). Umum: `NODE_ENV`, `LOG_LEVEL`, `SERVICE_VERSION`.

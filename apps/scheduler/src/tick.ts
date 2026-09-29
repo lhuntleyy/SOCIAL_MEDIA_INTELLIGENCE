@@ -1,7 +1,18 @@
 // I-12 tick scheduler (QUEUE_SPEC §6): plan jatuh tempo → crawl_runs(queued) + outbox job `crawl.dispatch`
 // dalam SATU transaksi (tidak ada run "hantu"). FOR UPDATE SKIP LOCKED → aman bila dua scheduler sempat aktif.
 import type { CrawlDispatchPayload } from "@smip/contracts";
-import { BACKFILL_PRIORITY, createCrawlRun, type Db, jsonbValue, pruneGaps, withSystem } from "@smip/db";
+import {
+  BACKFILL_PRIORITY,
+  type BreachedPolicy,
+  createCrawlRun,
+  type Db,
+  EMPTY_COST_GUARD,
+  evaluateCostGuard,
+  isThrottled,
+  jsonbValue,
+  pruneGaps,
+  withSystem,
+} from "@smip/db";
 import { sql } from "drizzle-orm";
 
 export const NON_FINAL = ["queued", "dispatching", "fetching", "processing"] as const;
@@ -15,6 +26,8 @@ export interface TickOptions {
   random?: () => number;
   /** Umur maksimum celah (detik) sebelum dibuang; default 24 jam. */
   maxGapAgeSec?: number;
+  /** I-23 cost guard: false = nonaktif. Interval efektif saat soft cap tercapai (default 3600 s = maksimum plan). */
+  costGuard?: false | { throttleIntervalSec?: number };
 }
 export interface TickResult {
   scheduled: number;
@@ -25,6 +38,10 @@ export interface TickResult {
   gapsAbandoned: Record<string, number>;
   streamsScheduled: number;
   streamsCoalesced: number;
+  /** Plan/stream yang dijadwalkan dengan interval throttle (soft cap tercapai). */
+  throttled: number;
+  /** Transisi soft cap pada tick ini (untuk log/alert). */
+  costGuard: { breached: BreachedPolicy[]; throttledNow: BreachedPolicy[]; released: string[] };
 }
 
 interface PlanRow {
@@ -62,9 +79,20 @@ export async function schedulerTick(db: Db, o: TickOptions = {}): Promise<TickRe
     gapsAbandoned: {},
     streamsScheduled: 0,
     streamsCoalesced: 0,
+    throttled: 0,
+    costGuard: { breached: [], throttledNow: [], released: [] },
   };
+  const throttleSec = (o.costGuard || undefined)?.throttleIntervalSec ?? 3600;
   await withSystem(db, async (tx) => {
     res.gapsAbandoned = await pruneGaps(tx, o.maxGapAgeSec ?? 86_400, now);
+    const guard = o.costGuard === false ? EMPTY_COST_GUARD : await evaluateCostGuard(tx);
+    res.costGuard = { breached: guard.breached, throttledNow: guard.throttled, released: guard.released };
+    /** Soft cap → interval dinaikkan ke maksimum; ingestion tidak berhenti (COST_MODEL §8, P-16). */
+    const interval = (base: number, throttled: boolean) => {
+      if (!throttled) return base;
+      res.throttled++;
+      return Math.max(base, throttleSec);
+    };
     const plans = (await tx.execute(sql`
       select p.id, p.tenant_id, p.topic_id, p.topic_query_id, p.platform_code, p.operation, p.interval_sec, p.high_watermark,
              p.gap_windows, p.priority, p.inflight_run_id,
@@ -79,11 +107,15 @@ export async function schedulerTick(db: Db, o: TickOptions = {}): Promise<TickRe
       for update of p skip locked`)) as unknown as PlanRow[];
 
     for (const p of plans) {
+      const iv = interval(
+        p.interval_sec,
+        isThrottled(guard, { platform_code: p.platform_code, tenant_id: p.tenant_id, topic_id: p.topic_id }),
+      );
       // coalescing (P-07): run sebelumnya belum final → jangan antre run baru
       if (p.inflight_run_id && p.inflight_status && (NON_FINAL as readonly string[]).includes(p.inflight_status)) {
         res.coalesced++;
         await tx.execute(
-          sql`update crawl_plans set next_run_at = ${iso(nextRunAt(now, p.interval_sec, random))}::timestamptz, updated_at = now() where id = ${p.id}`,
+          sql`update crawl_plans set next_run_at = ${iso(nextRunAt(now, iv, random))}::timestamptz, updated_at = now() where id = ${p.id}`,
         );
         continue;
       }
@@ -113,22 +145,33 @@ export async function schedulerTick(db: Db, o: TickOptions = {}): Promise<TickRe
         res.gapRuns++;
       }
       await tx.execute(sql`update crawl_plans set inflight_run_id = ${runId}, last_run_at = ${iso(now)}::timestamptz,
-        next_run_at = ${iso(nextRunAt(now, p.interval_sec, random))}::timestamptz, gap_windows = ${jsonbValue(gaps)}, updated_at = now()
+        next_run_at = ${iso(nextRunAt(now, iv, random))}::timestamptz, gap_windows = ${jsonbValue(gaps)}, updated_at = now()
         where id = ${p.id}`);
     }
 
     // collection stream jatuh tempo (ADR-009): run system-owned, pola sama dengan plan
     const streams = (await tx.execute(sql`
       select s.id, s.platform_code, s.operation, s.interval_sec, s.high_watermark, s.gap_windows, s.priority, s.inflight_run_id,
-             (select r.status from crawl_runs r where r.id = s.inflight_run_id limit 1) as inflight_status
+             (select r.status from crawl_runs r where r.id = s.inflight_run_id limit 1) as inflight_status,
+             array(select l.tenant_id::text from stream_topic_links l where l.stream_id = s.id order by l.topic_query_id) as member_tenants,
+             array(select q.topic_id::text from stream_topic_links l join topic_queries q on q.id = l.topic_query_id
+                   where l.stream_id = s.id order by l.topic_query_id) as member_topics
       from collection_streams s where s.enabled and s.next_run_at <= ${iso(now)}::timestamptz
       order by s.priority, s.next_run_at limit ${o.limit ?? 500}
-      for update of s skip locked`)) as unknown as Omit<PlanRow, "tenant_id" | "topic_id" | "topic_query_id">[];
+      for update of s skip locked`)) as unknown as (Omit<PlanRow, "tenant_id" | "topic_id" | "topic_query_id"> & {
+      member_tenants: string[];
+      member_topics: string[];
+    })[];
     for (const st of streams) {
+      // stream melayani banyak tenant: throttle bila scope platform/global, atau semua anggotanya sudah lewat soft cap
+      const iv = interval(
+        st.interval_sec,
+        isThrottled(guard, { platform_code: st.platform_code, member_tenants: st.member_tenants, member_topics: st.member_topics }),
+      );
       if (st.inflight_run_id && st.inflight_status && (NON_FINAL as readonly string[]).includes(st.inflight_status)) {
         res.streamsCoalesced++;
         await tx.execute(
-          sql`update collection_streams set next_run_at = ${iso(nextRunAt(now, st.interval_sec, random))}::timestamptz where id = ${st.id}`,
+          sql`update collection_streams set next_run_at = ${iso(nextRunAt(now, iv, random))}::timestamptz where id = ${st.id}`,
         );
         continue;
       }
@@ -162,7 +205,7 @@ export async function schedulerTick(db: Db, o: TickOptions = {}): Promise<TickRe
         res.gapRuns++;
       }
       await tx.execute(sql`update collection_streams set inflight_run_id = ${runId}, last_run_at = ${iso(now)}::timestamptz,
-        next_run_at = ${iso(nextRunAt(now, st.interval_sec, random))}::timestamptz, gap_windows = ${jsonbValue(gaps)}, updated_at = now()
+        next_run_at = ${iso(nextRunAt(now, iv, random))}::timestamptz, gap_windows = ${jsonbValue(gaps)}, updated_at = now()
         where id = ${st.id}`);
     }
   });

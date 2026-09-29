@@ -104,6 +104,8 @@ const scheduler = z.object({
     .default("false")
     .transform((v) => v === "true"),
   SCHEDULER_STREAM_PLAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  /** Cost guard (I-23): interval efektif plan/stream saat soft cap biaya tercapai — throttle, bukan stop. */
+  SCHEDULER_COST_GUARD_INTERVAL_SEC: z.coerce.number().int().min(300).max(86_400).default(3600),
 });
 
 const SHAPES: Record<ServiceName, z.ZodObject<z.ZodRawShape>[]> = {

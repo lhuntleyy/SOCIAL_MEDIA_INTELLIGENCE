@@ -275,14 +275,26 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
       await tx`SET LOCAL ROLE smip_system`;
       await tx`update plans set limits = ${tx.json({ max_topics: 10, min_interval_sec: 900 })}`;
       await tx`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard) values (${Bun.randomUUIDv7()}, 'tenant', ${A}, 'day', 'requests', 100, true)`;
+      // soft cap (I-23): tidak menolak, hanya memperingatkan throttle
+      await tx`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard) values (${Bun.randomUUIDv7()}, 'tenant', ${A}, 'month', 'requests', 50, false)`;
     });
-    const est = await j<{ requests_per_day: number; would_exceed: string[]; quota_after_pct: Record<string, number> }>(
+    const est = await j<{
+      requests_per_day: number;
+      would_exceed: string[];
+      would_throttle: string[];
+      quota_after_pct: Record<string, number>;
+    }>(
       await h.call("POST", "/topics/cost-estimate", {
         token: tok.analystA,
         body: { platforms: [{ code: "x", interval_sec: 900 }], queries: [main] },
       }),
     );
-    expect(est.data).toMatchObject({ requests_per_day: 96, would_exceed: [], quota_after_pct: { tenant_daily_requests: 96 } });
+    expect(est.data).toMatchObject({
+      requests_per_day: 96,
+      would_exceed: [],
+      would_throttle: ["tenant_monthly_requests"],
+      quota_after_pct: { tenant_daily_requests: 96 },
+    });
     const over = await h.call("POST", "/topics", { token: tok.analystA, body: body("Topik Mahal") });
     expect([over.status, (await j(over)).error?.code]).toEqual([422, "QUOTA_WOULD_EXCEED"]);
   });

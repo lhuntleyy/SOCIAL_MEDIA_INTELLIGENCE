@@ -401,7 +401,9 @@ UNIQUE(COALESCE(tenant_id,'00000000-0000-0000-0000-000000000000'), platform_code
 Jika provider mengembalikan header rate limit / `Retry-After`, connector melaporkannya → router menghormati nilai **aktual** (dynamic override di Redis) di atas policy statis.
 
 ### 4.9 `quota_policies`
-| id uuid | scope_type (`global`,`tenant`,`topic`,`provider`,`connector`,`provider_account` — global/topic untuk cost guard COST_MODEL §8) | scope_id uuid (NULL hanya untuk global) | period e_period (`day`,`month`) | unit e_unit (`requests`,`results`,`cost_units`) | limit_value numeric | hard boolean | alert_thresholds smallint[] default `{50,80,95}` | reset_tz text default 'UTC' | enabled |
+| id uuid | scope_type (`global`,`tenant`,`topic`,`provider`,`connector`,`provider_account` — global/topic untuk cost guard COST_MODEL §8) | scope_id uuid (NULL hanya untuk global) | period e_period (`day`,`month`) | unit e_unit (`requests`,`results`,`cost_units`) | limit_value numeric | hard boolean | alert_thresholds smallint[] default `{50,80,95}` | reset_tz text default 'UTC' | enabled | throttled_since timestamptz NULL |
+
+> Migrasi 0019 (I-23): `throttled_since` diisi scheduler saat soft quota (`hard=false`) mencapai limit (cost guard → throttle interval, bukan stop) dan dikosongkan saat dilepas; transisi menulis outbox `cost_guard.throttled|released` (alert sekali).
 
 ### 4.10 `quota_usage`
 | scope_type | scope_id | period e_period | period_start date | unit | used numeric | reserved numeric | updated_at | PK(scope_type, scope_id, period, period_start, unit) |

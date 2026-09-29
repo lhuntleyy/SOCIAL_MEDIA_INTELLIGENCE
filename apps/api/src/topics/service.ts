@@ -1,8 +1,9 @@
 // I-03: Topic CRUD + validate/preview/cost-estimate + SyncCrawlPlans (API_SPEC §4, DATA_MODEL §3, FR-T01..T07).
 // Semua akses data tenant lewat withTenant (RLS). Quota tenant dibaca sebagai system (quota_policies tidak di-grant ke app)
 // dengan filter tenant eksplisit.
-import type { TenantId } from "@smip/core";
+
 import type { QueryFeature } from "@smip/contracts";
+import type { TenantId } from "@smip/core";
 import {
   auditLogs,
   BACKFILL_PRIORITY,
@@ -10,8 +11,8 @@ import {
   type Db,
   inList,
   type PlanForRun,
-  textArray,
   type Tx,
+  textArray,
   withSystem,
   withTenant,
   writeOutbox,
@@ -316,10 +317,10 @@ export class TopicService {
       (pl) => (matches ? (matches[pl] ?? 0) : null),
     );
     const quota = await this.quotaImpact(a.tenantId, est);
-    return { compiled, resolved, estimate: { ...est, quota_after_pct: quota.pct }, exceeded: quota.exceeded };
+    return { compiled, resolved, estimate: { ...est, quota_after_pct: quota.pct }, exceeded: quota.exceeded, throttle: quota.throttle };
   }
 
-  /** FR-T05: dampak ke hard quota tenant; melebihi → ditolak (QUOTA_WOULD_EXCEED). */
+  /** FR-T05: dampak ke quota tenant; hard terlampaui → ditolak (QUOTA_WOULD_EXCEED); soft → peringatan throttle (I-23). */
   private async quotaImpact(tenantId: string, est: CostEstimate) {
     const now = this.opts.now?.() ?? new Date();
     const policies = await withSystem(this.db, (tx) =>
@@ -333,6 +334,7 @@ export class TopicService {
     );
     const pct: Record<string, number> = {};
     const exceeded: string[] = [];
+    const throttle: string[] = [];
     const daysLeft = (() => {
       const y = now.getUTCFullYear();
       const m = now.getUTCMonth();
@@ -346,14 +348,16 @@ export class TopicService {
       const key = `tenant_${p.period === "day" ? "daily" : "monthly"}_${p.unit}`;
       pct[key] = limit > 0 ? Math.round((projected / limit) * 1000) / 10 : 100;
       if (p.hard && projected > limit) exceeded.push(key);
+      if (!p.hard && projected > limit) throttle.push(key);
     }
-    return { pct, exceeded };
+    return { pct, exceeded, throttle };
   }
 
   async costEstimate(a: Actor, b: Pick<TopicBody, "platforms" | "queries" | "default_interval_sec">) {
     return this.tenant(a, async (tx) => {
       const r = await this.estimate(tx, a, b);
-      return { ...r.estimate, warnings: r.resolved.warnings, would_exceed: r.exceeded };
+      // would_throttle: soft cap diproyeksikan terlampaui → interval akan di-throttle ke maksimum (bukan stop, COST_MODEL §8)
+      return { ...r.estimate, warnings: r.resolved.warnings, would_exceed: r.exceeded, would_throttle: r.throttle };
     });
   }
 

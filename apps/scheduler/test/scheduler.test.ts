@@ -2,10 +2,10 @@
 // relay outbox → BullMQ (idempoten), backpressure, run celah, leader lock.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { CrawlDispatchPayload } from "@smip/contracts";
-import { createDb, publishOutbox, up } from "@smip/db";
+import { createDb, EMPTY_COST_GUARD, isThrottled, publishOutbox, up } from "@smip/db";
+import { compileQuery } from "@smip/query";
 import { BullMqQueue } from "@smip/queue";
 import postgres from "postgres";
-import { compileQuery } from "@smip/query";
 import { jobRelay, LeaderLock, overlapSec, planStreams, reapStuckRuns, schedulerTick } from "../src";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
@@ -109,7 +109,17 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     const later = await plan({ dueInSec: 600 });
     const now = new Date();
     const r = await schedulerTick(created.db, { now: () => now, initialLookbackSec: 3600 });
-    expect(r).toEqual({ scheduled: 1, coalesced: 0, deferred: 0, gapRuns: 0, gapsAbandoned: {}, streamsScheduled: 0, streamsCoalesced: 0 });
+    expect(r).toEqual({
+      scheduled: 1,
+      coalesced: 0,
+      deferred: 0,
+      gapRuns: 0,
+      gapsAbandoned: {},
+      streamsScheduled: 0,
+      streamsCoalesced: 0,
+      throttled: 0,
+      costGuard: { breached: [], throttledNow: [], released: [] },
+    });
     const [run1] = await runsOf(due);
     expect(run1).toMatchObject({ kind: "incremental", status: "queued" });
     expect(run1!.window_to.getTime()).toBe(now.getTime());
@@ -284,4 +294,74 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     expect((await schedulerTick(created.db)).scheduled).toBe(1); // kembali jadi plan biasa
     await sql`update crawl_plans set status = 'paused' where id in ${sql([a, b])}`;
   });
+
+  test("P-16 cost guard: soft cap tercapai → interval di-throttle ke 1 jam, run TETAP dibuat; alert sekali; override admin → normal", async () => {
+    await sql`update crawl_plans set status = 'paused' where status = 'active'`;
+    const a = await plan({ interval: 900 });
+    const Q = id(0x7001);
+    await sql`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard, reset_tz)
+      values (${Q}, 'tenant', ${T}, 'month', 'cost_units', 1, false, 'Asia/Jakarta')`;
+    await sql`insert into quota_usage (scope_type, scope_id, period, period_start, unit, used, reserved)
+      values ('tenant', ${T}, 'month', date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'cost_units', 1.5, 0)`;
+    const now = new Date();
+    const r = await schedulerTick(created.db, { now: () => now, costGuard: { throttleIntervalSec: 3600 } });
+    expect(r.scheduled).toBe(1); // ingestion tidak berhenti
+    expect(r.throttled).toBe(1);
+    expect(r.costGuard.throttledNow.map((x) => [x.id, x.scope_type, x.used, x.limit])).toEqual([[Q, "tenant", 1.5, 1]]);
+    const next = async () => {
+      const [p] = await sql`select next_run_at from crawl_plans where id = ${a}`;
+      return (p!.next_run_at.getTime() - now.getTime()) / 1000;
+    };
+    expect(await next()).toBeGreaterThanOrEqual(3600 * 0.95);
+    const [qp] = await sql`select throttled_since from quota_policies where id = ${Q}`;
+    expect(qp!.throttled_since).not.toBeNull();
+    const ev = async (t: string) =>
+      (await sql`select count(*)::int as n from outbox where aggregate = 'cost_guard' and event_type = ${t}`)[0]!.n;
+    expect(await ev("cost_guard.throttled")).toBe(1);
+
+    // tick berikutnya: masih throttle, tapi alert tidak diulang
+    await sql`update crawl_runs set status = 'succeeded' where crawl_plan_id = ${a}`;
+    await sql`update crawl_plans set next_run_at = now() - interval '1 second' where id = ${a}`;
+    const r2 = await schedulerTick(created.db, { now: () => now });
+    expect([r2.scheduled, r2.throttled, r2.costGuard.throttledNow.length, r2.costGuard.breached.length]).toEqual([1, 1, 0, 1]);
+    expect(await ev("cost_guard.throttled")).toBe(1);
+
+    // override admin: naikkan cap → dilepas + event released, interval kembali normal
+    await sql`update quota_policies set limit_value = 10 where id = ${Q}`;
+    await sql`update crawl_runs set status = 'succeeded' where crawl_plan_id = ${a}`;
+    await sql`update crawl_plans set next_run_at = now() - interval '1 second' where id = ${a}`;
+    const r3 = await schedulerTick(created.db, { now: () => now });
+    expect([r3.throttled, r3.costGuard.released]).toEqual([0, [Q]]);
+    expect(await next()).toBeLessThanOrEqual(900 * 1.05);
+    expect(await ev("cost_guard.released")).toBe(1);
+
+    // soft cap di scope connector → semua plan platform connector itu ikut di-throttle; hard quota TIDAK disentuh cost guard
+    const PROV = id(0x7100);
+    const CONN = id(0x7101);
+    await sql`insert into providers (id, key, name, kind, risk_level, enabled) values (${PROV}, 'pv', 'PV', 'third_party', 'low', true)`;
+    await sql`insert into connectors (id, key, provider_id, platform_code, runtime, version) values (${CONN}, 'pv.x', ${PROV}, 'x', 'bun', '1')`;
+    await sql`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard) values
+      (${id(0x7102)}, 'connector', ${CONN}, 'day', 'results', 0, false), (${id(0x7103)}, 'topic', ${TOPIC}, 'day', 'results', 0, true)`;
+    await sql`update crawl_runs set status = 'succeeded' where crawl_plan_id = ${a}`;
+    await sql`update crawl_plans set next_run_at = now() - interval '1 second' where id = ${a}`;
+    const r4 = await schedulerTick(created.db, { now: () => now });
+    expect(r4.costGuard.breached.map((x) => x.scope_type)).toEqual(["connector"]);
+    expect([r4.scheduled, r4.throttled]).toEqual([1, 1]);
+    // cost guard dimatikan → tidak ada evaluasi
+    await sql`update crawl_runs set status = 'succeeded' where crawl_plan_id = ${a}`;
+    await sql`update crawl_plans set next_run_at = now() - interval '1 second' where id = ${a}`;
+    expect((await schedulerTick(created.db, { now: () => now, costGuard: false })).throttled).toBe(0);
+    await sql`update quota_policies set enabled = false`;
+    await sql`update crawl_plans set status = 'paused' where id = ${a}`;
+  });
+});
+
+test("isThrottled: stream multi-tenant hanya di-throttle bila scope platform/global atau SEMUA anggota lewat soft cap", () => {
+  const s = { ...EMPTY_COST_GUARD, tenants: new Set(["t1"]), topics: new Set(["k2"]), platforms: new Set(["ig"]) };
+  expect(isThrottled(s, { platform_code: "x", member_tenants: ["t1", "t2"], member_topics: ["k1", "k3"] })).toBe(false);
+  expect(isThrottled(s, { platform_code: "x", member_tenants: ["t1", "t2"], member_topics: ["k1", "k2"] })).toBe(true);
+  expect(isThrottled(s, { platform_code: "ig", member_tenants: ["t9"], member_topics: ["k9"] })).toBe(true);
+  expect(isThrottled({ ...s, global: true }, { platform_code: "x" })).toBe(true);
+  expect(isThrottled(s, { platform_code: "x", tenant_id: "t2", topic_id: "k2" })).toBe(true);
+  expect(isThrottled(s, { platform_code: "x", tenant_id: "t2", topic_id: "k1" })).toBe(false);
 });

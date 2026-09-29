@@ -19,6 +19,9 @@ const MAX_GAP_AGE_SEC = cfg.SCHEDULER_MAX_GAP_AGE_SEC!;
 const gapAbandoned = new Counter("smip_crawl_gap_abandoned_total", "Celah partial success yang dibuang karena melewati max_gap_age", [
   "platform",
 ]);
+const costGuardThrottled = new Counter("smip_cost_guard_throttled_total", "Soft cap biaya tercapai → throttle interval (bukan stop)", [
+  "scope_type",
+]);
 const logger = createLogger({ service: "scheduler", version: cfg.SERVICE_VERSION, env: cfg.NODE_ENV, level: cfg.LOG_LEVEL });
 const { db, close } = createDb(cfg.DATABASE_URL, { max: 4 });
 const cache = new Bun.RedisClient(cfg.REDIS_CACHE_URL);
@@ -39,7 +42,20 @@ async function tick() {
       initialLookbackSec: cfg.SCHEDULER_INITIAL_LOOKBACK_SEC,
       backpressure: () => fetchWaiting > BACKPRESSURE,
       maxGapAgeSec: MAX_GAP_AGE_SEC,
+      costGuard: { throttleIntervalSec: cfg.SCHEDULER_COST_GUARD_INTERVAL_SEC },
     });
+    for (const p of r.costGuard.throttledNow) {
+      costGuardThrottled.inc({ scope_type: p.scope_type });
+      logger.warn("cost guard: soft cap tercapai → interval di-throttle (ingestion tetap jalan)", {
+        policy_id: p.id,
+        scope_type: p.scope_type,
+        scope_id: p.scope_id,
+        unit: p.unit,
+        used: p.used,
+        limit: p.limit,
+      });
+    }
+    for (const id of r.costGuard.released) logger.info("cost guard: soft cap dilepas, interval normal kembali", { policy_id: id });
     for (const [platform, n] of Object.entries(r.gapsAbandoned)) {
       gapAbandoned.inc({ platform }, n);
       logger.warn("celah dibuang (melewati max_gap_age) — data hilang yang disadari", { platform, count: n });
