@@ -78,6 +78,8 @@ HTTPS wajib: cookie refresh `Secure`. Akses via IP langsung dialihkan ke hostnam
 - Secret di luar repo: `~/.config/smip/jwt-demo.pem` (kunci JWT EdDSA, chmod 600).
 - `demo:up` = build web → migrasi PG + CH → compose up. `demo:down` menghentikan api/workers/web.
 - Akun: `bun --env-file=infra/compose/.env.dev scripts/set-password.ts <email> [--operator]` (password dicetak sekali; MFA daftar ulang).
+- User baru: `bun --env-file=infra/compose/.env.dev scripts/create-user.ts <email> "<nama>" <viewer|analyst|admin|owner> <tenant-slug>` (viewer/analyst tanpa MFA — cocok untuk demo klien hanya-baca).
+- LLM: panel *Pengaturan AI* atau `scripts/llm-provider.ts`; label ulang data lama: `scripts/reprocess-ai.ts`.
 - API di belakang proxy: `API_TRUST_PROXY=true` → IP klien dari X-Forwarded-For bila peer jaringan privat (rate limit login tetap per klien).
 - Bukan produksi: Vault dev mode, DB owner role, tanpa backup.
 
