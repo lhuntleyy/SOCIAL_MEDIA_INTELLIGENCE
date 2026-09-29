@@ -111,6 +111,7 @@ Angka replika = titik awal; kalibrasi dari load test. KEDA scaler Redis untuk Bu
 | `LOG_LEVEL` | semua | |
 | `ANTHROPIC_API_KEY` | worker-ai | hanya jika LLM fallback aktif; dari secret manager |
 | `SCHEDULER_TICK_MS` | scheduler | default 15000 |
+| `ENGAGEMENT_REFRESH_ENABLED` (true), `ENGAGEMENT_REFRESH_PLAN_MS` (900000), `ENGAGEMENT_REFRESH_MAX_AGE_HOURS` (24), `ENGAGEMENT_REFRESH_MIN_GAP_SEC` (7200), `ENGAGEMENT_REFRESH_MAX_POSTS` (500/platform/siklus) | worker-sink | I-20 planner engagement refresh |
 | `SCHEDULER_COST_GUARD_INTERVAL_SEC` | scheduler | default 3600 — interval efektif plan/stream saat soft cap biaya tercapai (I-23) |
 | `EGRESS_PROXY_URL` | worker-fetch-py | |
 

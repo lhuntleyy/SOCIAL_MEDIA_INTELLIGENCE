@@ -1,32 +1,32 @@
 // I-13 end-to-end (Postgres + Redis-queue + Redis-cache compose): scheduler tick → relay outbox → BullMQ →
 // worker-dispatch → worker-fetch-bun (FakeConnector) → fetch.result → pipeline.items. Tanpa provider eksternal.
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { FakeConnector, fakeItem } from "@smip/connector-fake";
 import type { CanonicalItem } from "@smip/contracts";
 import { CrawlDispatchPayload, FetchRequestPayload, FetchResultPayload, PipelineItemsPayload } from "@smip/contracts";
-import { FakeConnector, fakeItem } from "@smip/connector-fake";
 import { credentialAad, LocalDevKms, seal } from "@smip/crypto";
 import {
   createDb,
   finalizeRunIfDone,
-  withSystem,
+  loadGeoRegions,
   loadRoutingSnapshot,
   markAccountAttention,
   markCapabilityFailed,
   publishOutbox,
   setAccountCooldown,
   up,
-  loadGeoRegions,
+  withSystem,
 } from "@smip/db";
+import { Gazetteer } from "@smip/geo";
 import { astHash, compileQuery } from "@smip/query";
 import { BullMqQueue } from "@smip/queue";
 import { HealthCache, HealthMonitor, RedisReserver, Router, SnapshotStore } from "@smip/router";
 import { jobRelay, planStreams, schedulerTick } from "@smip/scheduler";
-import { Gazetteer } from "@smip/geo";
-import { cachedGazetteer, Deduper, handlePipelineItems } from "@smip/worker-pipeline";
 import { MemoryBlobStore } from "@smip/storage";
 import { dbAccountLoader, fetchAndReport } from "@smip/worker-fetch-bun";
+import { cachedGazetteer, Deduper, handlePipelineItems } from "@smip/worker-pipeline";
 import postgres from "postgres";
-import { type DispatchDeps, handleDispatch, handleFetchResult } from "../src";
+import { type DispatchDeps, handleDispatch, handleEngagementRefresh, handleFetchResult } from "../src";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
 const REDIS_CACHE = process.env.TEST_REDIS_CACHE_URL ?? "redis://127.0.0.1:56380";
@@ -421,5 +421,44 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
     await sql`update collection_streams set enabled = false`;
     await sql`delete from stream_topic_links`;
     await sql`update crawl_runs set status = 'succeeded' where status in ('queued', 'dispatching', 'fetching', 'processing')`;
+  });
+
+  test("I-20: run engagement_refresh → post_detail dgn targetIds di connector yang mampu (shared pool) → sink mode refresh", async () => {
+    await sql`update outbox set published_at = now() where published_at is null`;
+    await sql`update crawl_runs set status = 'cancelled' where status = 'queued'`;
+    const POL2 = id(0x40);
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`insert into connector_capabilities (connector_id, operation, declared, status, verified_at, evidence_ref)
+        values (${C.b}, 'post_detail', ${tx.json({ query_features: [], result_order: null })}, 'verified', now(), 'test')`;
+      await tx`insert into routing_policies (id, platform_code, operation, max_attempts) values (${POL2}, 'x', 'post_detail', 2)`;
+      await tx`insert into routing_rules (id, policy_id, connector_id, priority, weight, enabled) values (${id(0x41)}, ${POL2}, ${C.b}, 1, 100, true)`;
+    });
+    const runId = Bun.randomUUIDv7();
+    const postIds = ["x-900", "x-901"];
+    const [r] = await sql`insert into crawl_runs (id, scheduled_for, kind, status, refresh_target)
+      values (${runId}, date_trunc('milliseconds', now()), 'engagement_refresh', 'queued', ${sql.json({ platform: "x", post_ids: postIds })})
+      returning scheduled_for`;
+    fakes.b.script([{ respond: { items: items(900, 2) } }]);
+    expect(
+      await handleEngagementRefresh(deps, {
+        crawl_run_id: runId,
+        scheduled_for: r!.scheduled_for.toISOString(),
+        platform: "x",
+        post_ids: postIds,
+        reason: "age<24h",
+      }),
+    ).toBe("fetching");
+    const sinkJob = async () =>
+      (await sql`select payload->'payload' as p from outbox where event_type = 'enqueue.sink.analytics' and aggregate_id = ${runId}`)[0]?.p;
+    await pump(async () => !!(await sinkJob()));
+    expect(fakes.b.calls.map((c) => [c.operation, c.targetIds, c.maxItems])).toEqual([["post_detail", postIds, 2]]);
+    expect(fakes.a.calls).toHaveLength(0); // connector tanpa capability post_detail tidak dipilih
+    expect(await sinkJob()).toMatchObject({ mode: "engagement_refresh", tenant_id: null, topic_id: null, matches: [] });
+    expect(pipelineJobs.filter((j) => j.crawl_run_id === runId)).toHaveLength(0); // tidak lewat pipeline/AI
+    const [run] = await sql`select status, pending_batches, tenant_id from crawl_runs where id = ${runId}`;
+    expect(run).toEqual({ status: "processing", pending_batches: 1, tenant_id: null });
+    expect(await attempts(runId)).toEqual([["fake.x.b", "success", null, 2]]);
+    await sql`update crawl_runs set status = 'succeeded' where id = ${runId}`;
   });
 });

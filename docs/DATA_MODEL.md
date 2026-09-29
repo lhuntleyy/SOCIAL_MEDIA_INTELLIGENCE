@@ -218,7 +218,7 @@ UNIQUE(topic_query_id, platform_code, operation). Index: `(status, next_run_at) 
 | crawl_plan_id | uuid NULL | NULL bila run milik stream |
 | collection_stream_id | uuid NULL | diisi bila run milik stream; CHECK tepat satu dari `crawl_plan_id`/`collection_stream_id` terisi |
 | scheduled_for | timestamptz | |
-| kind | e_run_kind | `incremental`, `backfill`, `engagement_refresh`, `verify` |
+| kind | e_run_kind | `incremental`, `backfill`, `engagement_refresh`, `verify` — `engagement_refresh` boleh tanpa plan/stream/tenant (migrasi 0020) dengan `refresh_target jsonb` `{platform, post_ids[]}` |
 | status | e_run_status | `queued`,`dispatching`,`fetching`,`processing`,`succeeded`,`partial`,`failed`,`skipped`,`cancelled` |
 | window_from, window_to | timestamptz | |
 | started_at, finished_at | timestamptz NULL | |

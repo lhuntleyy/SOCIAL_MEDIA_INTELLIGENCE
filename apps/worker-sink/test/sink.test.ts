@@ -4,8 +4,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type ClickHouseClient, createClient } from "@clickhouse/client";
 import { chUp } from "@smip/analytics";
-import { AiEnrichPayload, type CanonicalItem, type PostRecord, SinkAnalyticsPayload } from "@smip/contracts";
 import { fakeItem } from "@smip/connector-fake";
+import { AiEnrichPayload, type CanonicalItem, type PostRecord, SinkAnalyticsPayload } from "@smip/contracts";
 import { createDb, loadGeoRegions, up } from "@smip/db";
 import { Gazetteer } from "@smip/geo";
 import { astHash, compileQuery } from "@smip/query";
@@ -13,7 +13,7 @@ import { MemoryBlobStore } from "@smip/storage";
 import { stubEnrich } from "@smip/worker-ai-stub";
 import { cachedGazetteer, Deduper, handlePipelineItems } from "@smip/worker-pipeline";
 import postgres from "postgres";
-import { handleSink, type SinkDeps } from "../src";
+import { handleSink, planEngagementRefresh, type SinkDeps } from "../src";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
 const REDIS = process.env.TEST_REDIS_CACHE_URL ?? "redis://127.0.0.1:56380";
@@ -228,5 +228,81 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
       ["0", 0],
       ["7", 1],
     ]);
+  });
+
+  test("P-08/P-21 engagement refresh: planner → run+job; sink koreksi sign −1/+1 tanpa dobel hitung; followers = terbaru", async () => {
+    const ids = await setup("kopi");
+    const old = (n: number, likes: number) => {
+      const it = post(n, `kopi ${n}`, {
+        metrics: { likes, comments: 1, shares: null, views: 10, quotes: null, saves: null, captured_at: "2026-09-28T03:00:00.000Z" },
+      });
+      it.author = { ...it.author, platform_user_id: `au${n}`, followers: 100 };
+      return it;
+    };
+    const msgs = await throughPipeline(ids, [old(40, 5), old(41, 2)]);
+    for (const m of msgs) await handleSink(sinkDeps, m);
+    const aggEng = () =>
+      q1<{ n: string; e: string }>("SELECT sum(posts) AS n, sum(engagement) AS e FROM agg_topic_5m WHERE topic_id = {t:UUID}", {
+        t: ids.topic,
+      });
+    expect(await aggEng()).toEqual({ n: "2", e: "9" }); // (5+1) + (2+1)
+
+    // planner: hanya platform dgn policy post_detail aktif; post dgn snapshot lama → run engagement_refresh + job
+    expect((await planEngagementRefresh(created.db, ch, { maxAgeHours: 24 * 3650, refreshEverySec: 1 })).runs).toBe(0);
+    await sql`insert into routing_policies (id, tenant_id, platform_code, operation, strategy, enabled, version)
+      values (${id(0x9001)}, null, 'x', 'post_detail', 'priority_weighted', true, 1)`;
+    const plan = await planEngagementRefresh(created.db, ch, { maxAgeHours: 24 * 3650, refreshEverySec: 1, batchSize: 50 });
+    expect(plan.runs).toBeGreaterThanOrEqual(1);
+    const runs = await sql`select id, status, tenant_id, refresh_target from crawl_runs where kind = 'engagement_refresh'`;
+    const target = runs.find((r) => r.refresh_target.post_ids.includes(post(40, "").platform_post_id))!;
+    expect([target.status, target.tenant_id, target.refresh_target.platform]).toEqual(["queued", null, "x"]);
+    const [job] =
+      await sql`select payload->'payload' as p from outbox where event_type = 'enqueue.engagement.refresh' and aggregate_id = ${target.id}`;
+    expect(job!.p.post_ids).toEqual(target.refresh_target.post_ids);
+    // run refresh masih berjalan → siklus berikutnya tidak menumpuk
+    expect((await planEngagementRefresh(created.db, ch, { maxAgeHours: 24 * 3650, refreshEverySec: 1 })).skippedPlatforms).toEqual(["x"]);
+
+    // hasil post_detail (seperti dari dispatch/fetch): post 40 likes 5→12 & followers 100→150; post 41 tak berubah
+    const fresh40 = old(40, 12);
+    fresh40.metrics.captured_at = new Date().toISOString();
+    fresh40.author = { ...fresh40.author, followers: 150 };
+    const fresh41 = old(41, 2);
+    const ref = await blobs.putJsonl(`refresh/${target.id}.jsonl.gz`, [fresh40, fresh41]);
+    await sql`update crawl_runs set status = 'processing', pending_batches = 1 where id = ${target.id}`;
+    const msg = SinkAnalyticsPayload.parse({
+      batch_id: Bun.randomUUIDv7(),
+      crawl_run_id: target.id,
+      tenant_id: null,
+      topic_id: null,
+      posts_ref: ref,
+      matches: [],
+      mode: "engagement_refresh",
+      run_update: null,
+    });
+    const r = await handleSink(sinkDeps, msg);
+    expect(r).toMatchObject({ posts: 2, events: 1, skippedByGuard: 1, finalized: "succeeded" });
+    expect(await events(ids.topic)).toEqual({ n: "4", s: "2" }); // 2 asli + pasangan (−1,+1)
+    expect(await aggEng()).toEqual({ n: "2", e: "16" }); // posts tetap 2; engagement +7 (12+1 menggantikan 5+1)
+    const tm = await q1<{ e: string }>(
+      "SELECT engagement AS e FROM topic_matches FINAL WHERE topic_id = {t:UUID} AND post_id = {p:String}",
+      { t: ids.topic, p: fresh40.platform_post_id },
+    );
+    expect(tm.e).toBe("13");
+    const pf = await q1<{ f: string }>("SELECT author_followers AS f FROM posts FINAL WHERE post_id = {p:String}", {
+      p: fresh40.platform_post_id,
+    });
+    expect(pf.f).toBe("150");
+    await ch.command({ query: "OPTIMIZE TABLE agg_author_1d FINAL" });
+    const au = await q1<{ f: string; e: string; n: string }>(
+      "SELECT anyLast(author_followers) AS f, sum(engagement) AS e, sum(posts) AS n FROM agg_author_1d WHERE topic_id = {t:UUID} AND author_id = 'au40'",
+      { t: ids.topic },
+    );
+    expect(au).toEqual({ f: "150", e: "13", n: "1" }); // P-21: followers = nilai terakhir, bukan jumlah
+
+    // P-08: pesan diulang → ledger; hasil sama lewat batch baru → tak ada pasangan baru (tidak dobel)
+    expect((await handleSink(sinkDeps, msg)).duplicateMessage).toBe(true);
+    const again = await handleSink(sinkDeps, { ...msg, batch_id: Bun.randomUUIDv7() });
+    expect([again.events, again.skippedByGuard]).toEqual([0, 2]);
+    expect(await aggEng()).toEqual({ n: "2", e: "16" });
   });
 });

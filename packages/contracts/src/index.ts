@@ -321,6 +321,8 @@ export const SinkAnalyticsPayload = z.strictObject({
   topic_id: Uuid.nullable(),
   posts_ref: z.string().min(1),
   matches: z.array(SinkMatch),
+  /** engagement_refresh (I-20): posts_ref = item kanonik hasil `post_detail`; sink menulis snapshot + pasangan sign −1/+1. */
+  mode: z.enum(["ingest", "engagement_refresh"]).optional(),
   /** Informatif saja: penutupan run & watermark digerakkan counter DB (crawl_runs.pending_batches, migrasi 0014). */
   run_update: z
     .strictObject({
@@ -335,12 +337,23 @@ export const SinkAnalyticsPayload = z.strictObject({
 });
 
 export type SinkAnalyticsPayload = z.infer<typeof SinkAnalyticsPayload>;
+
+/** QUEUE_SPEC §4.8 — scheduler/planner → worker-dispatch; run `engagement_refresh` sudah dibuat bersama job ini (outbox). */
+export const EngagementRefreshPayload = z.strictObject({
+  crawl_run_id: Uuid,
+  scheduled_for: UtcDateTime,
+  platform: PlatformCode,
+  post_ids: z.array(z.string().min(1).max(200)).min(1).max(50),
+  reason: z.string().max(100),
+});
+export type EngagementRefreshPayload = z.infer<typeof EngagementRefreshPayload>;
 export type SinkMatch = z.infer<typeof SinkMatch>;
 export type AiEnrichPayload = z.infer<typeof AiEnrichPayload>;
 
 /** Semua skema yang diekspor ke JSON Schema + pydantic. Nama = nama file & kelas Python. */
 export const EXPORTED = {
   CanonicalItem,
+  EngagementRefreshPayload,
   Envelope,
   FetchRequestPayload,
   FetchResultPayload,

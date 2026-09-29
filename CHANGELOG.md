@@ -39,6 +39,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Admin API provider management (I-21, API_SPEC §9): providers, connectors (config ↔ `config_schema` + SSRF guard, health-check/verify via outbox), accounts (secret write-only, fingerprint HMAC, rotasi/revoke crypto-shred, BYO admin tenant), routing policies (If-Match/versioned, simulate read-only), rate limits (wajib bersumber), quotas, usage, DLQ, audit logs. Env api baru `CREDENTIAL_PEPPER_B64`.
   - Cost guard (I-23): soft cap biaya → scheduler throttle interval ke 1 jam (bukan stop), stream multi-tenant adil, alert transisi via outbox, `would_throttle` di cost-estimate; migrasi 0019. P-16.
   - Connector YouTube Data API v3 official (I-18) verified live; manifest `allowedHosts` ditegakkan worker-fetch (egress per connector), `providerKind`; redaksi API key Google.
+  - Engagement refresh (I-20): planner → run `engagement_refresh` → `post_detail` → sink koreksi sign −1/+1 (P-08, P-21); migrasi 0020, env `ENGAGEMENT_REFRESH_*`.
   - Collection stream (I-22): dedup planner, stream dijadwalkan & di-dispatch seperti plan, pipeline mode stream dgn `QueryIndex` (inverted index), migrasi 0017, flag `SCHEDULER_STREAMS_ENABLED`. P-14 e2e.
   - Partial success (I-24): sisi celah per `result_order`, maks 20 celah, `pruneGaps` + `smip_crawl_gap_abandoned_total`, P-18 e2e.
   - Fix: semua connector habis setelah sebagian item diterima → run `partial` (sebelumnya `failed`, celah hilang).

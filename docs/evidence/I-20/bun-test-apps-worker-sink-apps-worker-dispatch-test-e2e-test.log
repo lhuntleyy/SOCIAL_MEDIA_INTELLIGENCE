@@ -1,0 +1,10 @@
+# I-20 — 2026-09-29T07:34:22Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test apps/worker-sink apps/worker-dispatch/test/e2e.test.ts
+bun test v1.4.2 (744846f84)
+
+ 16 pass
+ 0 fail
+ 88 expect() calls
+Ran 16 tests across 2 files. [8.58s]
+# exit 0

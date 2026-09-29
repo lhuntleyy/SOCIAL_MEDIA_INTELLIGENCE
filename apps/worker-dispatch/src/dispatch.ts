@@ -1,11 +1,21 @@
 // I-13 worker-dispatch (QUEUE_SPEC §5, ARCHITECTURE §4):
 //   crawl.dispatch → CAS run queued→dispatching → Router.plan (reservasi) → compile sub-query → fetch.<runtime>
+//   engagement.refresh (I-20) → run tanpa plan/stream: operation post_detail dgn targetIds, shared pool; hasil → sink (mode refresh)
 //   fetch.result   → CAS attempt → reportOutcome (settle + failover + health) → provider_attempts →
 //                    pipeline.items (item diterima) + dispatch ulang / selesai / gagal.
 // Semua enqueue lewat outbox dalam transaksi yang sama dengan update run (tidak ada job/run "hantu");
 // pesan duplikat/terlambat diabaikan oleh compare-and-set status + nomor attempt.
+
+import type {
+  CrawlDispatchPayload,
+  EngagementRefreshPayload,
+  FetchRequestPayload,
+  FetchResultPayload,
+  PipelineItemsPayload,
+  QueryFeature,
+  SinkAnalyticsPayload,
+} from "@smip/contracts";
 import type { AttemptOutcome, FailoverDecision, RouteInput } from "@smip/core";
-import type { CrawlDispatchPayload, FetchRequestPayload, FetchResultPayload, PipelineItemsPayload, QueryFeature } from "@smip/contracts";
 import {
   allocateStreamRunCost,
   type Db,
@@ -19,7 +29,7 @@ import {
 } from "@smip/db";
 import type { Logger } from "@smip/observability";
 import { compileGeneric, coverHashtags, type Node } from "@smip/query";
-import { failureBackoffSec, type Router, shouldAlertConsecutive, type Snapshot } from "@smip/router";
+import { failureBackoffSec, type Router, type Snapshot, shouldAlertConsecutive } from "@smip/router";
 import { sql } from "drizzle-orm";
 
 export interface Routing {
@@ -67,10 +77,12 @@ type RunRow = {
   window_from: Date | null;
   window_to: Date | null;
   items_fetched: number;
+  refresh_target: { platform: string; post_ids: string[] } | null;
 };
 /** Pemilik run: plan per-query atau collection stream (ADR-009) — dispatch memperlakukan keduanya seragam. */
 type PlanRow = {
-  table: RunOwnerTable;
+  /** null = run engagement_refresh (tanpa pemilik). */
+  table: RunOwnerTable | null;
   owner_id: string;
   plan_status: string;
   interval_sec: number;
@@ -84,7 +96,12 @@ type PlanRow = {
   /** Konteks router: tenant plan / tenant stream privat / NIL untuk stream shared pool (R-15). */
   route_tenant_id: string;
   shared_pool_only: boolean;
+  /** post_detail: id post yang di-refresh. */
+  target_ids?: string[];
 };
+
+/** Interval acuan run refresh (hanya untuk eliminasi min_interval router & backoff; tak ada plan yang dijadwalkan ulang). */
+export const REFRESH_INTERVAL_SEC = 3600;
 
 /** Tenant pengganti untuk run stream shared pool — quota tenant/topik dilewati (atribusi I-25). */
 export const SHARED_TENANT = "00000000-0000-0000-0000-000000000000";
@@ -122,11 +139,33 @@ export function astFeatures(n: Node, depth = 0, out = new Set<QueryFeature>()): 
 
 async function loadRun(tx: Tx, where: ReturnType<typeof sql>): Promise<RunRow | undefined> {
   const [r] =
-    (await tx.execute(sql`select id, scheduled_for, scheduled_for::text as sf, status, attempts, routing, tenant_id, crawl_plan_id, collection_stream_id, kind, window_from, window_to, items_fetched
+    (await tx.execute(sql`select id, scheduled_for, scheduled_for::text as sf, status, attempts, routing, tenant_id, crawl_plan_id, collection_stream_id, kind, window_from, window_to, items_fetched, refresh_target
     from crawl_runs where ${where} for update`)) as unknown as RunRow[];
   return r;
 }
-async function loadPlan(tx: Tx, run: Pick<RunRow, "crawl_plan_id" | "collection_stream_id" | "tenant_id">): Promise<PlanRow | undefined> {
+async function loadPlan(
+  tx: Tx,
+  run: Pick<RunRow, "crawl_plan_id" | "collection_stream_id" | "tenant_id" | "kind" | "refresh_target">,
+): Promise<PlanRow | undefined> {
+  if (run.kind === "engagement_refresh" && run.refresh_target && !run.crawl_plan_id && !run.collection_stream_id) {
+    // refresh metrik = pekerjaan sistem lintas tenant → shared pool (BYO tenant tidak dipakai, R-15)
+    return {
+      table: null,
+      owner_id: "",
+      plan_status: "active",
+      interval_sec: REFRESH_INTERVAL_SEC,
+      topic_id: null,
+      topic_query_id: null,
+      platform_code: run.refresh_target.platform,
+      operation: "post_detail",
+      query_ast: { type: "term", value: "_" },
+      query_enabled: run.refresh_target.post_ids.length > 0,
+      topic_status: "active",
+      route_tenant_id: SHARED_TENANT,
+      shared_pool_only: true,
+      target_ids: run.refresh_target.post_ids,
+    };
+  }
   if (run.crawl_plan_id) {
     const [p] =
       (await tx.execute(sql`select 'crawl_plans' as table, p.id as owner_id, p.status as plan_status, p.interval_sec, p.topic_id, p.topic_query_id,
@@ -296,7 +335,7 @@ export async function handleDispatch(
       platform: plan.platform_code,
       operation: plan.operation,
       runKind: run.kind,
-      requiredFeatures: astFeatures(ast as Node),
+      requiredFeatures: plan.operation.startsWith("search_") ? astFeatures(ast as Node) : [],
       intervalSec: plan.interval_sec,
       excludeConnectorIds: routing.exclude_connector_ids,
       excludeAccountIds: routing.exclude_account_ids,
@@ -369,10 +408,11 @@ export async function handleDispatch(
         platform: plan.platform_code,
         operation: plan.operation,
         ...(queries ? { queries } : {}),
+        ...(plan.target_ids ? { targetIds: plan.target_ids } : {}),
         window: { since: run.window_from ? iso(run.window_from) : undefined, until: run.window_to ? iso(run.window_to) : undefined },
         cursor: null,
         pageLimit: f.pageLimit,
-        maxItems: f.maxItems,
+        maxItems: plan.target_ids ? plan.target_ids.length : f.maxItems,
       },
       deadline_at: iso(new Date(now.getTime() + f.timeoutMs)),
     };
@@ -449,7 +489,26 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
         ${tooLong ? "TIMEOUT" : (m.error?.code ?? null)}, ${m.error?.http_status ?? null}, ${m.items_count}, ${jsonbValue(usage)})`);
 
     const itemsTotal = run.items_fetched + m.items_count;
-    if (m.items_count > 0 && m.items_ref) {
+    if (m.items_count > 0 && m.items_ref && plan.table === null) {
+      // refresh: item = post yang sudah dikenal → tak perlu dedupe/matcher/AI; sink langsung menulis snapshot & koreksi sign
+      const payload: SinkAnalyticsPayload = {
+        batch_id: Bun.randomUUIDv7(),
+        crawl_run_id: run.id,
+        tenant_id: null,
+        topic_id: null,
+        posts_ref: m.items_ref,
+        matches: [],
+        mode: "engagement_refresh",
+        run_update: null,
+      };
+      await writeJobOutbox(tx, run.id, {
+        queue: "sink.analytics",
+        idempotencyKey: `refresh.${run.id}.${m.attempt_no}${part ? `.${part}` : ""}`,
+        type: "sink.analytics",
+        tenantId: null,
+        payload,
+      });
+    } else if (m.items_count > 0 && m.items_ref) {
       const payload: PipelineItemsPayload = {
         crawl_run_id: run.id,
         attempt_no: m.attempt_no,
@@ -547,5 +606,24 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
       }
     }
     return decision.action;
+  });
+}
+
+/** QUEUE_SPEC §4.8: job planner → dispatch biasa atas run `engagement_refresh` yang sudah dibuat (attempt 1). */
+export async function handleEngagementRefresh(d: DispatchDeps, m: EngagementRefreshPayload) {
+  return handleDispatch(d, {
+    crawl_run_id: m.crawl_run_id,
+    scheduled_for: m.scheduled_for,
+    crawl_plan_id: null,
+    topic_id: null,
+    topic_query_id: null,
+    platform: m.platform,
+    operation: "post_detail",
+    run_kind: "engagement_refresh",
+    window: {},
+    interval_sec: REFRESH_INTERVAL_SEC,
+    attempt_no: 1,
+    exclude_connector_ids: [],
+    exclude_account_ids: [],
   });
 }

@@ -189,6 +189,31 @@ class CanonicalItem(BaseModel):
     provenance: Provenance
 
 
+class PostId(RootModel[str]):
+    root: Annotated[str, Field(max_length=200, min_length=1)]
+
+
+class EngagementRefreshPayload(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    crawl_run_id: Annotated[
+        str,
+        Field(
+            pattern='^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+        ),
+    ]
+    scheduled_for: Annotated[
+        str,
+        Field(
+            pattern='^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$'
+        ),
+    ]
+    platform: Annotated[str, Field(pattern='^[a-z][a-z0-9_]{0,31}$')]
+    post_ids: Annotated[list[PostId], Field(max_length=50, min_length=1)]
+    reason: Annotated[str, Field(max_length=100)]
+
+
 class TenantId(RootModel[str]):
     root: Annotated[
         str,
@@ -636,6 +661,11 @@ class Match1(BaseModel):
     engagement_known: bool
 
 
+class Mode(StrEnum):
+    ingest = 'ingest'
+    engagement_refresh = 'engagement_refresh'
+
+
 class NewHighWatermark(RootModel[str]):
     root: Annotated[
         str,
@@ -701,4 +731,5 @@ class SinkAnalyticsPayload(BaseModel):
     topic_id: TopicId | None
     posts_ref: Annotated[str, Field(min_length=1)]
     matches: list[Match1]
+    mode: Mode | None = None
     run_update: RunUpdate | None

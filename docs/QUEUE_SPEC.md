@@ -210,7 +210,8 @@ Jika `is_new_post=false` (post sudah pernah di-enrich untuk tenant lain), worker
 `{ "tenant_id": "…", "topic_id": "…", "buckets": ["2026-09-27T09:55:00Z"], "platforms": ["x"] }`
 
 ### 4.8 `engagement.refresh`
-`{ "platform": "x", "post_ids": ["…"], "tenant_ids": ["…"], "reason": "age<24h" }` → hasil: insert `engagement_snapshots`; jika engagement berubah, sink menulis pasangan `sign=-1` (nilai lama) & `sign=+1` (nilai baru) ke `topic_match_events` agar agregat engagement ikut benar.
+`{ "crawl_run_id": "…", "scheduled_for": "…", "platform": "x", "post_ids": ["…"], "reason": "age<24h" }` (≤ 50 id; kontrak `EngagementRefreshPayload`).
+Implementasi (I-20): planner di worker-sink (lock Redis, tiap `ENGAGEMENT_REFRESH_PLAN_MS`) memilih post `topic_matches` ≤ `ENGAGEMENT_REFRESH_MAX_AGE_HOURS` yang snapshot terakhirnya lebih tua dari `ENGAGEMENT_REFRESH_MIN_GAP_SEC`, hanya platform dengan routing policy `post_detail` aktif & tanpa run refresh berjalan → `crawl_runs` (kind `engagement_refresh`, tanpa plan/stream/tenant, `refresh_target`) + job ini lewat outbox. worker-dispatch merutekan `post_detail` (shared pool, `targetIds`) → fetch → `sink.analytics` `mode: engagement_refresh` (tanpa pipeline/AI) → hasil: insert `engagement_snapshots`; jika engagement berubah, sink menulis pasangan `sign=-1` (nilai lama) & `sign=+1` (nilai baru) ke `topic_match_events` agar agregat engagement ikut benar.
 
 ## 5. Alur Status Crawl Run
 

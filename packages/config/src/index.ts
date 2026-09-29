@@ -108,16 +108,28 @@ const scheduler = z.object({
   SCHEDULER_COST_GUARD_INTERVAL_SEC: z.coerce.number().int().min(300).max(86_400).default(3600),
 });
 
+/** I-20 engagement refresh (planner di worker-sink; FR-I06). */
+const refresh = z.object({
+  ENGAGEMENT_REFRESH_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+  ENGAGEMENT_REFRESH_PLAN_MS: z.coerce.number().int().min(60_000).default(900_000),
+  ENGAGEMENT_REFRESH_MAX_AGE_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+  ENGAGEMENT_REFRESH_MIN_GAP_SEC: z.coerce.number().int().min(600).default(7200),
+  ENGAGEMENT_REFRESH_MAX_POSTS: z.coerce.number().int().min(1).max(10_000).default(500),
+});
+
 const SHAPES: Record<ServiceName, z.ZodObject<z.ZodRawShape>[]> = {
   api: [base, clickhouse, kms, api],
   scheduler: [base, scheduler],
   "worker-dispatch": [base],
   "worker-fetch-bun": [base, s3, kms],
   "worker-pipeline": [base, s3],
-  "worker-sink": [base, clickhouse, s3],
+  "worker-sink": [base, clickhouse, s3, refresh],
   "worker-health": [base, kms],
   "worker-ops": [base, clickhouse, s3],
-  workers: [base, clickhouse, s3, kms, scheduler],
+  workers: [base, clickhouse, s3, kms, scheduler, refresh],
 };
 
 function schemaFor(service: ServiceName) {
@@ -145,7 +157,9 @@ function schemaFor(service: ServiceName) {
 
 type Merge<T extends readonly unknown[]> = T extends readonly [infer H, ...infer R] ? H & Merge<R> : unknown;
 type Out<S> = S extends z.ZodTypeAny ? z.output<S> : never;
-type AllConfig = Merge<[Out<typeof base>, Out<typeof clickhouse>, Out<typeof s3>, Out<typeof kms>, Out<typeof api>, Out<typeof scheduler>]>;
+type AllConfig = Merge<
+  [Out<typeof base>, Out<typeof clickhouse>, Out<typeof s3>, Out<typeof kms>, Out<typeof api>, Out<typeof scheduler>, Out<typeof refresh>]
+>;
 /** Konfigurasi hasil validasi. Field di luar service tsb tidak dijamin ada — akses lewat service yang benar. */
 export type Config = Partial<AllConfig> & Out<typeof base> & { service: ServiceName };
 

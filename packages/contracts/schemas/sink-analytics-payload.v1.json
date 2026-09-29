@@ -219,6 +219,13 @@
         "additionalProperties": false
       }
     },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "ingest",
+        "engagement_refresh"
+      ]
+    },
     "run_update": {
       "anyOf": [
         {

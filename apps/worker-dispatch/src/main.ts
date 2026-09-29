@@ -1,8 +1,8 @@
-// Service `worker-dispatch` (ARCHITECTURE §5): consume crawl.dispatch & fetch.result; relay outbox → queue.
+// Service `worker-dispatch` (ARCHITECTURE §5): consume crawl.dispatch, engagement.refresh & fetch.result; relay outbox → queue.
 // Profil MVP single-node: loop pemeliharaan router (sweeper reservasi, flush quota, refresh health) ikut di sini;
 // dipindah ke worker-ops/worker-health saat skala naik.
 import { loadConfig } from "@smip/config";
-import { CrawlDispatchPayload, FetchResultPayload } from "@smip/contracts";
+import { CrawlDispatchPayload, EngagementRefreshPayload, FetchResultPayload } from "@smip/contracts";
 import {
   applyCostAllocations,
   CONFIG_CHANNEL,
@@ -20,7 +20,7 @@ import { createLogger } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { HealthCache, HealthMonitor, RedisReserver, Router, SnapshotStore } from "@smip/router";
 import { jobRelay } from "@smip/scheduler";
-import { handleDispatch, handleFetchResult } from "./dispatch";
+import { handleDispatch, handleEngagementRefresh, handleFetchResult } from "./dispatch";
 
 const cfg = loadConfig("worker-dispatch");
 const logger = createLogger({ service: "worker-dispatch", version: cfg.SERVICE_VERSION, env: cfg.NODE_ENV, level: cfg.LOG_LEVEL });
@@ -52,6 +52,9 @@ const deps = { db, router, snapshots: store, logger };
 const subs = [
   await queue.consume("crawl.dispatch", async (m) => void (await handleDispatch(deps, m.payload)), { parse: CrawlDispatchPayload.parse }),
   await queue.consume("fetch.result", async (m) => void (await handleFetchResult(deps, m.payload)), { parse: FetchResultPayload.parse }),
+  await queue.consume("engagement.refresh", async (m) => void (await handleEngagementRefresh(deps, m.payload)), {
+    parse: EngagementRefreshPayload.parse,
+  }),
 ];
 
 // invalidasi snapshot instan saat config berubah (selain poll cfg:version)
