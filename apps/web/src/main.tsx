@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes } from "react-router";
 import { AuthProvider, useAuth } from "./auth";
+import AdminLlm from "./pages/AdminLlm";
 import AdminProviders from "./pages/AdminProviders";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -73,6 +74,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/topics" element={<TopicList />} />
               <Route path="/topics/:id" element={<TopicPage />} />
               <Route path="/admin/providers" element={<AdminProviders />} />
+              <Route path="/admin/llm" element={<AdminLlm />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

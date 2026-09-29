@@ -5,11 +5,12 @@
 import { HttpClient } from "@smip/connector-sdk";
 import type { Operation } from "@smip/contracts";
 import type { QueueName, RouteInput } from "@smip/core";
-import { credentialAad, displayHint, fingerprint, type KmsAdapter, seal } from "@smip/crypto";
+import type { KmsAdapter } from "@smip/crypto";
 import { auditLogs, type Db, inList, loadRoutingSnapshot, type Tx, withSystem, writeJobOutbox, writeOutbox } from "@smip/db";
 import { evaluate, type HealthState } from "@smip/router";
 import { sql } from "drizzle-orm";
 import { ApiError } from "../errors";
+import { sealCredential } from "./credentials";
 import type { Actor } from "./service";
 
 type Row = Record<string, unknown>;
@@ -326,23 +327,8 @@ export class ProviderAdminService {
     );
   }
 
-  private async sealCredential(tx: Tx, tenantId: string | null, kind: string, secret: Record<string, string>) {
-    const id = Bun.randomUUIDv7();
-    const s = await seal(this.o.kms, credentialAad(id, tenantId), secret);
-    const fp = await fingerprint(secret, this.o.fingerprintPepper);
-    // duplikat hanya dicek dalam pemilik yang sama (shared pool / tenant yang sama) — lintas tenant akan jadi oracle
-    // "key ini dipakai tenant lain" (review 2026-09-30)
-    const [dup] = await rows(
-      tx,
-      sql`select 1 from credentials where fingerprint = ${Buffer.from(fp)} and wrapped_dek is not null
-        and tenant_id is not distinct from ${tenantId} limit 1`,
-    );
-    if (dup) throw new ApiError("CONFLICT", "Credential yang sama sudah terdaftar");
-    await tx.execute(sql`insert into credentials (id, tenant_id, kind, ciphertext, iv, wrapped_dek, kek_id, aad, fingerprint, created_by)
-      values (${id}, ${tenantId}, ${kind}::e_cred_kind, ${Buffer.from(s.ciphertext)}, ${Buffer.from(s.iv)}, ${Buffer.from(s.wrapped_dek)},
-              ${s.kek_id}, ${s.aad}, ${Buffer.from(fp)}, null)`);
-    const first = Object.values(secret)[0] ?? "";
-    return { id, hint: first.length >= 8 ? displayHint(first) : "••••" };
+  private sealCredential(tx: Tx, tenantId: string | null, kind: string, secret: Record<string, string>) {
+    return sealCredential(this.o, tx, tenantId, kind, secret);
   }
 
   async createAccount(

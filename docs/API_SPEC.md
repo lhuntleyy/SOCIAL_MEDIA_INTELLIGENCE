@@ -495,6 +495,20 @@ Simulate **tidak** mengonsumsi token/quota (read-only peek).
 
 ---
 
+### 9.1 Pengaturan LLM (Fase 3, A-03) — operator
+Provider = baris DB; `kind` = protokol API: `gemini`, `openai_compatible` (OpenAI, OpenRouter, vLLM/Ollama/custom — `base_url` wajib, lolos SSRF guard), `anthropic`.
+
+| Method | Path | Keterangan |
+|---|---|---|
+| GET | `/admin/llm` | provider + key (tanpa secret: label, `display_hint`, status, cooldown, error terakhir, jumlah request) + pemetaan tugas |
+| POST | `/admin/llm/providers` | `{key, name, kind, base_url?, api_key?, key_label?}` |
+| PATCH/DELETE | `/admin/llm/providers/{id}` | ubah nama/base_url/aktif · hapus (semua key di-crypto-shred) |
+| POST | `/admin/llm/providers/{id}/keys` | tambah API key (banyak key per provider → rotasi; 429 → cooldown 60 s; key salah → `invalid`) |
+| PATCH/DELETE | `/admin/llm/keys/{id}` | aktif/nonaktif · cabut (crypto-shred) |
+| GET · POST | `/admin/llm/providers/{id}/models` · `…/models/refresh` | katalog model dari API provider (dropdown panel) |
+| POST | `/admin/llm/test` | `{provider_id, model_id, text?, topic?}` → klasifikasi sentimen contoh (JSON terstruktur, token, latensi) |
+| PUT | `/admin/llm/tasks/{default\|sentiment\|emotion\|keyphrase\|summary}` | `{provider_id, model_id, fallback_provider_id?, fallback_model_id?, enabled, params?}` — model wajib ada di katalog |
+
 ## 10. Admin — Tenant & User
 
 `GET/POST /admin/tenants`, `PATCH /admin/tenants/{id}` (plan, status), `GET/POST /users`, `PATCH /users/{id}`, `POST /users/{id}/memberships`, `DELETE /users/{id}/memberships/{tenant_id}`, `GET/POST/DELETE /api-keys`.

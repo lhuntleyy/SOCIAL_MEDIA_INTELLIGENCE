@@ -84,6 +84,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 ## Fase 3 — AI & Dashboard
 | ID | Status | PIC | Bukti | Catatan |
 |---|---|---|---|---|
+| A-03 | in_progress | claude | [admin-llm.test](../apps/api/test/admin-llm.test.ts) · halaman *Pengaturan AI* | **Pengaturan LLM dari panel admin selesai** (migrasi 0021): provider per protokol (Gemini / OpenAI-compatible: OpenAI, OpenRouter, custom / Anthropic), **multi API key** terenkripsi (rotasi, cooldown 429, key salah → invalid; Gemini key salah = HTTP 400 ditangani), katalog model dari API provider, tes model, tugas → model + cadangan. Dev: Gemini (key pemilik, tier gratis) 44 model, tugas default/sentimen/emosi → `gemini-3.5-flash-lite`. Sisa: worker-ai memakai pengaturan ini (+ `nlp_labels`, A-10) |
 | U-01 | in_progress | claude | `apps/web` · demo https://43-156-61-233.sslip.io | Web shell React+Vite+Tailwind+TanStack Query+ECharts: login + pendaftaran MFA (TOTP QR), sesi dipulihkan via cookie refresh (token hanya di memori), layout + nav, Dashboard ringkasan ingest (KPI, post per platform, run terakhir), Topik (daftar + detail + riwayat run). Belum: filter bar URL state, auto-refresh selector, SSE. Deploy publik HTTPS (Caddy + Let's Encrypt, DEPLOYMENT §3.2) |
 | A-01 … A-10, D-01 … D-04, U-02 … U-07 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
 

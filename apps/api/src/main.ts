@@ -2,10 +2,12 @@
 import { createClient } from "@clickhouse/client";
 import { previewCandidates } from "@smip/analytics";
 import { loadConfig } from "@smip/config";
+import { HttpClient } from "@smip/connector-sdk";
 import { createKms } from "@smip/crypto";
 import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
+import { LlmAdminService } from "./admin/llm";
 import { ProviderAdminService } from "./admin/providers";
 import { AdminService } from "./admin/service";
 import { createApp } from "./app";
@@ -35,7 +37,12 @@ const providers = new ProviderAdminService(db, {
   fingerprintPepper: new Uint8Array(Buffer.from(cfg.CREDENTIAL_PEPPER_B64!, "base64")),
   dlq: queue,
 });
-const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, keys, logger });
+const llm = new LlmAdminService(db, {
+  kms,
+  fingerprintPepper: new Uint8Array(Buffer.from(cfg.CREDENTIAL_PEPPER_B64!, "base64")),
+  http: new HttpClient({ timeoutMs: 30_000 }),
+});
+const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, llm, keys, logger });
 
 const INTERNAL_IP_HEADER = "x-smip-client-ip";
 const isPrivate = (ip: string) =>
