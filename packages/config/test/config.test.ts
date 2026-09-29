@@ -8,7 +8,12 @@ const BASE = {
 };
 const CH = { CLICKHOUSE_URL: "http://127.0.0.1:8123" };
 const KMS_DEV = { KMS_ADAPTER: "local-dev", KMS_KEY_ID: "dev", KMS_LOCAL_DEV_KEK_B64: "AAAA" };
-const API = { JWT_PRIVATE_KEY_PATH: "/run/secrets/jwt.pem", JWT_KID: "k1", CORS_ORIGINS: "https://app.contoh.id, https://admin.contoh.id" };
+const API = {
+  JWT_PRIVATE_KEY_PATH: "/run/secrets/jwt.pem",
+  JWT_KID: "k1",
+  CORS_ORIGINS: "https://app.contoh.id, https://admin.contoh.id",
+  CREDENTIAL_PEPPER_B64: Buffer.alloc(32, 7).toString("base64"),
+};
 
 function err(fn: () => unknown): ConfigError {
   try {

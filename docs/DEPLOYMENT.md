@@ -105,7 +105,7 @@ Angka replika = titik awal; kalibrasi dari load test. KEDA scaler Redis untuk Bu
 | `CLICKHOUSE_URL`, `CLICKHOUSE_DB` (default `smip`), `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` | api, sink, ops | migrasi: `bun run ch:migrate up` |
 | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET_RAW`, `S3_BUCKET_EXPORTS`, `S3_BUCKET_TRAINING`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | fetch, pipeline, sink, ops | `S3_BUCKET_TRAINING` = teks korpus `nlp_labels` |
 | `KMS_ADAPTER` (`vault-transit`/`aws-kms`/`gcp-kms`/`local-dev`), `KMS_KEY_ID`, `VAULT_ADDR`, `VAULT_TOKEN`, `KMS_LOCAL_DEV_KEK_B64` | fetch, api, health | `local-dev` ditolak saat `NODE_ENV=production` |
-| `API_PORT` (default 8080), `JWT_PRIVATE_KEY_PATH`, `JWT_KID` | api | |
+| `API_PORT` (default 8080), `JWT_PRIVATE_KEY_PATH`, `JWT_KID`, `CREDENTIAL_PEPPER_B64` (secret, base64 ≥ 32 byte — HMAC fingerprint credential) | api | |
 | `CORS_ORIGINS` | api | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` | semua | |
 | `LOG_LEVEL` | semua | |

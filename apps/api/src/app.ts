@@ -1,14 +1,16 @@
 // F-09: komposisi aplikasi Hono (API_SPEC). Dependency disuntik → test memakai app.request() tanpa server.
-import { Hono } from "hono";
 import type { Logger } from "@smip/observability";
-import type { JwtKeys } from "./auth/jwt";
+import { Hono } from "hono";
+import type { ProviderAdminService } from "./admin/providers";
 import type { AdminService } from "./admin/service";
+import type { JwtKeys } from "./auth/jwt";
 import type { AuthService } from "./auth/service";
 import type { AppEnv } from "./context";
 import { ApiError, errorBody } from "./errors";
 import { authn, viewerReadOnly } from "./middleware/auth";
 import { requestId } from "./middleware/request-id";
 import { adminRoutes, publicAdminRoutes } from "./routes/admin";
+import { providerAdminRoutes } from "./routes/admin-providers";
 import { authRoutes } from "./routes/auth";
 import { topicRoutes } from "./routes/topics";
 import type { TopicService } from "./topics/service";
@@ -17,6 +19,8 @@ export interface AppDeps {
   auth: AuthService;
   admin?: AdminService;
   topics?: TopicService;
+  /** API_SPEC §9 (I-21). */
+  providers?: ProviderAdminService;
   keys: JwtKeys;
   logger?: Logger;
   /** IP klien: di belakang ingress pakai header tepercaya yang diset ingress; default = socket (via header internal). */
@@ -57,6 +61,7 @@ export function createApp(d: AppDeps) {
   prot.use("*", authn(d.keys, ext));
   prot.use("*", viewerReadOnly);
   if (admin) prot.route("/", adminRoutes(admin));
+  if (d.providers) prot.route("/", providerAdminRoutes(d.providers));
   if (d.topics) prot.route("/", topicRoutes(d.topics));
   d.mount?.(prot);
   app.route("/", prot);

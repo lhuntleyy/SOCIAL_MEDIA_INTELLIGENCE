@@ -5,6 +5,8 @@ import { loadConfig } from "@smip/config";
 import { createKms } from "@smip/crypto";
 import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
+import { BullMqQueue } from "@smip/queue";
+import { ProviderAdminService } from "./admin/providers";
 import { AdminService } from "./admin/service";
 import { createApp } from "./app";
 import { loadJwtKeys } from "./auth/jwt";
@@ -26,7 +28,14 @@ const ch = createClient({
   password: cfg.CLICKHOUSE_PASSWORD,
 });
 const topics = new TopicService(db, { previewer: (q) => previewCandidates(ch, q) });
-const app = createApp({ auth, admin: new AdminService(db, redis), topics, keys, logger });
+// API hanya membaca/menghapus DLQ; enqueue job normal lewat outbox (Golden Rule 5).
+const queue = new BullMqQueue({ connection: { url: cfg.REDIS_URL }, logger });
+const providers = new ProviderAdminService(db, {
+  kms,
+  fingerprintPepper: new Uint8Array(Buffer.from(cfg.CREDENTIAL_PEPPER_B64!, "base64")),
+  dlq: queue,
+});
+const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, keys, logger });
 
 const INTERNAL_IP_HEADER = "x-smip-client-ip";
 const server = Bun.serve({

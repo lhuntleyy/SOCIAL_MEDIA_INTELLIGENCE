@@ -1,0 +1,10 @@
+# I-21 — 2026-09-29T06:58:41Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test apps/api/test/admin-providers.test.ts
+bun test v1.4.2 (744846f84)
+
+ 15 pass
+ 0 fail
+ 150 expect() calls
+Ran 15 tests across 1 file. [2.51s]
+# exit 0

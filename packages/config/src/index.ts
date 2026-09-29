@@ -84,6 +84,8 @@ const api = z.object({
   JWT_PRIVATE_KEY_PATH: z.string().min(1),
   JWT_KID: z.string().min(1),
   CORS_ORIGINS: csv,
+  /** Pepper HMAC fingerprint credential (deteksi duplikat tanpa dekripsi, I-21). Secret; ≥ 32 byte. */
+  CREDENTIAL_PEPPER_B64: z.string().refine((v) => Buffer.from(v, "base64").length >= 32, "harus base64 ≥ 32 byte"),
 });
 
 const scheduler = z.object({
