@@ -62,6 +62,13 @@ describe.skipIf(!up)("alur multi-kantor", () => {
       ["kantor-a", 2, ["Demo KDMP"]],
       ["kantor-b", 1, ["Demo Mahasiswa"]],
     ]);
+    // administrator melihat user kantor mana pun (halaman "Kantor & pengguna"); admin kantor tidak
+    const usersA = (await call("GET", `/admin/tenants/${A}/users`, op)).json.data as { email: string; role: string }[];
+    expect(usersA.map((u) => [u.email, u.role]).sort()).toEqual([
+      ["admin@kantor-a.id", "owner"],
+      ["analis@kantor-a.id", "analyst"],
+    ]);
+    expect((await call("GET", `/admin/tenants/${B}/users`, ownerA)).status).toBe(403);
     expect((await call("GET", "/topics", op, undefined, { "x-tenant-id": B })).status).toBe(400); // tanpa alasan
     expect(await names(op, { "x-tenant-id": B, "x-impersonation-reason": "Pemantauan administrator" })).toEqual(["Demo Mahasiswa"]);
     expect((await call("GET", "/topics", ownerA, undefined, { "x-tenant-id": B, "x-impersonation-reason": "coba intip kantor lain" })).status).toBe(403);

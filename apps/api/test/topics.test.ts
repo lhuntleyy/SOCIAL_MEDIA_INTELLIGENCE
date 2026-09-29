@@ -297,6 +297,20 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     });
     const over = await h.call("POST", "/topics", { token: tok.analystA, body: body("Topik Mahal") });
     expect([over.status, (await j(over)).error?.code]).toEqual([422, "QUOTA_WOULD_EXCEED"]);
+
+    // UI tidak lagi mengirim interval → interval bawaan sistem (1 jam), bisa diatur per plan (limits.default_interval_sec)
+    const noInterval = async () =>
+      (
+        await j<{ requests_per_day: number }>(
+          await h.call("POST", "/topics/cost-estimate", { token: tok.analystA, body: { platforms: [{ code: "x" }], queries: [main] } }),
+        )
+      ).data.requests_per_day;
+    expect(await noInterval()).toBe(24);
+    await h.sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`update plans set limits = ${tx.json({ max_topics: 10, min_interval_sec: 900, default_interval_sec: 1800 })}`;
+    });
+    expect(await noInterval()).toBe(48);
   });
 
   test("API key: scope topics:read hanya boleh baca", async () => {

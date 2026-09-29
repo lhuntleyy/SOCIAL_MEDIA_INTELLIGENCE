@@ -249,7 +249,10 @@ export class TopicService {
     return view;
   }
 
-  private async planLimits(tx: Tx): Promise<{ max_topics?: number; min_interval_sec?: number }> {
+  /** Interval crawl bawaan bila topik/platform tidak menyebut interval (UI tidak lagi menampilkan interval — diatur sistem). */
+  static readonly DEFAULT_INTERVAL_SEC = 3600;
+
+  private async planLimits(tx: Tx): Promise<{ max_topics?: number; min_interval_sec?: number; default_interval_sec?: number }> {
     const [r] = await rows<{ limits: Record<string, number> | null }>(
       tx,
       sql`select p.limits from tenants t left join plans p on p.id = t.plan_id where t.id = smip_current_tenant()`,
@@ -300,7 +303,8 @@ export class TopicService {
     const codes = b.platforms.map((p) => p.code);
     const view = await this.connectorView(tx, codes);
     const limits = await this.planLimits(tx);
-    const resolved = this.resolvePlatforms(b.platforms, b.default_interval_sec ?? 900, view, limits.min_interval_sec);
+    const dflt = b.default_interval_sec ?? limits.default_interval_sec ?? TopicService.DEFAULT_INTERVAL_SEC;
+    const resolved = this.resolvePlatforms(b.platforms, dflt, view, limits.min_interval_sec);
     const matches = await this.matchesPerDay(codes, b.queries);
     const est = estimateCost(
       resolved.platforms
@@ -600,7 +604,8 @@ export class TopicService {
         b.platforms.map((p) => p.code),
       );
       await this.assertPlanLimit(tx);
-      const est = await this.estimate(tx, a, b);
+      const dflt = b.default_interval_sec ?? (await this.planLimits(tx)).default_interval_sec ?? TopicService.DEFAULT_INTERVAL_SEC;
+      const est = await this.estimate(tx, a, { ...b, default_interval_sec: dflt });
       if (est.exceeded.length) {
         throw new ApiError(
           "QUOTA_WOULD_EXCEED",
@@ -611,7 +616,7 @@ export class TopicService {
       const id = Bun.randomUUIDv7();
       try {
         await tx.execute(sql`insert into topics (id, tenant_id, name, description, author_user_id, filter_ads, language_hints, default_interval_sec)
-          values (${id}, ${a.tenantId}, ${b.name.trim()}, ${b.description ?? null}, ${a.userId}, ${b.filter_ads ?? false}, ${textArray(b.language_hints ?? ["id"])}, ${b.default_interval_sec ?? 900})`);
+          values (${id}, ${a.tenantId}, ${b.name.trim()}, ${b.description ?? null}, ${a.userId}, ${b.filter_ads ?? false}, ${textArray(b.language_hints ?? ["id"])}, ${dflt})`);
       } catch (e) {
         if (pgCode(e) === "23505") throw new ApiError("CONFLICT", "Nama topik sudah dipakai");
         throw e;

@@ -1,5 +1,5 @@
 // Access JWT EdDSA 15 menit (SECURITY §2). `kid` untuk rotasi: verifikasi menerima kunci publik lama selama transisi (RUNBOOK §9).
-import { exportJWK, importJWK, importPKCS8, type JWTPayload, jwtVerify, SignJWT, errors as joseErrors, type CryptoKey } from "jose";
+import { type CryptoKey, exportJWK, importJWK, importPKCS8, type JWTPayload, errors as joseErrors, jwtVerify, SignJWT } from "jose";
 
 export const ISSUER = "smip";
 export const AUDIENCE = "smip-api";

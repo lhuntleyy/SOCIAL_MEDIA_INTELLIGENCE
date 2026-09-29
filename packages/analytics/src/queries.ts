@@ -64,14 +64,97 @@ function series<K extends string>(rows: { k: K; b: string; n: number | string }[
 
 const topicTable = (g: Granularity) => (g === "1h" ? "agg_topic_1h" : "agg_topic_1d");
 
-export async function exposure(ch: ClickHouseClient, f: AnalyticsFilter, g = autoGranularity(f)) {
+export async function exposure(ch: ClickHouseClient, f: AnalyticsFilter, g = autoGranularity(f), mode: "count" | "engagement" = "count") {
   const w = base(f, "bucket", g === "1d");
   const rows = await q<{ k: string; b: string; n: string }>(
     ch,
-    `SELECT platform AS k, toString(bucket) AS b, sum(posts) AS n FROM ${topicTable(g)} WHERE ${w.where} GROUP BY k, b HAVING n != 0`,
+    `SELECT platform AS k, toString(bucket) AS b, sum(${mode === "engagement" ? "engagement" : "posts"}) AS n FROM ${topicTable(g)} WHERE ${w.where} GROUP BY k, b HAVING n != 0`,
     w.params,
   );
-  return { ...series(rows, g, f), definition: "Jumlah post yang match topik per bucket (bukan reach)." };
+  return {
+    ...series(rows, g, f),
+    definition:
+      mode === "engagement"
+        ? "Jumlah engagement (like+komentar+share+view sesuai platform) per bucket."
+        : "Jumlah post yang match topik per bucket (bukan reach).",
+  };
+}
+
+const EMOTIONS = ["anticipation", "anger", "disgust", "trust", "joy", "fear", "surprise", "sadness"] as const;
+
+/** Deret waktu 8 emosi (Perception stream). */
+export async function emotionTimeline(ch: ClickHouseClient, f: AnalyticsFilter, g = autoGranularity(f)) {
+  const w = base(f, "bucket", g === "1d");
+  const rows = await q<{ k: string; b: string; n: string }>(
+    ch,
+    `SELECT toString(emotion) AS k, toString(bucket) AS b, sum(posts) AS n FROM ${g === "1h" ? "agg_emotion_1h" : "agg_emotion_1d"}
+     WHERE ${w.where} AND emotion != 'unknown' GROUP BY k, b HAVING n != 0`,
+    w.params,
+  );
+  return series(rows, g, f, [...EMOTIONS]);
+}
+
+/** Akun aktif (unik) per hari. */
+export async function activeAccounts(ch: ClickHouseClient, f: AnalyticsFilter) {
+  const w = base(f, "bucket", true);
+  const rows = await q<{ k: "accounts"; b: string; n: string }>(
+    ch,
+    `SELECT 'accounts' AS k, toString(bucket) AS b, uniqExact(author_id) AS n
+     FROM (SELECT author_id, bucket, sum(posts) + sum(replies) + sum(reposts) AS c FROM agg_author_1d WHERE ${w.where} GROUP BY author_id, bucket HAVING c != 0)
+     GROUP BY b`,
+    w.params,
+  );
+  return series(rows, "1d", f, ["accounts"]);
+}
+
+/** Jumlah per platform × jenis konten (post / reply / repost …) — kartu "Total posts / Total replies". */
+export async function platformBreakdown(ch: ClickHouseClient, f: AnalyticsFilter) {
+  const w = base(f, "bucket", true);
+  const rows = await q<{ platform: string; content_type: string; n: string; e: string }>(
+    ch,
+    `SELECT platform, content_type, sum(posts) AS n, sum(engagement) AS e FROM agg_topic_1d WHERE ${w.where}
+     GROUP BY platform, content_type HAVING n != 0 ORDER BY n DESC`,
+    w.params,
+  );
+  return { items: rows.map((r) => ({ platform: r.platform, content_type: r.content_type, count: Number(r.n), engagement: Number(r.e) })) };
+}
+
+/** Akun yang paling banyak di-repost/di-quote (Most retweeted accounts). */
+export async function repostedAccounts(ch: ClickHouseClient, f: AnalyticsFilter, limit = 10) {
+  const w = base(f, "bucket", true);
+  const rows = await q<{ platform: string; author_id: string; handle: string | null; n: string }>(
+    ch,
+    `SELECT platform, parent_author_id AS author_id, anyLast(parent_author_handle) AS handle, sum(reposted_count) AS n
+     FROM agg_reposted_author_1d WHERE ${w.where} GROUP BY platform, author_id HAVING n > 0 ORDER BY n DESC LIMIT {lim:UInt32}`,
+    { ...w.params, lim: limit },
+  );
+  return { items: rows.map((r) => ({ platform: r.platform, author_id: r.author_id, handle: r.handle, value: Number(r.n) })) };
+}
+
+/** Kecenderungan waktu aktif audiens: hari (1=Senin) × jam, zona Asia/Jakarta. */
+export async function activityHeatmap(ch: ClickHouseClient, f: AnalyticsFilter, tz = "Asia/Jakarta") {
+  const w = base(f, "bucket");
+  const rows = await q<{ d: number; h: number; n: string }>(
+    ch,
+    `SELECT toDayOfWeek(bucket, 0, {tz:String}) AS d, toHour(bucket, {tz:String}) AS h, sum(posts) AS n
+     FROM agg_topic_1h WHERE ${w.where} GROUP BY d, h HAVING n != 0`,
+    { ...w.params, tz },
+  );
+  return { timezone: tz, cells: rows.map((r) => ({ day: Number(r.d), hour: Number(r.h), count: Number(r.n) })) };
+}
+
+/** Tahun akun dibuat (User created time) — agregat tanpa kolom platform, jadi filter platform tidak berlaku. */
+export async function authorCreatedYear(ch: ClickHouseClient, f: AnalyticsFilter) {
+  const rows = await q<{ y: number; n: string }>(
+    ch,
+    `SELECT author_created_year AS y, uniqMerge(authors) AS n FROM agg_author_age_1d
+     WHERE tenant_id = {t:UUID} AND topic_id = {topic:UUID} AND bucket >= toDate({from:DateTime}) AND bucket <= toDate({to:DateTime})
+     GROUP BY y ORDER BY y`,
+    { t: f.tenantId, topic: f.topicId, from: chTs(f.from), to: chTs(f.to) },
+  );
+  const known = rows.filter((r) => Number(r.y) > 0);
+  const unknown = rows.filter((r) => Number(r.y) === 0).reduce((a, r) => a + Number(r.n), 0);
+  return { unknown, items: known.map((r) => ({ year: Number(r.y), count: Number(r.n) })) };
 }
 
 export async function sentimentTimeline(
@@ -138,13 +221,20 @@ export async function hashtags(ch: ClickHouseClient, f: AnalyticsFilter, limit =
   return { items: rows.map((r) => ({ hashtag: r.hashtag, count: Number(r.n), engagement: Number(r.e) })) };
 }
 
-export async function topAccounts(ch: ClickHouseClient, f: AnalyticsFilter, by: "posts" | "engagement" = "posts", limit = 10) {
+export async function topAccounts(
+  ch: ClickHouseClient,
+  f: AnalyticsFilter,
+  by: "posts" | "engagement" | "replies" | "reposts" = "posts",
+  limit = 10,
+  sentiment?: string,
+) {
   const w = base(f, "bucket", true);
+  if (sentiment) w.where += " AND sentiment = {s:String}";
   const rows = await q<{ platform: string; author_id: string; handle: string; value: string; followers: string | null }>(
     ch,
     `SELECT platform, author_id, anyLast(author_handle) AS handle, sum(${by}) AS value, anyLast(author_followers) AS followers
      FROM agg_author_1d WHERE ${w.where} GROUP BY platform, author_id HAVING value > 0 ORDER BY value DESC LIMIT {lim:UInt32}`,
-    { ...w.params, lim: limit },
+    { ...w.params, lim: limit, s: sentiment ?? "" },
   );
   return {
     items: rows.map((r) => ({
@@ -212,25 +302,36 @@ export async function summary(ch: ClickHouseClient, f: AnalyticsFilter) {
   };
 }
 
-/** D-02 feed: post match topik (label terbaru via topic_matches FINAL), tanpa demografi individu (SEC-09). */
-export async function feed(
-  ch: ClickHouseClient,
-  f: AnalyticsFilter,
-  o: { sentiment?: string; emotion?: string; limit: number; offset: number },
-) {
-  const rows = await q<Record<string, unknown>>(
-    ch,
-    `SELECT m.platform AS platform, m.post_id AS post_id, toString(m.published_at) AS published_at, toString(m.sentiment) AS sentiment,
-            m.sentiment_score AS sentiment_score, toString(m.emotion) AS emotion, m.engagement AS engagement, m.engagement_known AS engagement_known,
-            m.hashtags AS hashtags, m.author_handle AS author_handle, m.model_version AS model_version, p.text AS text, p.url AS url
-     FROM (SELECT * FROM topic_matches FINAL WHERE tenant_id = {t:UUID} AND topic_id = {topic:UUID}
-             AND published_at >= {from:DateTime} AND published_at <= {to:DateTime}
-             ${f.platforms?.length ? "AND platform IN {pl:Array(String)}" : ""}
-             ${o.sentiment ? "AND sentiment = {s:String}" : ""} ${o.emotion ? "AND emotion = {e:String}" : ""}
-           ORDER BY published_at DESC LIMIT {lim:UInt32} OFFSET {off:UInt32}) AS m
-     LEFT JOIN (SELECT platform, post_id, text, url FROM posts FINAL) AS p ON p.platform = m.platform AND p.post_id = m.post_id
-     ORDER BY m.published_at DESC`,
-    {
+export interface FeedOptions {
+  sentiment?: string;
+  emotion?: string;
+  hashtag?: string;
+  issue?: string;
+  authorId?: string;
+  region?: string;
+  contentType?: string;
+  sort?: "latest" | "engagement";
+  limit: number;
+  offset: number;
+}
+
+/** WHERE atas topic_matches FINAL untuk feed + drill-down widget (klik chart → post di baliknya). */
+function feedWhere(f: AnalyticsFilter, o: FeedOptions) {
+  const w = ["tenant_id = {t:UUID}", "topic_id = {topic:UUID}", "published_at >= {from:DateTime}", "published_at <= {to:DateTime}"];
+  if (f.platforms?.length) w.push("platform IN {pl:Array(String)}");
+  if (o.sentiment) w.push("sentiment = {s:String}");
+  if (o.emotion) w.push("emotion = {e:String}");
+  if (o.hashtag) w.push("has(arrayMap(x -> lower(x), hashtags), lower({h:String}))");
+  if (o.issue) w.push("has(issues, {i:String})");
+  if (o.authorId) w.push("author_id = {a:String}");
+  if (o.region) w.push("geo_region_code = {r:String}");
+  // "replies"/"reposts" = kelompok jenis konten (komentar & balasan / repost & quote)
+  if (o.contentType === "replies") w.push("content_type IN ('reply', 'comment')");
+  else if (o.contentType === "reposts") w.push("content_type IN ('repost', 'quote')");
+  else if (o.contentType) w.push("content_type = {ct:String}");
+  return {
+    where: w.join(" AND "),
+    params: {
       t: f.tenantId,
       topic: f.topicId,
       from: chTs(f.from),
@@ -238,9 +339,42 @@ export async function feed(
       pl: f.platforms ?? [],
       s: o.sentiment ?? "",
       e: o.emotion ?? "",
-      lim: o.limit,
-      off: o.offset,
+      h: (o.hashtag ?? "").replace(/^#/, ""),
+      i: o.issue ?? "",
+      a: o.authorId ?? "",
+      r: o.region ?? "",
+      ct: o.contentType ?? "",
     },
+  };
+}
+
+/** D-02 feed: post match topik (label terbaru via topic_matches FINAL), tanpa demografi individu (SEC-09). */
+export async function feed(ch: ClickHouseClient, f: AnalyticsFilter, o: FeedOptions) {
+  const w = feedWhere(f, o);
+  const order = o.sort === "engagement" ? "engagement DESC, published_at DESC" : "published_at DESC";
+  const rows = await q<Record<string, unknown>>(
+    ch,
+    `SELECT m.platform AS platform, m.post_id AS post_id, toString(m.published_at) AS published_at, toString(m.sentiment) AS sentiment,
+            m.sentiment_score AS sentiment_score, toString(m.emotion) AS emotion, m.engagement AS engagement, m.engagement_known AS engagement_known,
+            m.content_type AS content_type, m.hashtags AS hashtags, m.issues AS issues, m.author_id AS author_id, m.author_handle AS author_handle,
+            m.model_version AS model_version, p.text AS text, p.url AS url, p.author_name AS author_name, p.author_followers AS author_followers
+     FROM (SELECT * FROM topic_matches FINAL WHERE ${w.where}
+           ORDER BY ${order} LIMIT {lim:UInt32} OFFSET {off:UInt32}) AS m
+     LEFT JOIN (SELECT platform, post_id, text, url, author_name, author_followers FROM posts FINAL) AS p ON p.platform = m.platform AND p.post_id = m.post_id
+     ORDER BY ${o.sort === "engagement" ? "m.engagement DESC, m.published_at DESC" : "m.published_at DESC"}`,
+    { ...w.params, lim: o.limit, off: o.offset },
   );
-  return rows.map((r) => ({ ...r, engagement: r.engagement_known ? Number(r.engagement) : null, engagement_known: undefined }));
+  return rows.map((r) => ({
+    ...r,
+    engagement: r.engagement_known ? Number(r.engagement) : null,
+    engagement_known: undefined,
+    author_followers: r.author_followers === null || r.author_followers === undefined ? null : Number(r.author_followers),
+  }));
+}
+
+/** Jumlah post untuk filter feed yang sama (untuk "N post" di popup drill-down). */
+export async function feedCount(ch: ClickHouseClient, f: AnalyticsFilter, o: FeedOptions) {
+  const w = feedWhere(f, o);
+  const [r] = await q<{ n: string }>(ch, `SELECT count() AS n FROM topic_matches FINAL WHERE ${w.where}`, w.params);
+  return Number(r?.n ?? 0);
 }

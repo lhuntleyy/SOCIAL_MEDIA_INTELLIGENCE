@@ -65,6 +65,7 @@ export function adminRoutes(svc: AdminService) {
     return c.json({ data: await svc.updateTenant(actor(c), param(c, "id"), b) });
   });
 
+  r.get("/admin/tenants/:id/users", requireOperator, async (c) => c.json({ data: await svc.listUsers(param(c, "id") as never) }));
   r.post("/admin/tenants/:id/users", requireOperator, async (c) => {
     const b = await parseJson(c, z.strictObject({ email: z.email().max(254), name: z.string().min(1).max(120), role: RoleZ }));
     return c.json({ data: await svc.inviteToTenant(actor(c), param(c, "id"), b) }, 201);

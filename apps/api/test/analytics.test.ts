@@ -145,6 +145,51 @@ describe.skipIf(!up)("D-01 analytics", () => {
     expect(feed[0]!.text).toBe("kopdes gaji belum cair");
   });
 
+  test("drill-down feed (klik widget → post): hashtag, lokasi, akun, sort engagement, total; widget tambahan", async () => {
+    const posts = async (qs: string) => {
+      const r = await h.call("GET", `/posts?topic_id=${TA}&count=1&${qs}`, { token: ta });
+      const j = (await r.json()) as { data: { post_id: string }[]; meta: { total?: number } };
+      return { ids: j.data.map((x) => x.post_id), total: j.meta.total };
+    };
+    expect(await posts("hashtag=%23KOPDES")).toEqual({ ids: ["p0"], total: 1 }); // '#' & huruf besar diabaikan
+    expect(await posts("region=31")).toEqual({ ids: ["p0"], total: 1 });
+    expect(await posts("author_id=a1")).toEqual({ ids: ["p1"], total: 1 });
+    expect((await posts("sentiment=negative&emotion=anger")).ids).toEqual(["p0"]);
+    expect((await posts("content_type=replies")).total).toBe(0);
+    expect((await posts("sort=engagement&limit=2")).total).toBe(3);
+    // total hanya bila diminta
+    const plain = (await (await h.call("GET", `/posts?topic_id=${TA}`, { token: ta })).json()) as { meta: { total?: number } };
+    expect(plain.meta.total).toBeUndefined();
+    expect((await get(`/posts?topic_id=${TA}&region=31;drop`, ta)).status).toBe(400);
+
+    const emo = (await get(`/analytics/emotion/timeline?topic_id=${TA}&granularity=1h`, ta)).json.data as {
+      series: { key: string; values: number[] }[];
+    };
+    const sum = Object.fromEntries(emo.series.map((x) => [x.key, x.values.reduce((a, b) => a + b, 0)]));
+    expect(sum).toMatchObject({ anger: 1, disgust: 1, joy: 1, trust: 0 });
+    const br = (await get(`/analytics/platforms?topic_id=${TA}`, ta)).json.data as { items: unknown[] };
+    expect(br.items).toEqual([{ platform: "x", content_type: "post", count: 3, engagement: 30 }]);
+    const act = (await get(`/analytics/accounts/active?topic_id=${TA}`, ta)).json.data as { series: { values: number[] }[] };
+    expect(Math.max(...act.series[0]!.values)).toBeGreaterThanOrEqual(1);
+    const heat = (await get(`/analytics/activity?topic_id=${TA}`, ta)).json.data as { cells: { count: number }[] };
+    expect(heat.cells.reduce((a, c) => a + c.count, 0)).toBe(3);
+    const neg = (await get(`/analytics/accounts/top?topic_id=${TA}&sentiment=negative&by=engagement`, ta)).json.data as {
+      items: { handle: string; value: number }[];
+    };
+    expect(neg.items.map((i) => [i.handle, i.value]).sort()).toEqual([
+      ["akun0", 10],
+      ["akun1", 10],
+    ]);
+    const eng = (await get(`/analytics/exposure?topic_id=${TA}&mode=engagement&granularity=1h`, ta)).json.data as {
+      series: { values: number[] }[];
+    };
+    expect(eng.series[0]!.values.reduce((a, b) => a + b, 0)).toBe(30);
+    expect((await get(`/analytics/accounts/created-year?topic_id=${TA}`, ta)).status).toBe(200);
+    expect((await get(`/analytics/accounts/reposted?topic_id=${TA}`, ta)).status).toBe(200);
+    // widget baru tetap terisolasi tenant
+    expect((await get(`/analytics/platforms?topic_id=${TA}`, tb)).status).toBe(404);
+  });
+
   test("SEC-01: topik tenant lain → 404; parameter tidak valid → 400", async () => {
     expect((await get(`/analytics/sentiment/proportion?topic_id=${TA}`, tb)).status).toBe(404);
     expect((await get(`/posts?topic_id=${TA}`, tb)).status).toBe(404);

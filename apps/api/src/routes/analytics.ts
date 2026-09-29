@@ -20,9 +20,20 @@ const Common = z.object({
   mode: z.enum(["count", "engagement"]).optional(),
   sentiment: z.enum(["negative", "neutral", "positive"]).optional(),
   emotion: z.enum(["anger", "anticipation", "disgust", "trust", "joy", "sadness", "surprise", "fear", "unknown"]).optional(),
-  by: z.enum(["posts", "engagement"]).optional(),
+  by: z.enum(["posts", "engagement", "replies", "reposts"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).max(10_000).optional(),
+  // drill-down (klik widget → post di baliknya)
+  hashtag: z.string().trim().min(1).max(140).optional(),
+  issue: z.string().trim().min(1).max(200).optional(),
+  author_id: z.string().min(1).max(200).optional(),
+  region: z
+    .string()
+    .regex(/^[A-Z0-9._-]{1,20}$/i)
+    .optional(),
+  content_type: z.enum(["post", "reply", "repost", "quote", "comment", "replies", "reposts"]).optional(),
+  sort: z.enum(["latest", "engagement"]).optional(),
+  count: z.enum(["0", "1"]).optional(),
 });
 
 export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
@@ -59,12 +70,18 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
     r.get(path, read, async (c) => c.json({ data: await fn(await filter(c)), meta: meta(c) }));
 
   route("/analytics/summary", ({ f }) => A.summary(d.ch, f));
-  route("/analytics/exposure", ({ f, q }) => A.exposure(d.ch, f, q.granularity ?? A.autoGranularity(f)));
+  route("/analytics/exposure", ({ f, q }) => A.exposure(d.ch, f, q.granularity ?? A.autoGranularity(f), q.mode));
+  route("/analytics/emotion/timeline", ({ f, q }) => A.emotionTimeline(d.ch, f, q.granularity ?? A.autoGranularity(f)));
+  route("/analytics/accounts/active", ({ f }) => A.activeAccounts(d.ch, f));
+  route("/analytics/accounts/reposted", ({ f, q }) => A.repostedAccounts(d.ch, f, q.limit ?? 10));
+  route("/analytics/platforms", ({ f }) => A.platformBreakdown(d.ch, f));
+  route("/analytics/activity", ({ f }) => A.activityHeatmap(d.ch, f));
+  route("/analytics/accounts/created-year", ({ f }) => A.authorCreatedYear(d.ch, f));
   route("/analytics/sentiment/timeline", ({ f, q }) => A.sentimentTimeline(d.ch, f, q.mode, q.granularity ?? A.autoGranularity(f)));
   route("/analytics/sentiment/proportion", ({ f, q }) => A.sentimentProportion(d.ch, f, q.mode));
   route("/analytics/emotion/proportion", ({ f, q }) => A.emotionProportion(d.ch, f, q.mode));
   route("/analytics/hashtags", ({ f, q }) => A.hashtags(d.ch, f, q.limit ?? 30, q.sentiment));
-  route("/analytics/accounts/top", ({ f, q }) => A.topAccounts(d.ch, f, q.by, q.limit ?? 10));
+  route("/analytics/accounts/top", ({ f, q }) => A.topAccounts(d.ch, f, q.by, q.limit ?? 10, q.sentiment));
   let regions: { at: number; names: Map<string, string> } | null = null;
   route("/analytics/locations", async ({ f }) => {
     if (!regions || Date.now() - regions.at > 600_000) {
@@ -77,8 +94,22 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
     const r = await A.locations(d.ch, f);
     return { ...r, items: r.items.map((x) => ({ ...x, name: regions!.names.get(x.code) ?? x.code })) };
   });
-  route("/posts", ({ f, q }) =>
-    A.feed(d.ch, f, { sentiment: q.sentiment, emotion: q.emotion, limit: q.limit ?? 20, offset: q.offset ?? 0 }),
-  );
+  r.get("/posts", read, async (c) => {
+    const { f, q } = await filter(c);
+    const o: A.FeedOptions = {
+      sentiment: q.sentiment,
+      emotion: q.emotion,
+      hashtag: q.hashtag,
+      issue: q.issue,
+      authorId: q.author_id,
+      region: q.region,
+      contentType: q.content_type,
+      sort: q.sort,
+      limit: q.limit ?? 20,
+      offset: q.offset ?? 0,
+    };
+    const [items, total] = await Promise.all([A.feed(d.ch, f, o), q.count === "1" ? A.feedCount(d.ch, f, o) : undefined]);
+    return c.json({ data: items, meta: { ...meta(c), ...(total !== undefined ? { total } : {}) } });
+  });
   return r;
 }

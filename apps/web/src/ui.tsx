@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 
 export const Card = ({ title, children, right }: { title?: string; children: ReactNode; right?: ReactNode }) => (
   <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
@@ -61,3 +61,88 @@ export const PLATFORM_LABEL: Record<string, string> = {
   tiktok: "TikTok",
   youtube: "YouTube",
 };
+
+export function Modal({
+  title,
+  onClose,
+  children,
+  right,
+  footer,
+}: {
+  title: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+  right?: ReactNode;
+  footer?: ReactNode;
+}) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", esc);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", esc);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-40 flex items-start justify-center p-2 sm:p-6">
+      <button type="button" aria-label="Tutup" className="absolute inset-0 cursor-default bg-black/40" onClick={onClose} />
+      <div className="relative flex max-h-[94vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl" role="dialog" aria-modal="true">
+        <header className="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-4 py-3">
+          <h2 className="mr-auto text-sm font-semibold uppercase tracking-wide text-zinc-700">{title}</h2>
+          {right}
+          <button type="button" onClick={onClose} className="ml-1 rounded-full px-2 text-xl leading-none text-zinc-500 hover:bg-zinc-100">
+            ×
+          </button>
+        </header>
+        <div className="overflow-y-auto p-4">{children}</div>
+        {footer && <footer className="border-t border-zinc-200 px-4 py-2">{footer}</footer>}
+      </div>
+    </div>
+  );
+}
+
+export function Tabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: { id: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1 border-b border-zinc-200">
+      {tabs.map((t) => (
+        <button
+          type="button"
+          key={t.id}
+          onClick={() => onChange(t.id)}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            t.id === value ? "border-brand-600 text-brand-700" : "border-transparent text-zinc-500 hover:text-zinc-800"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export const Switch = ({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={on}
+    disabled={disabled}
+    onClick={() => onChange(!on)}
+    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:opacity-50 ${on ? "bg-emerald-500" : "bg-zinc-300"}`}
+  >
+    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${on ? "translate-x-4" : "translate-x-0.5"}`} />
+  </button>
+);
+
+export const Select = (p: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+  <select {...p} className={`rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm ${p.className ?? ""}`} />
+);

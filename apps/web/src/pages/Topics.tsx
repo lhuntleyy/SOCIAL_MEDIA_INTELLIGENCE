@@ -3,8 +3,8 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import type { Run, TopicDetail, TopicSummary } from "../types";
-import { Badge, Button, Card, Empty, ErrorText, fmtTime, Input, PLATFORM_LABEL } from "../ui";
+import type { TopicDetail, TopicSummary } from "../types";
+import { Badge, Button, Card, Empty, ErrorText, Input, PLATFORM_LABEL } from "../ui";
 
 const statusTone = (s: string) =>
   s === "active" || s === "succeeded" ? "green" : s === "failed" ? "red" : s === "paused" || s === "partial" ? "amber" : "zinc";
@@ -59,43 +59,6 @@ export function TopicList() {
   );
 }
 
-export function RunsTable({ runs }: { runs: Run[] }) {
-  if (!runs.length) return <Empty>Belum ada run crawling.</Empty>;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs uppercase text-zinc-500">
-          <tr>
-            <th className="py-2">Waktu</th>
-            <th>Platform</th>
-            <th>Jenis</th>
-            <th>Status</th>
-            <th className="text-right">Diambil</th>
-            <th className="text-right">Match</th>
-            <th className="text-right">Baru</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-zinc-100">
-          {runs.map((r) => (
-            <tr key={r.id}>
-              <td className="py-2 whitespace-nowrap">{fmtTime(r.scheduled_for)}</td>
-              <td>{PLATFORM_LABEL[r.platform] ?? r.platform}</td>
-              <td className="text-zinc-500">{r.source === "stream" ? `${r.kind} (stream)` : r.kind}</td>
-              <td>
-                <Badge tone={statusTone(r.status)}>{r.status}</Badge>
-                {r.error_code && <span className="ml-1 text-xs text-red-600">{r.error_code}</span>}
-              </td>
-              <td className="text-right tabular-nums">{r.items_fetched}</td>
-              <td className="text-right tabular-nums">{r.items_matched}</td>
-              <td className="text-right tabular-nums">{r.items_new}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export function TopicPage() {
   const { id = "" } = useParams();
   const nav = useNavigate();
@@ -103,12 +66,6 @@ export function TopicPage() {
   const canWrite = useRole("analyst");
   const canAdmin = useRole("admin");
   const t = useQuery({ queryKey: ["topic", id], queryFn: () => api<TopicDetail>(`/topics/${id}`) });
-  const runs = useQuery({
-    queryKey: ["runs", id],
-    queryFn: () => api<Run[]>(`/topics/${id}/runs?limit=30`),
-    refetchInterval: 30_000,
-    enabled: canWrite,
-  });
   const status = useMutation({
     mutationFn: (to: "pause" | "resume" | "archive") =>
       to === "archive"
@@ -121,44 +78,48 @@ export function TopicPage() {
     },
   });
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <div className="space-y-4 lg:col-span-1">
+    <div className="mx-auto max-w-3xl space-y-4">
+      <div className="space-y-4">
         <ErrorText error={t.error} />
         {t.data && (
           <Card title={t.data.name} right={<Badge tone={statusTone(t.data.status)}>{t.data.status}</Badge>}>
             {t.data.description && <p className="mb-3 text-sm text-zinc-600">{t.data.description}</p>}
-            {canWrite && (
-              <div className="mb-3 flex flex-wrap gap-2">
-                <Button onClick={() => nav(`/topics/${id}/edit`)}>Ubah</Button>
-                {t.data.status === "active" ? (
-                  <Button variant="ghost" onClick={() => status.mutate("pause")}>
-                    Jeda
-                  </Button>
-                ) : (
-                  <Button variant="ghost" onClick={() => status.mutate("resume")}>
-                    Lanjutkan
-                  </Button>
-                )}
-                {canAdmin && (
-                  <Button
-                    variant="danger"
-                    onClick={() => confirm(`Arsipkan topik "${t.data?.name}"? Crawling berhenti.`) && status.mutate("archive")}
-                  >
-                    Arsipkan
-                  </Button>
-                )}
-              </div>
-            )}
+            <div className="mb-3 flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={() => nav(`/?topic=${id}`)}>
+                Lihat dashboard
+              </Button>
+              {canWrite && (
+                <>
+                  <Button onClick={() => nav(`/topics/${id}/edit`)}>Ubah</Button>
+                  {t.data.status === "active" ? (
+                    <Button variant="ghost" onClick={() => status.mutate("pause")}>
+                      Jeda
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" onClick={() => status.mutate("resume")}>
+                      Lanjutkan
+                    </Button>
+                  )}
+                  {canAdmin && (
+                    <Button
+                      variant="danger"
+                      onClick={() => confirm(`Arsipkan topik "${t.data?.name}"? Crawling berhenti.`) && status.mutate("archive")}
+                    >
+                      Arsipkan
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
             <ErrorText error={status.error} />
             <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">Platform</h3>
-            <ul className="mb-3 space-y-1 text-sm">
-              {t.data.platforms.map((p) => (
-                <li key={p.code} className="flex justify-between">
-                  <span>{PLATFORM_LABEL[p.code] ?? p.code}</span>
-                  <span className="text-zinc-500">tiap {Math.round(p.effective_interval_sec / 60)} menit</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {t.data.platforms
+                .filter((p) => p.enabled)
+                .map((p) => (
+                  <Badge key={p.code}>{PLATFORM_LABEL[p.code] ?? p.code}</Badge>
+                ))}
+            </div>
             <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">Query</h3>
             <ul className="space-y-2">
               {t.data.queries.map((q) => (
@@ -170,13 +131,6 @@ export function TopicPage() {
             </ul>
           </Card>
         )}
-      </div>
-      <div className="lg:col-span-2">
-        <Card title="Riwayat crawling">
-          <ErrorText error={runs.error} />
-          {!canWrite && <Empty>Riwayat crawling hanya untuk analis ke atas.</Empty>}
-          {runs.data && <RunsTable runs={runs.data} />}
-        </Card>
       </div>
     </div>
   );

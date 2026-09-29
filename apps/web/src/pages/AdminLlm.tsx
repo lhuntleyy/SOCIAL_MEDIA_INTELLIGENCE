@@ -97,7 +97,7 @@ function AddProvider({ onDone }: { onDone: () => void }) {
     },
   });
   return (
-    <Card title="Tambah provider LLM">
+    <Card title="Tambah provider AI">
       <div className="grid gap-3 md:grid-cols-4">
         <select
           className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
@@ -183,7 +183,7 @@ function ProviderCard({ p, refresh }: { p: Provider; refresh: () => void }) {
           {p.models} model{p.models_fetched_at ? ` · diperbarui ${fmtTime(p.models_fetched_at)}` : ""}
         </span>
         <Button variant="ghost" onClick={() => models.mutate()} disabled={models.isPending}>
-          {models.isPending ? "Mengambil…" : "Refresh model"}
+          {models.isPending ? "Mengambil…" : "Perbarui daftar model"}
         </Button>
         <Button variant="ghost" onClick={() => toggle.mutate()}>
           {p.enabled ? "Nonaktifkan" : "Aktifkan"}
@@ -193,7 +193,9 @@ function ProviderCard({ p, refresh }: { p: Provider; refresh: () => void }) {
         </Button>
       </div>
       <ErrorText error={models.error ?? toggle.error ?? del.error ?? keyOp.error} />
-      <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">API key (dipakai bergiliran; 429 → jeda otomatis)</h3>
+      <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">
+        API key — boleh lebih dari satu; dipakai bergiliran, kalau satu kena batas otomatis pindah
+      </h3>
       {p.keys.length ? (
         <table className="mb-3 w-full text-sm">
           <tbody className="divide-y divide-zinc-100">
@@ -334,7 +336,7 @@ function TestPanel({ providers }: { providers: Provider[] }) {
       }>("/admin/llm/test", { method: "POST", json: { provider_id: pid, model_id: model, text } }),
   });
   return (
-    <Card title="Tes model (klasifikasi sentimen contoh)">
+    <Card title="Coba AI dengan kalimat contoh">
       <div className="grid gap-2 md:grid-cols-[1fr_1fr_2fr_auto]">
         <select
           className="rounded-lg border border-zinc-300 px-2 py-1.5 text-sm"
@@ -366,7 +368,9 @@ function TestPanel({ providers }: { providers: Provider[] }) {
   );
 }
 
-export default function AdminLlm() {
+/** Tampilan sederhana: SATU pilihan provider + model untuk semua tugas AI, API key provider itu, dan tes cepat.
+ *  Per-tugas / model cadangan / provider lain ada di "Pengaturan lanjutan". */
+export default function AiSettings() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["admin-llm"], queryFn: () => api<{ providers: Provider[]; tasks: Task[] }>("/admin/llm") });
   const refresh = () => {
@@ -374,42 +378,120 @@ export default function AdminLlm() {
     void qc.invalidateQueries({ queryKey: ["llm-models"] });
   };
   const providers = q.data?.providers ?? [];
+  const tasks = q.data?.tasks ?? [];
+  const current = tasks.find((t) => t.task === "default") ?? tasks.find((t) => t.enabled);
+  const [pid, setPid] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  useEffect(() => {
+    if (current && pid === null) {
+      setPid(current.provider_id);
+      setModel(current.model_id);
+    }
+  }, [current, pid]);
+  const active = providers.find((p) => p.id === pid) ?? null;
+  const usedBy = tasks.filter((t) => t.enabled && t.task !== "default").map((t) => TASK_LABEL[t.task] ?? t.task);
+  const dirty = !!current && (pid !== current.provider_id || model !== current.model_id);
+  const save = useMutation({
+    // semua tugas yang AKTIF (+ default) dipindah ke provider/model yang sama; tugas nonaktif dibiarkan
+    mutationFn: () =>
+      Promise.all(
+        tasks
+          .filter((t) => t.task === "default" || t.enabled)
+          .map((t) =>
+            api(`/admin/llm/tasks/${t.task}`, {
+              method: "PUT",
+              json: {
+                provider_id: pid,
+                model_id: model,
+                fallback_provider_id: t.fallback_provider_id ?? null,
+                fallback_model_id: t.fallback_model_id ?? null,
+                enabled: true,
+                params: t.params?.batch_size ? { batch_size: t.params.batch_size } : {},
+              },
+            }),
+          ),
+      ),
+    onSuccess: refresh,
+  });
   return (
     <div className="space-y-4">
       <ErrorText error={q.error} />
-      <Card title="Model per tugas AI">
+      <Card title="AI yang dipakai">
         {providers.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="text-left text-xs uppercase text-zinc-500">
-                <tr>
-                  <th className="py-2">Tugas</th>
-                  <th>Provider</th>
-                  <th>Model</th>
-                  <th>Cadangan</th>
-                  <th>Model cadangan</th>
-                  <th>Aktif</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {q.data?.tasks.map((t) => (
-                  <TaskRow key={t.task} t={t} providers={providers} onSaved={refresh} />
+          <>
+            <p className="mb-3 text-sm text-zinc-600">
+              Dipakai untuk membaca sentimen & emosi setiap post{usedBy.length ? ` (${usedBy.join(", ")})` : ""}. Hasilnya juga disimpan
+              untuk melatih model sendiri nanti.
+            </p>
+            <div className="grid gap-2 md:grid-cols-[1fr_2fr_auto]">
+              <select
+                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                value={pid ?? ""}
+                onChange={(e) => {
+                  setPid(e.target.value || null);
+                  setModel(null);
+                }}
+              >
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id} disabled={!p.enabled}>
+                    {p.name}
+                    {!p.enabled ? " (nonaktif)" : ""}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </select>
+              <ModelSelect pid={pid} value={model} onChange={setModel} />
+              <Button onClick={() => save.mutate()} disabled={!dirty || !pid || !model || save.isPending}>
+                {save.isPending ? "Menyimpan…" : "Simpan"}
+              </Button>
+            </div>
+            <ErrorText error={save.error} />
+            {save.isSuccess && !dirty && <p className="mt-2 text-sm text-emerald-700">Tersimpan — post baru memakai model ini.</p>}
+          </>
         ) : (
-          <Empty>Tambahkan provider LLM dulu.</Empty>
+          <p className="text-sm text-zinc-600">Belum ada provider AI — tambahkan di bawah.</p>
         )}
       </Card>
+      {active && <ProviderCard p={active} refresh={refresh} />}
       {providers.length > 0 && <TestPanel providers={providers} />}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {providers.map((p) => (
-          <ProviderCard key={p.id} p={p} refresh={refresh} />
-        ))}
-      </div>
-      <AddProvider onDone={refresh} />
+      <details className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-600">
+          Pengaturan lanjutan — provider lain, model per tugas, model cadangan
+        </summary>
+        <div className="mt-4 space-y-4">
+          <AddProvider onDone={refresh} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            {providers
+              .filter((p) => p.id !== pid)
+              .map((p) => (
+                <ProviderCard key={p.id} p={p} refresh={refresh} />
+              ))}
+          </div>
+          {providers.length > 0 && (
+            <Card title="Model per tugas">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead className="text-left text-xs uppercase text-zinc-500">
+                    <tr>
+                      <th className="py-2">Tugas</th>
+                      <th>Provider</th>
+                      <th>Model</th>
+                      <th>Cadangan</th>
+                      <th>Model cadangan</th>
+                      <th>Aktif</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {tasks.map((t) => (
+                      <TaskRow key={t.task} t={t} providers={providers} onSaved={refresh} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      </details>
     </div>
   );
 }

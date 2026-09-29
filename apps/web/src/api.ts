@@ -69,7 +69,16 @@ export function setViewAs(v: ViewAs | null) {
   }
 }
 
-export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}, retry = true): Promise<T> {
+export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
+  return (await apiFull<T>(path, init)).data;
+}
+
+/** Seperti api(), tapi juga mengembalikan `meta` (mis. total untuk drill-down post). */
+export async function apiFull<T>(
+  path: string,
+  init: RequestInit & { json?: unknown } = {},
+  retry = true,
+): Promise<{ data: T; meta: Record<string, unknown> }> {
   const headers = new Headers(init.headers);
   if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
   if (viewAs && !path.startsWith("/auth/") && !path.startsWith("/me")) {
@@ -83,14 +92,15 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     credentials: "same-origin",
     body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
   });
-  if (res.status === 401 && retry && path !== "/auth/login" && (await refreshSession())) return api<T>(path, init, false);
-  if (res.status === 204) return undefined as T;
+  if (res.status === 401 && retry && path !== "/auth/login" && (await refreshSession())) return apiFull<T>(path, init, false);
+  if (res.status === 204) return { data: undefined as T, meta: {} };
   const body = (await res.json().catch(() => ({}))) as {
     data?: T;
+    meta?: Record<string, unknown>;
     error?: { code: string; message: string; details?: { path: string; issue: string }[] };
   };
   if (!res.ok) throw new ApiError(res.status, body.error?.code ?? "HTTP", body.error?.message ?? `HTTP ${res.status}`, body.error?.details);
-  return body.data as T;
+  return { data: body.data as T, meta: body.meta ?? {} };
 }
 
 export interface Me {

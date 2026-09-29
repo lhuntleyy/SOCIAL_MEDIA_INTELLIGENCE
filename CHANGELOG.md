@@ -5,6 +5,13 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Sesi 2026-09-30 — UI disederhanakan + analitik ala produk referensi (drill-down):**
+  - **Klik diagram → post** (drill-down) di semua chart: popup berisi post di balik angka (urut terbaru / engagement tertinggi, "muat lebih banyak", jumlah total) + **"Jadikan filter"** untuk platform/rentang waktu. Feed `/posts` menerima `hashtag`, `issue`, `author_id`, `region`, `content_type` (termasuk kelompok `replies`/`reposts`), `sort`, `count=1` → `meta.total`.
+  - Endpoint analitik baru (dari agregat): `emotion/timeline`, `accounts/active`, `accounts/reposted`, `platforms` (post/balasan/repost per platform), `activity` (heatmap hari×jam WIB), `accounts/created-year`; `exposure?mode=engagement`; `accounts/top?by=replies|reposts&sentiment=`.
+  - Web: filter global (topik, rentang, **platform**, auto-refresh) terbawa antar halaman; halaman **Percakapan** (Kronologi / Sentimen / Emosi / Engagement), **Kontributor**, **Audiens**; Dashboard ditulis ulang.
+  - **Kantor & pengguna** jadi satu halaman (administrator: semua kantor + user-nya, `GET /admin/tenants/{id}/users`; admin kantor: user kantornya); peran disederhanakan jadi Admin kantor / Analis / Pembaca.
+  - **Pengaturan** (hanya administrator) = tab *Sumber data* (per platform, saklar aktif, status sehat, run & biaya bulan ini; sumber uji disembunyikan) + tab *AI* (satu pilihan provider+model untuk semua tugas, API key, tes; per-tugas/cadangan di "lanjutan").
+  - Topik: riwayat crawling & interval dihapus dari UI; interval crawl ditentukan sistem (`plans.limits.default_interval_sec`, bawaan 1 jam); interval topik lama dipertahankan saat diubah.
 - Dokumentasi awal v0.1: PRD, ARCHITECTURE, DATA_MODEL, CONNECTOR_SPEC, PROVIDER_MATRIX, QUEUE_SPEC, AI_SPEC, API_SPEC, UI_SPEC, SECURITY, OBSERVABILITY, DEPLOYMENT, TESTING, RUNBOOK, ADR-001..006, TASK, PROGRESS.
 - **v0.2 — parity dengan produk referensi + AGENTS.md:**
   - `AGENTS.md` (golden rules, konvensi, DoD untuk portabilitas antar-model).

@@ -1,10 +1,10 @@
 // F-09: layanan autentikasi (SECURITY §2, API_SPEC §2). Semua akses DB lewat withAuthRole (role smip_auth).
 import { type KmsAdapter, open, seal } from "@smip/crypto";
-import { auditLogs, type Db, memberships, refreshTokens, tenants, type Tx, users, withAuthRole } from "@smip/db";
+import { auditLogs, type Db, memberships, refreshTokens, type Tx, tenants, users, withAuthRole } from "@smip/db";
 import type { Logger } from "@smip/observability";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { ApiError } from "../errors";
-import { type AccessClaims, ACCESS_TTL_SEC, type JwtKeys, type Role, signAccess } from "./jwt";
+import { ACCESS_TTL_SEC, type AccessClaims, type JwtKeys, type Role, signAccess } from "./jwt";
 import type { LoginLimiter } from "./rate-limit";
 import { newTotpSecret, otpauthUri, verifyTotp } from "./totp";
 

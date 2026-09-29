@@ -30,13 +30,6 @@ interface Estimate {
   would_throttle?: string[];
 }
 
-const INTERVALS = [
-  { v: 300, l: "5 menit" },
-  { v: 900, l: "15 menit" },
-  { v: 1800, l: "30 menit" },
-  { v: 2700, l: "45 menit" },
-  { v: 3600, l: "1 jam" },
-];
 const LANGS = [
   { v: "id", l: "🇮🇩 Indonesia" },
   { v: "en", l: "🇬🇧 English" },
@@ -154,7 +147,8 @@ export default function TopicForm() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [filterAds, setFilterAds] = useState(true);
-  const [sel, setSel] = useState<Record<string, number>>({ x: 900 });
+  // interval crawl TIDAK diatur di UI (sistem yang menentukan); interval topik lama tetap dipertahankan saat diubah
+  const [sel, setSel] = useState<Record<string, number | null>>({ x: null });
   const [queries, setQueries] = useState<QueryRow[]>([emptyQuery("main")]);
   const [est, setEst] = useState<Estimate | null>(null);
 
@@ -183,7 +177,7 @@ export default function TopicForm() {
     description: desc || null,
     filter_ads: filterAds,
     language_hints: ["id"],
-    platforms: Object.entries(sel).map(([code, interval_sec]) => ({ code, interval_sec })),
+    platforms: Object.entries(sel).map(([code, interval_sec]) => (interval_sec ? { code, interval_sec } : { code })),
     queries: queries.map((q) => ({
       ...(q.id ? { id: q.id } : {}),
       kind: q.kind,
@@ -235,7 +229,7 @@ export default function TopicForm() {
               onChange={(e) => setDesc(e.target.value)}
             />
             <div>
-              <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">Platform & interval pengambilan</h3>
+              <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">Platform</h3>
               <div className="grid gap-2 sm:grid-cols-2">
                 {platforms.data?.map((p) => (
                   <div key={p.code} className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2">
@@ -245,26 +239,13 @@ export default function TopicForm() {
                         checked={p.code in sel}
                         onChange={(e) => {
                           const n = { ...sel };
-                          if (e.target.checked) n[p.code] = Math.max(900, p.min_interval_sec);
+                          if (e.target.checked) n[p.code] = existing.data?.platforms.find((x) => x.code === p.code)?.interval_sec ?? null;
                           else delete n[p.code];
                           setSel(n);
                         }}
                       />
                       {PLATFORM_LABEL[p.code] ?? p.name}
                     </label>
-                    {p.code in sel && (
-                      <select
-                        className="rounded border border-zinc-300 px-1 py-0.5 text-xs"
-                        value={sel[p.code]}
-                        onChange={(e) => setSel({ ...sel, [p.code]: Number(e.target.value) })}
-                      >
-                        {INTERVALS.filter((i) => i.v >= p.min_interval_sec).map((i) => (
-                          <option key={i.v} value={i.v}>
-                            tiap {i.l}
-                          </option>
-                        ))}
-                      </select>
-                    )}
                   </div>
                 ))}
               </div>
@@ -326,13 +307,15 @@ export default function TopicForm() {
               {est.unverified_rates.length > 0 && (
                 <p className="text-xs text-amber-700">Tarif belum terverifikasi: {est.unverified_rates.join(", ")}</p>
               )}
-              {est.warnings?.map((w) => (
-                <p key={`${w.code}${w.platform}`} className="text-xs text-amber-700">
-                  {w.code === "INTERVAL_CLAMPED" ? `Interval ${w.platform} disesuaikan ke minimum yang didukung` : w.code}
-                </p>
-              ))}
+              {est.warnings
+                ?.filter((w) => w.code !== "INTERVAL_CLAMPED")
+                .map((w) => (
+                  <p key={`${w.code}${w.platform}`} className="text-xs text-amber-700">
+                    {w.code === "NO_ACTIVE_CONNECTOR" ? `${w.platform}: belum ada sumber data aktif` : w.code}
+                  </p>
+                ))}
               {est.would_exceed.length > 0 && (
-                <p className="text-xs text-red-600">Melebihi kuota: {est.would_exceed.join(", ")} — perbesar interval.</p>
+                <p className="text-xs text-red-600">Melebihi kuota: {est.would_exceed.join(", ")} — kurangi platform atau query.</p>
               )}
               {!!est.would_throttle?.length && (
                 <p className="text-xs text-amber-700">Akan diperlambat (batas lunak): {est.would_throttle.join(", ")}</p>
