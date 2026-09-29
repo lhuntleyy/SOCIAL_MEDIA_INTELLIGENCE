@@ -12,3 +12,5 @@ __pycache__/
 *.pyc
 .DS_Store
 .pytest_cache/
+# gold set / korpus berisi teks post (dipseudonimkan) — simpan di bucket training, bukan git
+workers-py/data/
