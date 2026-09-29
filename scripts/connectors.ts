@@ -6,8 +6,9 @@
 //                                                           → panggil provider SUNGGUHAN (berbayar!) dgn window 24 jam, validasi, laporan
 //                                                             docs/evidence/verify/verify-<key>.json; --apply → capability verified + measured
 // Env: DATABASE_URL, KMS_* (lihat infra/compose/.env.dev). Config biaya connector (maxTotalChargeUsd, memoryMb) diambil dari connectors.config.
-import { CanonicalItem, type Operation } from "@smip/contracts";
+
 import { type Connector, HttpClient } from "@smip/connector-sdk";
+import { CanonicalItem, type Operation } from "@smip/contracts";
 import { createKms, credentialAad, open, seal } from "@smip/crypto";
 import { connectorRegistry } from "@smip/worker-fetch-bun";
 import postgres from "postgres";
@@ -30,7 +31,9 @@ async function register() {
     await sql.begin(async (tx) => {
       await tx`SET LOCAL ROLE smip_system`;
       // provider BARU dicatat disabled (kill-switch) — diaktifkan operator setelah verified
-      await tx`insert into providers (id, key, name, kind, risk_level, enabled) values (${Bun.randomUUIDv7()}, ${m.providerKey}, ${m.providerKey}, 'third_party', 'medium', false)
+      const kind = m.providerKind ?? "third_party";
+      const risk = kind === "official" ? "low" : kind === "unofficial" ? "high" : "medium";
+      await tx`insert into providers (id, key, name, kind, risk_level, enabled) values (${Bun.randomUUIDv7()}, ${m.providerKey}, ${m.providerKey}, ${kind}, ${risk}, false)
         on conflict (key) do nothing`;
       const [p] = await tx`select id from providers where key = ${m.providerKey}`;
       await tx`insert into connectors (id, key, provider_id, platform_code, runtime, version, enabled, config_schema, manifest_hash)
@@ -107,7 +110,7 @@ async function verify(key: string, query: string, samples: number, apply: boolea
     const ctx = {
       credential: { kind: "api_key" as const, secret: cred },
       config: (row.config ?? {}) as Record<string, unknown>,
-      http: new HttpClient({ allowedHosts: ["api.apify.com"], timeoutMs: 90_000 }),
+      http: new HttpClient({ allowedHosts: c.manifest.allowedHosts ?? [], timeoutMs: 90_000 }),
       logger: {
         debug() {},
         info() {},

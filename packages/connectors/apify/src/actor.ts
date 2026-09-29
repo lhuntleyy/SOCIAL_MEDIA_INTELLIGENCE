@@ -2,7 +2,7 @@
 //   start run (waitForFinish ≤ 60 s) → SUCCEEDED: ambil dataset → normalisasi
 //                                    → masih berjalan: kembalikan asyncHandle (worker menjadwalkan fetch.resume)
 // Angka biaya/memori TIDAK di kode: dari connectors.config (operator) — Golden Rule 1.
-import type { CanonicalItem } from "@smip/contracts";
+
 import {
   type AsyncHandle,
   type Connector,
@@ -14,6 +14,7 @@ import {
   type HealthProbeResult,
   type OperationSupport,
 } from "@smip/connector-sdk";
+import type { CanonicalItem } from "@smip/contracts";
 import { APIFY_HOSTS, type ApifyRun, datasetItems, failIfBad, getRun, PLAN_LIMIT_LOG, RUNNING, runLog, startRun } from "./client";
 
 export interface ActorConfig {
@@ -73,6 +74,7 @@ export class ApifyActorConnector implements Connector {
       operations: spec.operations,
       costModel: { unit: "result", reportsUsageInResponse: true },
       docsUrl: spec.docsUrl,
+      allowedHosts: APIFY_HOSTS,
     };
   }
 

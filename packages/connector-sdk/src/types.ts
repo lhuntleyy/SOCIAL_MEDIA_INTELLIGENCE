@@ -26,6 +26,8 @@ export interface ConnectorManifest {
   key: string;
   version: string;
   providerKey: string;
+  /** Jenis provider untuk registrasi (default third_party). `unofficial` → risk_level high wajib (CHECK DB). */
+  providerKind?: "official" | "third_party" | "unofficial";
   platform: string;
   runtime: Runtime;
   displayName: string;
@@ -37,6 +39,8 @@ export interface ConnectorManifest {
   costModel: { unit: "request" | "result" | "compute_unit" | "credit" | "unknown"; reportsUsageInResponse: boolean };
   /** Sumber fakta (dokumen provider). */
   docsUrl: string;
+  /** Allowlist host egress (SEC-07): HttpClient worker menolak host lain. Kosong/absen = hanya guard SSRF umum. */
+  allowedHosts?: string[];
 }
 
 export interface DecryptedCredential {

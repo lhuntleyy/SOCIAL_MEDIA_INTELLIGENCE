@@ -1,0 +1,8 @@
+{
+  "probe_date": "2026-09-29",
+  "note": "Hanya nama field (tanpa konten). Probe: search.list (5 hasil) → videos.list → channels.list; key via header X-Goog-Api-Key.",
+  "search.list": { "top": ["kind", "etag", "nextPageToken", "regionCode", "pageInfo", "items"], "item": ["kind", "etag", "id", "snippet"], "item.id": ["kind", "videoId"], "item.snippet": ["publishedAt", "channelId", "title", "description", "thumbnails", "channelTitle", "liveBroadcastContent", "publishTime"] },
+  "videos.list": { "item.snippet": ["publishedAt", "channelId", "title", "description", "thumbnails", "channelTitle", "categoryId", "liveBroadcastContent", "defaultLanguage", "localized", "defaultAudioLanguage"], "item.statistics": ["viewCount", "likeCount", "favoriteCount", "commentCount"], "publishedAt_format": "ISO-8601 Z (mis. 2026-09-29T07:00:21Z)", "counts_type": "string" },
+  "channels.list": { "item.snippet": ["title", "description", "customUrl", "publishedAt", "thumbnails", "localized"], "item.statistics": ["viewCount", "subscriberCount", "hiddenSubscriberCount", "videoCount"] },
+  "error_bad_key": { "http": 400, "errors[].reason": "badRequest", "details[].reason": "API_KEY_INVALID" }
+}

@@ -1,7 +1,9 @@
-// Registry connector runtime bun (I-17: Apify). `fake.*` hanya non-produksi.
-import type { Connector } from "@smip/connector-sdk";
+// Registry connector runtime bun (I-17: Apify; I-18: YouTube Data API official). `fake.*` hanya non-produksi.
+
 import { apifyConnectors } from "@smip/connector-apify";
 import { FakeConnector, fakeItem } from "@smip/connector-fake";
+import type { Connector } from "@smip/connector-sdk";
+import { YoutubeDataConnector } from "@smip/connector-youtube-data";
 
 const FAKE_PLATFORMS = ["x", "instagram", "facebook", "threads", "tiktok", "youtube"];
 
@@ -41,7 +43,7 @@ function demoItems(platform: string) {
 
 export function connectorRegistry(env: string): Map<string, Connector> {
   // connector nyata: aktif/tidaknya diatur DB (providers/connectors.enabled + routing), bukan di sini
-  const list: Connector[] = [...apifyConnectors()];
+  const list: Connector[] = [...apifyConnectors(), new YoutubeDataConnector()];
   if (env !== "production") list.push(...FAKE_PLATFORMS.map((p) => new FakeConnector({ platform: p, autoRespond: demoItems(p) })));
   return new Map(list.map((c) => [c.manifest.key, c]));
 }

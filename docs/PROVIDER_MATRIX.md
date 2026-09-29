@@ -43,7 +43,7 @@ Uji kontrak nyata via Apify (kata kunci "koperasi merah putih", 10–20 item/run
 | TikTok | 2 | Apify `xmolodtsov/tiktok-search-scraper` · `apify.tiktok.xmolodtsov` | **VERIFIED** 2026-09-29 (5 sampel, p50 7,4 s) | $0,30 | ~0 | murah; **tanpa filter tanggal** (saring lokal) → cadangan |
 | TikTok | 3 | Apify `clockworks/tiktok-scraper` | DOCS | $3,70 (FREE) / $1,70 (berbayar) | cap run minimal $0,50 | versi penuh clockworks |
 | TikTok | 3 | ScrapeCreators `/v1/tiktok/search/keyword` · EnsembleData | DOCS | tidak publik / 1 unit | — | vendor non-Apify |
-| YouTube | 1 | YouTube Data API v3 official | DOCS | gratis | — | 100 `search.list`/hari |
+| YouTube | 1 | YouTube Data API v3 official · `youtube_data_api.youtube` | **VERIFIED** 2026-09-29 (5 sampel: 100/100 valid, p50 320 ms / p95 402 ms) | gratis | — | 100 `search.list`/hari; 1 fetch = search + videos.list + channels.list (usage.requests = 3); `post_detail` untuk engagement refresh |
 | YouTube | 2 | Apify `streamers/youtube-scraper` · `apify.youtube.streamers` | **VERIFIED** 2026-09-29 (1 sampel; latency 5 sampel ditunda) | $4,00 | ~0 | `oldestPostDate` **tidak dihormati** di mode search → `dateFilter` (hour/today/week/month/year) + saring lokal; ~$0,04/run |
 | YouTube | 3 | ScrapeCreators `/v1/youtube/search` · EnsembleData | DOCS | — | — | vendor non-Apify |
 

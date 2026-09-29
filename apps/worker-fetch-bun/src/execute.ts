@@ -1,7 +1,7 @@
 // I-13 worker-fetch-bun: satu job = satu ATTEMPT pada satu connector — semua sub-query × halaman berurutan
 // (pageLimit per sub-query, maxItems total, deadline_at). Item unik per attempt → JSONL.gz di blob store → items_ref.
 // Error connector di tengah jalan: item yang sudah diterima TETAP diteruskan (sudah dibayar; CONNECTOR_SPEC §4a).
-import { CanonicalItem, type FetchRequestPayload, type FetchResultPayload } from "@smip/contracts";
+
 import {
   type AsyncHandle,
   type Connector,
@@ -12,6 +12,7 @@ import {
   type RateLimitInfo,
   toConnectorError,
 } from "@smip/connector-sdk";
+import { CanonicalItem, type FetchRequestPayload, type FetchResultPayload } from "@smip/contracts";
 import { type Logger, redactString } from "@smip/observability";
 import { createEnvelope } from "@smip/queue";
 import type { BlobStore } from "@smip/storage";
@@ -66,7 +67,7 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
     const ctx: ConnectorContext = {
       credential: acc.credential,
       config: acc.config,
-      http: new HttpClient({ logger: log, allowPrivateNetwork: d.allowPrivateNetwork }),
+      http: new HttpClient({ logger: log, allowPrivateNetwork: d.allowPrivateNetwork, allowedHosts: conn.manifest.allowedHosts ?? [] }),
       logger: log ?? ({ debug() {}, info() {}, warn() {}, error() {}, child: () => ctx.logger } as unknown as Logger),
       signal,
       reportRateLimit: (i) => {

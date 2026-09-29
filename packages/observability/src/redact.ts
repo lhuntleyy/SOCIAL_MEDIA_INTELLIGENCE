@@ -38,7 +38,10 @@ export function isSensitiveKey(key: string): boolean {
 const VALUE_PATTERNS: [RegExp, string | ((m: string, ...g: string[]) => string)][] = [
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, (_m, scheme: string) => `${scheme} ${REDACTED}`],
   [/\beyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/g, REDACTED], // JWT
-  [/\b(sk-ant-[A-Za-z0-9_-]{8,}|apify_api_[A-Za-z0-9]{8,}|ghp_[A-Za-z0-9]{20,}|xox[abp]-[A-Za-z0-9-]{10,})/g, REDACTED],
+  [
+    /\b(sk-ant-[A-Za-z0-9_-]{8,}|apify_api_[A-Za-z0-9]{8,}|ghp_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|xox[abp]-[A-Za-z0-9-]{10,})/g,
+    REDACTED,
+  ],
   [/(:\/\/[^:/?#\s@]+):([^@/\s]+)@/g, (_m, user: string) => `${user}:${REDACTED}@`], // kredensial di URL
   [
     /([?&](?:token|access_token|api_key|apikey|key|sig|signature|password|X-Amz-Signature|X-Amz-Credential)=)[^&\s#"']+/gi,
