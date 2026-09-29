@@ -541,6 +541,11 @@ class Item(BaseModel):
     match: Match
 
 
+class Mode(StrEnum):
+    ingest = 'ingest'
+    relabel = 'relabel'
+
+
 class AiEnrichPayload(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -573,6 +578,7 @@ class AiEnrichPayload(BaseModel):
     items: list[Item]
     items_ref: str | None
     models: dict[str, str]
+    mode: Mode | None = None
 
 
 class TopicId(RootModel[str]):
@@ -661,9 +667,10 @@ class Match1(BaseModel):
     engagement_known: bool
 
 
-class Mode(StrEnum):
+class Mode1(StrEnum):
     ingest = 'ingest'
     engagement_refresh = 'engagement_refresh'
+    relabel = 'relabel'
 
 
 class NewHighWatermark(RootModel[str]):
@@ -731,5 +738,5 @@ class SinkAnalyticsPayload(BaseModel):
     topic_id: TopicId | None
     posts_ref: Annotated[str, Field(min_length=1)]
     matches: list[Match1]
-    mode: Mode | None = None
+    mode: Mode1 | None = None
     run_update: RunUpdate | None

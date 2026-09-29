@@ -7,7 +7,7 @@ const SERVICES = [
   "../apps/worker-dispatch/src/main.ts",
   "../apps/worker-fetch-bun/src/main.ts",
   "../apps/worker-pipeline/src/main.ts",
-  ...(process.env.NODE_ENV === "production" ? [] : ["../apps/worker-ai-stub/src/main.ts"]), // label netral sampai worker-ai
+  "../apps/worker-ai/src/main.ts", // jalur LLM (model & key dari panel "Pengaturan AI"); stub hanya untuk test
   "../apps/worker-sink/src/main.ts",
 ];
 

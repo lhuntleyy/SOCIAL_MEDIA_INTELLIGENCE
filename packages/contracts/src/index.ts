@@ -288,6 +288,8 @@ export const AiEnrichPayload = z.strictObject({
   ),
   items_ref: z.string().nullable(),
   models: z.record(z.string(), z.string()),
+  /** relabel (A-06): match lama diberi label model aktif → sink menulis koreksi sign −1/+1 (bukan match baru). */
+  mode: z.enum(["ingest", "relabel"]).optional(),
 });
 
 export const SinkMatch = z.strictObject({
@@ -322,7 +324,7 @@ export const SinkAnalyticsPayload = z.strictObject({
   posts_ref: z.string().min(1),
   matches: z.array(SinkMatch),
   /** engagement_refresh (I-20): posts_ref = item kanonik hasil `post_detail`; sink menulis snapshot + pasangan sign −1/+1. */
-  mode: z.enum(["ingest", "engagement_refresh"]).optional(),
+  mode: z.enum(["ingest", "engagement_refresh", "relabel"]).optional(),
   /** Informatif saja: penutupan run & watermark digerakkan counter DB (crawl_runs.pending_batches, migrasi 0014). */
   run_update: z
     .strictObject({

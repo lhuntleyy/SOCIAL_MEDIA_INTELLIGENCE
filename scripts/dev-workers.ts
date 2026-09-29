@@ -15,7 +15,7 @@ const services = [
   "apps/worker-dispatch/src/main.ts",
   "apps/worker-fetch-bun/src/main.ts",
   "apps/worker-pipeline/src/main.ts",
-  "apps/worker-ai-stub/src/main.ts", // dev saja: label netral "stub-0" sampai worker-ai (Python) ada
+  "apps/worker-ai/src/main.ts", // jalur LLM (ADR-011)
   "apps/worker-sink/src/main.ts",
 ];
 // default: SATU proses Bun untuk semua service (hemat RAM di VPS kecil); DEV_WORKERS_MODE=multi → proses terpisah

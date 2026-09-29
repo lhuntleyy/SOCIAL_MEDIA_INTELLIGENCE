@@ -15,6 +15,7 @@ import type { Logger } from "@smip/observability";
 import type { BlobStore } from "@smip/storage";
 import { sql } from "drizzle-orm";
 import { handleRefreshSink } from "./refresh";
+import { handleRelabelSink } from "./relabel";
 
 export interface SinkDeps {
   db: Db;
@@ -82,6 +83,7 @@ function engagementOf(p: PostRecord): { engagement: number; known: boolean } {
 
 export async function handleSink(d: SinkDeps, m: SinkAnalyticsPayload): Promise<SinkResult> {
   if (m.mode === "engagement_refresh") return handleRefreshSink(d, m); // I-20
+  if (m.mode === "relabel") return handleRelabelSink(d, m); // A-06
   const now = d.now?.() ?? new Date();
   const nowCh = chTime(now.toISOString());
   const res: SinkResult = { posts: 0, events: 0, skippedByGuard: 0, finalized: null, duplicateMessage: false };

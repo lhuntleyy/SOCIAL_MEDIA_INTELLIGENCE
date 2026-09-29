@@ -61,6 +61,10 @@
         "vite": "8.3.1",
       },
     },
+    "apps/worker-ai": {
+      "name": "@smip/worker-ai",
+      "version": "0.0.0",
+    },
     "apps/worker-ai-stub": {
       "name": "@smip/worker-ai-stub",
       "version": "0.0.0",
@@ -123,6 +127,10 @@
     },
     "packages/geo": {
       "name": "@smip/geo",
+      "version": "0.0.0",
+    },
+    "packages/llm": {
+      "name": "@smip/llm",
       "version": "0.0.0",
     },
     "packages/observability": {
@@ -354,6 +362,8 @@
 
     "@smip/geo": ["@smip/geo@workspace:packages/geo"],
 
+    "@smip/llm": ["@smip/llm@workspace:packages/llm"],
+
     "@smip/observability": ["@smip/observability@workspace:packages/observability"],
 
     "@smip/query": ["@smip/query@workspace:packages/query"],
@@ -367,6 +377,8 @@
     "@smip/storage": ["@smip/storage@workspace:packages/storage"],
 
     "@smip/web": ["@smip/web@workspace:apps/web"],
+
+    "@smip/worker-ai": ["@smip/worker-ai@workspace:apps/worker-ai"],
 
     "@smip/worker-ai-stub": ["@smip/worker-ai-stub@workspace:apps/worker-ai-stub"],
 

@@ -20,6 +20,7 @@ const ZONES: Zone[] = [
   { name: "query", match: (r) => (r.startsWith("packages/query/") ? "query" : null) },
   { name: "connector-sdk", match: (r) => (r.startsWith("packages/connector-sdk/") ? "connector-sdk" : null) },
   { name: "connector", match: (r) => /^packages\/connectors\/([^/]+)\//.exec(r)?.[1] ?? null },
+  { name: "llm", match: (r) => (r.startsWith("packages/llm/") ? "llm" : null) },
   { name: "infra", match: (r) => (r.startsWith("packages/") ? r.split("/")[1]! : null) },
   { name: "app", match: (r) => (r.startsWith("apps/") ? "app" : null) },
 ];
@@ -32,6 +33,8 @@ const ALLOWED_INTERNAL: Record<string, string[] | null> = {
   router: ["@smip/core", "@smip/contracts", "@smip/connector-sdk", "@smip/observability", "@smip/config"],
   "connector-sdk": ["@smip/contracts", "@smip/observability"],
   connector: ["@smip/connector-sdk", "@smip/contracts"],
+  // klien LLM memakai HttpClient connector-sdk (SSRF guard) — bukan connector, tidak boleh mengimpor connector
+  llm: ["@smip/connector-sdk", "@smip/contracts", "@smip/observability"],
   infra: ["@smip/core", "@smip/contracts", "@smip/config", "@smip/observability", "@smip/crypto"],
   app: null,
 };

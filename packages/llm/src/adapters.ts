@@ -1,6 +1,7 @@
 // Adapter LLM per PROTOKOL API (bukan per vendor): gemini · openai_compatible (OpenAI, OpenRouter, vLLM, Ollama, custom) ·
 // anthropic. Dipakai panel admin untuk daftar model & tes; worker-ai (Python) punya adapter setara (workers-py/smip_nlp/llm.py).
 // Semua HTTP lewat HttpClient connector-sdk (SSRF guard, timeout). API key hanya di header, tidak pernah di URL/log.
+// Paket bersama: panel admin (apps/api) & worker-ai (apps/worker-ai).
 import { ConnectorError, HttpClient, type RequestOptions } from "@smip/connector-sdk";
 
 export type LlmKind = "gemini" | "openai_compatible" | "anthropic";

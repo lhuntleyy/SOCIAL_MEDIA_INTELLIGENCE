@@ -9,6 +9,7 @@ export const SERVICES = [
   "worker-fetch-bun",
   "worker-pipeline",
   "worker-sink",
+  "worker-ai",
   "worker-health",
   "worker-ops",
   "workers", // profil MVP single-node: semua consumer Bun dalam satu proses (DEPLOYMENT §3a)
@@ -134,6 +135,7 @@ const SHAPES: Record<ServiceName, z.ZodObject<z.ZodRawShape>[]> = {
   "worker-fetch-bun": [base, s3, kms],
   "worker-pipeline": [base, s3],
   "worker-sink": [base, clickhouse, s3, refresh],
+  "worker-ai": [base, s3, kms],
   "worker-health": [base, kms],
   "worker-ops": [base, clickhouse, s3],
   workers: [base, clickhouse, s3, kms, scheduler, refresh],

@@ -311,4 +311,51 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
     await sql`update crawl_runs set scheduled_for = scheduled_for - interval '2 hours' where kind = 'engagement_refresh'`;
     expect((await planEngagementRefresh(created.db, ch, { maxAgeHours: 24 * 3650, refreshEverySec: 3600 })).posts).toBeGreaterThan(0);
   });
+
+  test("A-06 relabel: label stub diganti label model baru lewat pasangan −1/+1; jumlah post tetap; ulang = idempoten", async () => {
+    const ids = await setup("sawit");
+    const msgs = await throughPipeline(ids, [post(60, "sawit a"), post(61, "sawit b")]);
+    for (const m of msgs) await handleSink(sinkDeps, m);
+    const dist = () =>
+      ch
+        .query({
+          query:
+            "SELECT sentiment, sum(posts) AS n FROM agg_topic_5m WHERE topic_id = {t:UUID} GROUP BY sentiment HAVING n != 0 ORDER BY sentiment",
+          query_params: { t: ids.topic },
+          format: "JSONEachRow",
+        })
+        .then((r) => r.json<{ sentiment: string; n: string }>())
+        .then((r) => r.map((x) => [x.sentiment, Number(x.n)]));
+    expect(await dist()).toEqual([["neutral", 2]]);
+    const base = msgs.find((m) => m.matches.length)!;
+    const relabel = {
+      ...base,
+      batch_id: Bun.randomUUIDv7(),
+      mode: "relabel" as const,
+      matches: base.matches.map((x, k) => ({
+        ...x,
+        sentiment: (k === 0 ? "negative" : "positive") as "negative" | "positive",
+        sentiment_score: 0.9,
+        emotion: "anger" as const,
+        emotion_score: 0.8,
+        model_version: "llm:test:v1",
+      })),
+    };
+    const r = await handleSink(sinkDeps, relabel);
+    expect([r.events, r.skippedByGuard]).toEqual([2, 0]);
+    expect(await dist()).toEqual([
+      ["negative", 1],
+      ["positive", 1],
+    ]); // total post tetap 2
+    const again = await handleSink(sinkDeps, { ...relabel, batch_id: Bun.randomUUIDv7() });
+    expect([again.events, again.skippedByGuard]).toEqual([0, 2]);
+    expect(await dist()).toEqual([
+      ["negative", 1],
+      ["positive", 1],
+    ]);
+    const tm = await q1<{ v: string }>("SELECT any(model_version) AS v FROM topic_matches FINAL WHERE topic_id = {t:UUID}", {
+      t: ids.topic,
+    });
+    expect(tm.v).toBe("llm:test:v1");
+  });
 });

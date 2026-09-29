@@ -6,7 +6,7 @@ import { ConnectorError } from "@smip/connector-sdk";
 import { auditLogs, type Db, type Tx, withSystem, writeOutbox } from "@smip/db";
 import { sql } from "drizzle-orm";
 import { ApiError } from "../errors";
-import { generateJson, type LlmKind, listModels, SENTIMENT_SCHEMA, SENTIMENT_SYSTEM } from "../llm/adapters";
+import { generateJson, type LlmKind, listModels, SENTIMENT_SCHEMA, SENTIMENT_SYSTEM } from "@smip/llm";
 import { openCredential, type SealDeps, sealCredential } from "./credentials";
 import type { Actor } from "./service";
 

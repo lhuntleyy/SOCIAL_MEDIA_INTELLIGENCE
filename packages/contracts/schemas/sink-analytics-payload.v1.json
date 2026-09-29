@@ -223,7 +223,8 @@
       "type": "string",
       "enum": [
         "ingest",
-        "engagement_refresh"
+        "engagement_refresh",
+        "relabel"
       ]
     },
     "run_update": {
