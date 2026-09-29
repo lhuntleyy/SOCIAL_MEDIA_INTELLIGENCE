@@ -117,6 +117,23 @@ export class BullMqQueue implements JobQueue, QueueConsumer {
     return this.queue(queue).getJobCountByTypes("waiting", "prioritized");
   }
 
+  /**
+   * Kedalaman antrean per state (S-05): sumber metric `smip_queue_depth` untuk autoscaling (KEDA Prometheus scaler).
+   * `backlog` = waiting + prioritized + active (delayed belum siap → tidak dihitung). LLEN `<prefix>:<q>:wait` saja TIDAK cukup
+   * karena job ber-priority disimpan di sorted set `prioritized` (bukti: test S-05).
+   */
+  async depth(queue: QueueName): Promise<{ waiting: number; prioritized: number; delayed: number; active: number; backlog: number }> {
+    const c = await this.queue(queue).getJobCounts("waiting", "prioritized", "delayed", "active");
+    const n = (k: string) => Number(c[k] ?? 0);
+    return {
+      waiting: n("waiting"),
+      prioritized: n("prioritized"),
+      delayed: n("delayed"),
+      active: n("active"),
+      backlog: n("waiting") + n("prioritized") + n("active"),
+    };
+  }
+
   async enqueue<T>(queue: QueueName, msg: Envelope<T>, opts: EnqueueOptions = {}): Promise<void> {
     await this.enqueueBulk(queue, [msg], opts);
   }

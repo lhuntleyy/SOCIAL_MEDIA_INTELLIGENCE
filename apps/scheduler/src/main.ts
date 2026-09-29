@@ -1,8 +1,9 @@
 // Service `scheduler` (ARCHITECTURE §5): 2 replika, 1 leader. Tick 15 s (plan jatuh tempo), reaper 60 s,
 // relay outbox → queue/pubsub tiap 1 s. Semua pekerjaan hanya oleh leader; SKIP LOCKED menjaga bila lock sempat ganda.
 import { loadConfig } from "@smip/config";
+import { QUEUE_NAMES } from "@smip/core";
 import { createDb, publishOutbox } from "@smip/db";
-import { Counter, createLogger } from "@smip/observability";
+import { createLogger, Registry } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { LeaderLock } from "./leader";
 import { reapStuckRuns } from "./reaper";
@@ -16,10 +17,16 @@ const TICK_MS = cfg.SCHEDULER_TICK_MS!;
 const GRACE_SEC = cfg.SCHEDULER_STUCK_RUN_GRACE_SEC!;
 const BACKPRESSURE = cfg.SCHEDULER_BACKPRESSURE_WAITING!;
 const MAX_GAP_AGE_SEC = cfg.SCHEDULER_MAX_GAP_AGE_SEC!;
-const gapAbandoned = new Counter("smip_crawl_gap_abandoned_total", "Celah partial success yang dibuang karena melewati max_gap_age", [
+// S-05: satu registry → `GET /metrics` internal (SCHEDULER_METRICS_PORT); KEDA Prometheus scaler membaca smip_queue_depth
+const metrics = new Registry();
+const queueDepth = metrics.gauge("smip_queue_depth", "Job per state antrean BullMQ (backlog = waiting+prioritized+active)", [
+  "queue",
+  "state",
+]);
+const gapAbandoned = metrics.counter("smip_crawl_gap_abandoned_total", "Celah partial success yang dibuang karena melewati max_gap_age", [
   "platform",
 ]);
-const costGuardThrottled = new Counter("smip_cost_guard_throttled_total", "Soft cap biaya tercapai → throttle interval (bukan stop)", [
+const costGuardThrottled = metrics.counter("smip_cost_guard_throttled_total", "Soft cap biaya tercapai → throttle interval (bukan stop)", [
   "scope_type",
 ]);
 const logger = createLogger({ service: "scheduler", version: cfg.SERVICE_VERSION, env: cfg.NODE_ENV, level: cfg.LOG_LEVEL });
@@ -91,6 +98,28 @@ async function relay() {
   }
 }
 
+/** Semua replika (bukan hanya leader) memperbarui kedalaman antrean → scrape ke pod mana pun akurat. */
+async function sampleQueues() {
+  try {
+    for (const q of QUEUE_NAMES) {
+      const d = await queue.depth(q);
+      for (const [state, v] of Object.entries(d)) queueDepth.set({ queue: q, state }, v);
+    }
+  } catch (e) {
+    logger.warn("sampling kedalaman antrean gagal", { error: e });
+  }
+}
+const metricsServer =
+  cfg.SCHEDULER_METRICS_PORT && cfg.SCHEDULER_METRICS_PORT > 0
+    ? Bun.serve({
+        port: cfg.SCHEDULER_METRICS_PORT,
+        hostname: "0.0.0.0", // jaringan internal saja (NetworkPolicy / tidak di-expose ingress, API_SPEC §11)
+        fetch: (req) => (new URL(req.url).pathname === "/metrics" ? metrics.handler() : new Response("not found", { status: 404 })),
+      })
+    : undefined;
+const t3 = setInterval(sampleQueues, 15_000);
+void sampleQueues();
+
 const t1 = setInterval(tick, TICK_MS);
 const t2 = setInterval(relay, 1000);
 void tick();
@@ -99,6 +128,8 @@ logger.info("scheduler mulai", { tick_ms: TICK_MS, owner: leader.owner });
 async function shutdown() {
   clearInterval(t1);
   clearInterval(t2);
+  clearInterval(t3);
+  metricsServer?.stop();
   await leader.release();
   await queue.close();
   cache.close();

@@ -1,0 +1,86 @@
+# S-05 — autoscaling worker BullMQ via KEDA Prometheus scaler (keputusan: DEPLOYMENT §4, ADR-001).
+# Scaler `redis` (listLength) TIDAK dipakai: LLEN `<prefix>:<queue>:wait` tidak melihat job ber-priority (sorted set
+# `prioritized`) — dibuktikan packages/queue/test/keda-s05.test.ts. Sumber sinyal = smip_queue_depth{queue,state="backlog"}
+# dari scheduler (`GET /metrics`, port SCHEDULER_METRICS_PORT, semua replika memperbarui).
+# Template untuk chart Helm (infra/helm/smip, H-05). Angka min/max/threshold = titik awal, kalibrasi dari load test.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-fetch-bun
+spec:
+  scaleTargetRef:
+    name: worker-fetch-bun
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  cooldownPeriod: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        # max() antar replika scheduler (semua mengekspor nilai yang sama); threshold = backlog per replika
+        query: max(smip_queue_depth{queue="fetch.bun",state="backlog"})
+        threshold: "20"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-fetch-py
+spec:
+  scaleTargetRef:
+    name: worker-fetch-py
+  minReplicaCount: 0
+  maxReplicaCount: 2 # sesi akun unofficial eksklusif — skala kecil (SECURITY §6)
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        query: max(smip_queue_depth{queue="fetch.py",state="backlog"})
+        threshold: "4"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-dispatch
+spec:
+  scaleTargetRef:
+    name: worker-dispatch
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        query: max(smip_queue_depth{queue="crawl.dispatch",state="backlog"}) + max(smip_queue_depth{queue="fetch.result",state="backlog"})
+        threshold: "50"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-pipeline
+spec:
+  scaleTargetRef:
+    name: worker-pipeline
+  minReplicaCount: 1
+  maxReplicaCount: 4
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        query: max(smip_queue_depth{queue="pipeline.items",state="backlog"})
+        threshold: "20"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-sink
+spec:
+  scaleTargetRef:
+    name: worker-sink
+  minReplicaCount: 1
+  maxReplicaCount: 1 # guard dedup "cek lalu insert" tidak atomik → partisi dulu sebelum > 1 (DATA_MODEL §6.2)
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        query: max(smip_queue_depth{queue="sink.analytics",state="backlog"})
+        threshold: "20"

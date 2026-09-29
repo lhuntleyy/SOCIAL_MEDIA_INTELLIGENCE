@@ -10,7 +10,8 @@
 | `apify.x.kaito` | verified | 5 | 25 | 12528 | 15105 | metrics.likes 100%, metrics.views 100%, author.followers 100% |
 | `apify.x.scraperone` | verified | 5 | 10 | 3649 | 9942 | metrics.likes 100%, metrics.comments 100% |
 | `apify.x.xquik` | verified | 5 | 50 | 5545 | 5883 | metrics.likes 100%, metrics.views 100%, author.followers 100% |
-| `apify.youtube.streamers` | verified | 1 | 4 | 18341 | 18341 | metrics.views 100%, author.followers 100% |
+| `apify.youtube.streamers` | verified | 5 | 10 | 22942 | 84812 | metrics.views 100%, author.followers 100% |
+| `youtube_data_api.youtube` (official) | verified | 5 | 100 | 320 | 402 | metrics.views 100%, metrics.likes 100%, metrics.comments 90%, author.followers 100% |
 
 **Ditolak pemilik (2026-09-29):** actor penerbit `apidojo` (`apify.x.apidojo`, `apify.tiktok.apidojo`) — plan FREE punya batas run bulanan per pengguna (log: "Monthly run limit exceeded per user"; actor hanya mengembalikan placeholder `noResults`). Laporan lama di `ditolak/`. Pengganti: X → `apify.x.kaito`, `apify.x.scraperone`; TikTok → `apify.tiktok.clockworks`, `apify.tiktok.xmolodtsov`.
 

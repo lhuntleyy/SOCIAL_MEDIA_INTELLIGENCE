@@ -84,7 +84,7 @@ Arsitektur (port, queue, kontrak) **tidak berubah**; hanya cara menjalankannya. 
 | worker-health, worker-ops | Deployment | 1 | — | |
 | migrate | Job (Helm pre-upgrade hook) | — | — | Postgres + ClickHouse migrations |
 
-Angka replika = titik awal; kalibrasi dari load test. KEDA scaler Redis untuk BullMQ perlu diverifikasi terhadap struktur key BullMQ (spike S-05); alternatif: exporter metric `smip_queue_waiting` + KEDA Prometheus scaler.
+Angka replika = titik awal; kalibrasi dari load test. **Keputusan S-05 (2026-09-29): KEDA Prometheus scaler** atas `smip_queue_depth{queue,state="backlog"}` (diekspor scheduler di `GET /metrics`, port `SCHEDULER_METRICS_PORT` default 9464, semua replika). Scaler `redis` listLength **ditolak**: LLEN `<prefix>:<queue>:wait` tidak menghitung job ber-priority (sorted set `prioritized`) maupun `active` — dibuktikan `packages/queue/test/keda-s05.test.ts`. Template: `infra/k8s/keda/scaledobjects.yaml`. Kolom "KEDA …" di tabel atas berarti trigger Prometheus pada queue tsb. Demo di kind belum dijalankan (host dev tanpa akses Docker + RAM 2 GB) — diverifikasi saat H-05.
 
 ### 4.1 Data services
 | Service | Opsi | Catatan wajib |
@@ -111,6 +111,7 @@ Angka replika = titik awal; kalibrasi dari load test. KEDA scaler Redis untuk Bu
 | `LOG_LEVEL` | semua | |
 | `ANTHROPIC_API_KEY` | worker-ai | hanya jika LLM fallback aktif; dari secret manager |
 | `SCHEDULER_TICK_MS` | scheduler | default 15000 |
+| `SCHEDULER_METRICS_PORT` | scheduler | default 9464 (0 = mati) — `GET /metrics` internal (smip_queue_depth, S-05) |
 | `ENGAGEMENT_REFRESH_ENABLED` (true), `ENGAGEMENT_REFRESH_PLAN_MS` (900000), `ENGAGEMENT_REFRESH_MAX_AGE_HOURS` (24), `ENGAGEMENT_REFRESH_MIN_GAP_SEC` (7200), `ENGAGEMENT_REFRESH_MAX_POSTS` (500/platform/siklus) | worker-sink | I-20 planner engagement refresh |
 | `SCHEDULER_COST_GUARD_INTERVAL_SEC` | scheduler | default 3600 — interval efektif plan/stream saat soft cap biaya tercapai (I-23) |
 | `EGRESS_PROXY_URL` | worker-fetch-py | |

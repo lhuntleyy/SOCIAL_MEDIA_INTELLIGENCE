@@ -105,6 +105,8 @@ const scheduler = z.object({
     .transform((v) => v === "true"),
   SCHEDULER_STREAM_PLAN_MS: z.coerce.number().int().min(10_000).default(300_000),
   /** Cost guard (I-23): interval efektif plan/stream saat soft cap biaya tercapai — throttle, bukan stop. */
+  /** S-05: port internal `GET /metrics` (smip_queue_depth → KEDA Prometheus scaler). 0 = mati. */
+  SCHEDULER_METRICS_PORT: z.coerce.number().int().min(0).max(65535).default(9464),
   SCHEDULER_COST_GUARD_INTERVAL_SEC: z.coerce.number().int().min(300).max(86_400).default(3600),
 });
 

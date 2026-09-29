@@ -35,7 +35,7 @@ Bun **1.4.2** (`.bun-version`), Linux x64. Evidence: [`docs/evidence/compat/resu
 | Vite build via `bun --bun` | vite 8.3.1 | COMPATIBLE | React 19 + @vitejs/plugin-react 6.1 | S-08 |
 | Playwright (library) + chromium-headless-shell | 1.x (bun.lock) | **COMPATIBLE** (2026-09-28, setelah `playwright install-deps`) | Library jalan di runtime Bun (launch/goto/click). Sebelumnya WORKAROUND (lib sistem diekstrak user-space); di CI tetap `playwright install-deps chromium`. Test runner `@playwright/test` tetap dijalankan dengan Node (TESTING §1) | S-08 |
 | drizzle-kit | 0.x (bun.lock) | COMPATIBLE | `generate` + `migrate` via `bun --bun` ke Postgres 16 | S-08 |
-| KEDA scaler BullMQ | — | UNTESTED (blocked) | host tanpa Docker/K8s; hanya relevan untuk profil Kubernetes | S-05 |
+| KEDA scaler BullMQ | — | **DECIDED: Prometheus scaler** (`smip_queue_depth`) | scaler Redis listLength melewatkan job `prioritized` (dibuktikan terhadap Redis nyata); demo kind menunggu H-05 | S-05 |
 
 ## Keputusan final stack (S-21, 2026-09-28) — status `review`
 

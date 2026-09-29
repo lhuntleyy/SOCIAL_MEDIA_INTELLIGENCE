@@ -58,8 +58,7 @@ Label kardinalitas tinggi (post_id, topic_id) **dilarang** di Prometheus; gunaka
 ### 3.2 Queue & Pipeline
 | Metric | Tipe | Label |
 |---|---|---|
-| `smip_queue_waiting` | gauge | queue |
-| `smip_queue_active` | gauge | queue |
+| `smip_queue_depth` | gauge | queue, state (`waiting`,`prioritized`,`delayed`,`active`,`backlog`) — diekspor scheduler (S-05); `backlog` = sinyal KEDA |
 | `smip_queue_oldest_waiting_seconds` | gauge | queue |
 | `smip_job_duration_seconds` | histogram | queue, outcome |
 | `smip_job_failures_total` | counter | queue, error_class |
