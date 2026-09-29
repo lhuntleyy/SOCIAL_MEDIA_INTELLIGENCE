@@ -42,7 +42,7 @@ const llm = new LlmAdminService(db, {
   fingerprintPepper: new Uint8Array(Buffer.from(cfg.CREDENTIAL_PEPPER_B64!, "base64")),
   http: new HttpClient({ timeoutMs: 30_000 }),
 });
-const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, llm, keys, logger });
+const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, llm, analytics: { db, ch }, keys, logger });
 
 const INTERNAL_IP_HEADER = "x-smip-client-ip";
 const isPrivate = (ip: string) =>

@@ -13,6 +13,7 @@ import { requestId } from "./middleware/request-id";
 import { adminRoutes, publicAdminRoutes } from "./routes/admin";
 import { llmAdminRoutes } from "./routes/admin-llm";
 import { providerAdminRoutes } from "./routes/admin-providers";
+import { analyticsRoutes } from "./routes/analytics";
 import { authRoutes } from "./routes/auth";
 import { topicRoutes } from "./routes/topics";
 import type { TopicService } from "./topics/service";
@@ -25,6 +26,8 @@ export interface AppDeps {
   providers?: ProviderAdminService;
   /** Pengaturan LLM (Fase 3). */
   llm?: LlmAdminService;
+  /** D-01/D-02: analitik & feed (ClickHouse). */
+  analytics?: Parameters<typeof analyticsRoutes>[0];
   keys: JwtKeys;
   logger?: Logger;
   /** IP klien: di belakang ingress pakai header tepercaya yang diset ingress; default = socket (via header internal). */
@@ -67,6 +70,7 @@ export function createApp(d: AppDeps) {
   if (admin) prot.route("/", adminRoutes(admin));
   if (d.providers) prot.route("/", providerAdminRoutes(d.providers));
   if (d.llm) prot.route("/", llmAdminRoutes(d.llm));
+  if (d.analytics) prot.route("/", analyticsRoutes(d.analytics));
   if (d.topics) prot.route("/", topicRoutes(d.topics));
   d.mount?.(prot);
   app.route("/", prot);
