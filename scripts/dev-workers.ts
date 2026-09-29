@@ -1,4 +1,4 @@
-// bun run dev:workers → jalankan scheduler + worker-dispatch + worker-fetch-bun + worker-pipeline + worker-ai-stub + worker-sink dengan env infra/compose/.env.dev
+// bun run dev:workers → jalankan scheduler + worker-dispatch + worker-fetch-bun (+ worker-fetch-py bila .venv ada) + worker-pipeline + worker-ai-stub + worker-sink dengan env infra/compose/.env.dev
 // (butuh `bun run dev:up` lebih dulu). Ctrl+C menghentikan semuanya (SIGTERM → graceful shutdown).
 import { join } from "node:path";
 
@@ -21,6 +21,18 @@ const services = [
 const procs = services.map((s) =>
   Bun.spawn(["bun", s], { cwd: ROOT, env: { ...env, ...process.env }, stdout: "inherit", stderr: "inherit" }),
 );
+// worker-fetch-py (I-16): hanya bila venv tersedia (`.venv/bin/pip install -r workers-py/requirements.txt`)
+const PY = join(ROOT, ".venv/bin/python");
+if (await Bun.file(PY).exists()) {
+  procs.push(
+    Bun.spawn([PY, "-m", "smip_fetch.worker"], {
+      cwd: join(ROOT, "workers-py"),
+      env: { ...env, ...process.env },
+      stdout: "inherit",
+      stderr: "inherit",
+    }),
+  );
+}
 const stop = () => {
   for (const p of procs) p.kill("SIGTERM");
 };

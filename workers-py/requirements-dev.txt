@@ -1,0 +1,4 @@
+-r requirements.txt
+datamodel-code-generator==0.83.0
+pytest==8.4.2
+pytest-asyncio==1.2.0

@@ -1,4 +1,4 @@
-# F-12 CI (DEPLOYMENT §7, TESTING §1): lint → typecheck → dependency rule → kontrak TS↔Python → unit + contract + integrasi (compose).
+# F-12 CI (DEPLOYMENT §7, TESTING §1): lint → typecheck → dependency rule → kontrak TS↔Python → unit + contract + integrasi (compose) → pytest workers-py.
 # CI TIDAK PERNAH memanggil provider eksternal (hanya connector `fake` + fixture). Build image + SBOM menyusul saat Dockerfile ada.
 name: ci
 on:
@@ -29,7 +29,7 @@ jobs:
       - name: Codegen pydantic (versi dipin = lokal)
         run: |
           python -m venv .venv
-          .venv/bin/pip install --quiet datamodel-code-generator==0.83.0 pydantic==2.13.5
+          .venv/bin/pip install --quiet -r workers-py/requirements-dev.txt
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -42,6 +42,9 @@ jobs:
 
       - name: Test (unit + contract + integrasi)
         run: bun test
+
+      - name: Test worker Python (contract + interop kripto Bun↔Python)
+        run: cd workers-py && ../.venv/bin/python -m pytest -q
 
       - name: Log compose saat gagal
         if: failure()

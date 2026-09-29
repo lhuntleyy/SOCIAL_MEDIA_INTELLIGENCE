@@ -40,6 +40,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Cost guard (I-23): soft cap biaya → scheduler throttle interval ke 1 jam (bukan stop), stream multi-tenant adil, alert transisi via outbox, `would_throttle` di cost-estimate; migrasi 0019. P-16.
   - Connector YouTube Data API v3 official (I-18) verified live; manifest `allowedHosts` ditegakkan worker-fetch (egress per connector), `providerKind`; redaksi API key Google.
   - Engagement refresh (I-20): planner → run `engagement_refresh` → `post_detail` → sink koreksi sign −1/+1 (P-08, P-21); migrasi 0020, env `ENGAGEMENT_REFRESH_*`.
+  - worker-fetch-py (I-16): SDK connector Python, kripto envelope interop, session lock, worker BullMQ `fetch.py`, contract suite pytest, interop TS↔Python; CI menjalankan pytest.
   - Collection stream (I-22): dedup planner, stream dijadwalkan & di-dispatch seperti plan, pipeline mode stream dgn `QueryIndex` (inverted index), migrasi 0017, flag `SCHEDULER_STREAMS_ENABLED`. P-14 e2e.
   - Partial success (I-24): sisi celah per `result_order`, maks 20 celah, `pruneGaps` + `smip_crawl_gap_abandoned_total`, P-18 e2e.
   - Fix: semua connector habis setelah sebagian item diterima → run `partial` (sebelumnya `failed`, celah hilang).

@@ -1,0 +1,38 @@
+# I-16 — 2026-09-29T07:41:54Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bash -c cd workers-py && ../.venv/bin/python -m pytest -v && cd .. && bun test apps/worker-fetch-bun/test/py-interop.test.ts
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.4.2, pluggy-1.6.0 -- /home/ubuntu/social-intel/workers-py/../.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/ubuntu/social-intel/workers-py
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1, typeguard-4.6.0, asyncio-1.2.0, platformdirs-4.12.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 16 items
+
+tests/test_contract_fake.py::test_manifest PASSED                        [  6%]
+tests/test_contract_fake.py::test_scenario[sukses] PASSED                [ 12%]
+tests/test_contract_fake.py::test_scenario[rate limit] PASSED            [ 18%]
+tests/test_contract_fake.py::test_scenario[auth] PASSED                  [ 25%]
+tests/test_contract_fake.py::test_scenario[challenge] PASSED             [ 31%]
+tests/test_contract_fake.py::test_scenario[op tak didukung] PASSED       [ 37%]
+tests/test_contract_fake.py::test_deadline PASSED                        [ 43%]
+tests/test_contract_fake.py::test_no_secret_leak PASSED                  [ 50%]
+tests/test_crypto_interop.py::test_open_bun_sealed PASSED                [ 56%]
+tests/test_crypto_interop.py::test_wrong_tenant_rejected PASSED          [ 62%]
+tests/test_crypto_interop.py::test_tamper_rejected PASSED                [ 68%]
+tests/test_execute.py::test_pages_queries_and_max_items PASSED           [ 75%]
+tests/test_execute.py::test_error_midway_keeps_items_and_redacts_secret PASSED [ 81%]
+tests/test_execute.py::test_session_lock_exclusive PASSED                [ 87%]
+tests/test_execute.py::test_unknown_connector_resume_and_expired_deadline PASSED [ 93%]
+tests/test_execute.py::test_result_key_matches_ts PASSED                 [100%]
+
+============================== 16 passed in 0.91s ==============================
+bun test v1.4.2 (744846f84)
+
+ 1 pass
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1.99s]
+# exit 0

@@ -24,9 +24,18 @@ function pathValue(o: unknown, path: string): unknown {
   return path.split(".").reduce<unknown>((a, k) => (a && typeof a === "object" ? (a as Record<string, unknown>)[k] : undefined), o);
 }
 
+/** Manifest connector runtime python (worker-fetch-py) — bentuk sama dgn ConnectorManifest TS. */
+async function pythonManifests(): Promise<Connector["manifest"][]> {
+  const py = `${import.meta.dir}/../.venv/bin/python`;
+  if (!(await Bun.file(py).exists())) return [];
+  const p = Bun.spawnSync([py, "-m", "smip_fetch.manifests"], { cwd: `${import.meta.dir}/../workers-py` });
+  if (p.exitCode !== 0) throw new Error(`manifest python gagal: ${p.stderr.toString().slice(0, 300)}`);
+  return JSON.parse(p.stdout.toString());
+}
+
 async function register() {
-  for (const c of registry.values()) {
-    const m = c.manifest;
+  const all = [...[...registry.values()].map((c) => c.manifest), ...(await pythonManifests())];
+  for (const m of all) {
     if (m.providerKey === "fake") continue; // fake dikelola seed dev
     await sql.begin(async (tx) => {
       await tx`SET LOCAL ROLE smip_system`;
