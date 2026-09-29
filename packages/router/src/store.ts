@@ -42,7 +42,12 @@ export class SnapshotStore {
     const v = Number((await this.versions.get(CONFIG_VERSION_KEY)) ?? 0);
     this.checkedAt = now;
     if (this.snap && this.snap.version === v) return this.snap;
-    this.loading ??= this.load(v).finally(() => {
+    if (this.loading) {
+      // pemanggil bersamaan berbagi satu load (tanpa log ganda)
+      this.snap = await this.loading;
+      return this.snap;
+    }
+    this.loading = this.load(v).finally(() => {
       this.loading = null;
     });
     this.snap = await this.loading;

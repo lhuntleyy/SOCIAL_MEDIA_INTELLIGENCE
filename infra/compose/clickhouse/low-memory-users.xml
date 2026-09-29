@@ -1,0 +1,12 @@
+<!-- Profil query dev: thread & memori per query kecil (VPS ~2 GB). -->
+<clickhouse>
+    <profiles>
+        <default>
+            <max_threads>2</max_threads>
+            <max_memory_usage>314572800</max_memory_usage>   <!-- 300 MB per query -->
+            <max_bytes_before_external_group_by>100000000</max_bytes_before_external_group_by>
+            <max_bytes_before_external_sort>100000000</max_bytes_before_external_sort>
+            <log_queries>0</log_queries>
+        </default>
+    </profiles>
+</clickhouse>

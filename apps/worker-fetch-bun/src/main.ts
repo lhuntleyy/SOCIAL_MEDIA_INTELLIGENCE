@@ -5,7 +5,7 @@ import { ConnectorVerifyPayload, FetchRequestPayload, HealthProbePayload } from 
 import { createKms } from "@smip/crypto";
 import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
-import { BullMqQueue } from "@smip/queue";
+import { BullMqQueue, createEnvelope } from "@smip/queue";
 import { HealthMonitor, RedisReserver } from "@smip/router";
 import { S3BlobStore } from "@smip/storage";
 import { dbAccountLoader } from "./accounts";
@@ -35,7 +35,16 @@ const deps = {
   onRateLimit: (accountId: string, i: { retryAfterMs: number | null }) => reserver.setDynamicLimit(accountId, i.retryAfterMs ?? 0),
 };
 
-const ops = { db, connectors, accounts: deps.accounts, blobs, logger, monitor: new HealthMonitor(cache) };
+const ops = {
+  db,
+  connectors,
+  accounts: deps.accounts,
+  blobs,
+  logger,
+  monitor: new HealthMonitor(cache),
+  forwardPython: (m: HealthProbePayload) =>
+    queue.enqueue("fetch.py", createEnvelope({ type: "health.probe", idempotencyKey: `hp.py.${m.job_id}`, tenantId: null, payload: m })),
+};
 
 const handler = (m: { payload: FetchRequestPayload; tenant_id: string | null }, ctx: { signal: AbortSignal }) =>
   fetchAndReport(deps, queue, m.payload, m.tenant_id, ctx.signal).then(() => {});

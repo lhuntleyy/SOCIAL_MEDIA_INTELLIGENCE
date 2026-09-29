@@ -18,7 +18,9 @@ const services = [
   "apps/worker-ai-stub/src/main.ts", // dev saja: label netral "stub-0" sampai worker-ai (Python) ada
   "apps/worker-sink/src/main.ts",
 ];
-const procs = services.map((s) =>
+// default: SATU proses Bun untuk semua service (hemat RAM di VPS kecil); DEV_WORKERS_MODE=multi → proses terpisah
+const multi = process.env.DEV_WORKERS_MODE === "multi";
+const procs = (multi ? services : ["scripts/workers-all.ts"]).map((s) =>
   Bun.spawn(["bun", s], { cwd: ROOT, env: { ...env, ...process.env }, stdout: "inherit", stderr: "inherit" }),
 );
 // worker-fetch-py (I-16): hanya bila venv tersedia (`.venv/bin/pip install -r workers-py/requirements.txt`)

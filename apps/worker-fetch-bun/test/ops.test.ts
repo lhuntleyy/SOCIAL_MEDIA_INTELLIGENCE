@@ -86,6 +86,10 @@ describe.skipIf(!pgUp)("ops: health.probe & connector.verify", () => {
     expect((recorded[1] as [string, string, { failureWeight: number }])[2].failureWeight).toBe(1);
     fake.setHealthy(true);
     expect((await handleHealthProbe(deps(), { connector_id: CONN_PY, requested_by: null, job_id: id(0x602) })).status).toBe("unsupported");
+    const fwd: unknown[] = [];
+    const withFwd = { ...deps(), forwardPython: async (m: unknown) => void fwd.push(m) };
+    expect((await handleHealthProbe(withFwd, { connector_id: CONN_PY, requested_by: null, job_id: id(0x603) })).status).toBe("forwarded");
+    expect(fwd).toEqual([{ connector_id: CONN_PY, requested_by: null, job_id: id(0x603) }]);
     const audits = await sql`select action, after from audit_logs where target_id = ${CONN} order by at`;
     expect(audits.map((a) => a.action)).toEqual(["connector.health_check.result", "connector.health_check.result"]);
   });

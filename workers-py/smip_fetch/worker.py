@@ -13,10 +13,11 @@ from typing import Any
 
 from bullmq import Queue, Worker
 
-from .accounts import db_account_loader
+from .accounts import AuditWriter, ProbeTargets, db_account_loader, db_audit, db_probe_targets
 from .blobs import S3BlobStore
 from .crypto import create_kms
 from .execute import FetchDeps, SessionLock, dynamic_limit_setter, envelope, execute_fetch, fetch_result_key
+from .probe import run_health_probe
 from .registry import connector_registry
 
 # kebijakan queue fetch.result = QUEUE_POLICIES TS (attempts 5, exponential 1 s)
@@ -34,7 +35,16 @@ class JsonLogger(logging.LoggerAdapter):
         return json.dumps({"service": "worker-fetch-py", "msg": msg, **extra}), kwargs
 
 
-async def handle_job(deps: FetchDeps, results: Queue, env: dict[str, Any]) -> dict[str, Any]:
+async def handle_job(
+    deps: FetchDeps,
+    results: Queue,
+    env: dict[str, Any],
+    probe: tuple[ProbeTargets, AuditWriter] | None = None,
+) -> dict[str, Any]:
+    if env.get("type") == "health.probe":  # diteruskan worker-fetch-bun untuk connector runtime python
+        if probe is None:
+            return {"status": "probe_disabled"}
+        return await run_health_probe(deps, probe[0], probe[1], env["payload"])
     out = await execute_fetch(deps, env["payload"])
     key = fetch_result_key(out["crawl_run_id"], out["attempt_no"], out["part"])
     msg = envelope("fetch.result", key, env.get("tenant_id"), out)
@@ -64,9 +74,10 @@ async def main() -> None:
         on_rate_limit=dynamic_limit_setter(cache),
     )
     results = Queue("fetch.result", conn)
+    probe = (db_probe_targets(os.environ["DATABASE_URL"]), db_audit(os.environ["DATABASE_URL"]))
     worker = Worker(
         "fetch.py",
-        lambda job, token: handle_job(deps, results, job.data),
+        lambda job, token: handle_job(deps, results, job.data, probe),
         {**conn, "concurrency": int(os.environ.get("WORKER_FETCH_PY_CONCURRENCY", "4"))},
     )
     log.info("worker-fetch-py mulai", extra={"connectors": sorted(deps.connectors)})

@@ -54,6 +54,22 @@ File nyata: [`infra/compose/docker-compose.yml`](../infra/compose/docker-compose
 `bun run dev:up` → `compose up -d --wait` (healthcheck) → bucket S3 → `db:migrate up` → `ch:migrate up` → `seed` (plan dev, 8 platform (6 aktif), tenant `contoh`, admin `admin@contoh.local` — password dicetak sekali atau `SEED_ADMIN_PASSWORD`, provider nyata tercatat **disabled**, connector `fake.<platform>` + policy global). Idempoten. `bun run dev:down [--volumes]`.
 Service aplikasi (api/workers/web) ditambahkan ke compose saat kodenya ada (Fase 2–3). Port dibuat berbeda dari `scripts/spike-infra.sh` agar tidak bentrok.
 
+### 3.1 VPS dev/demo kecil (RAM ~2 GB) — tanpa upgrade
+Diukur 2026-09-30 di VPS 2 vCPU / 1,9 GB:
+
+| Langkah | Efek terukur |
+|---|---|
+| ClickHouse profil hemat memori (`infra/compose/clickhouse/low-memory*.xml`, otomatis di compose dev): batas server 500 MB, cache kecil, log sistem dimatikan, `max_threads` 2 | memori anon ~470 → ~310 MB; tulis disk latar hilang |
+| Semua worker Bun dalam **satu proses** (`bun run dev:workers` default → `scripts/workers-all.ts`; `DEV_WORKERS_MODE=multi` = proses terpisah) | 6 proses 454 MB → 1 proses **92 MB** |
+| Swap lebih besar (butuh sudo, sekali): lihat perintah di bawah | ruang aman untuk lonjakan (test/build/kind) |
+
+```bash
+sudo swapoff /swap.img && sudo fallocate -l 4G /swap.img && sudo chmod 600 /swap.img && sudo mkswap /swap.img && sudo swapon /swap.img
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-smip.conf && sudo sysctl -p /etc/sysctl.d/99-smip.conf
+```
+Tambahan bila masih sesak: matikan service yang tidak dipakai saat itu (`docker compose stop vault` bila KMS local-dev; ClickHouse saat
+hanya mengerjakan API/router), dan jangan menjalankan model NLP lokal di VPS ini (Fase 3: inference encoder di mesin lain / LLM API).
+
 ## 3a. Profil MVP single-node (produksi awal ≤ ~30 topic)
 
 Arsitektur (port, queue, kontrak) **tidak berubah**; hanya cara menjalankannya. Profil ini yang cocok dengan angka infra COST_MODEL ($30–85/bln); profil Kubernetes §4 adalah skala lanjut dengan biaya jauh lebih tinggi.

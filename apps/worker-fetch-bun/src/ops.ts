@@ -18,14 +18,18 @@ export interface OpsDeps {
   accounts: AccountLoader;
   blobs: BlobStore;
   monitor: Pick<HealthMonitor, "record">;
+  /** Connector runtime python → probe diteruskan ke worker-fetch-py lewat antrean `fetch.py` (envelope `health.probe`). */
+  forwardPython?: (m: HealthProbePayload) => Promise<void>;
   logger?: Logger;
   verify?: typeof runVerify;
 }
 
-type ConnRow = { id: string; key: string; provider_id: string };
+type ConnRow = { id: string; key: string; provider_id: string; runtime: string };
 async function connectorAndAccounts(db: Db, connectorId: string, limit: number) {
   return withSystem(db, async (tx) => {
-    const [c] = (await tx.execute(sql`select id, key, provider_id from connectors where id = ${connectorId}`)) as unknown as ConnRow[];
+    const [c] = (await tx.execute(
+      sql`select id, key, provider_id, runtime from connectors where id = ${connectorId}`,
+    )) as unknown as ConnRow[];
     if (!c) return null;
     const accs = (await tx.execute(sql`select id from provider_accounts
       where provider_id = ${c.provider_id} and status = 'active'
@@ -47,6 +51,10 @@ export async function handleHealthProbe(d: OpsDeps, m: HealthProbePayload) {
   if (!found) return { status: "not_found" as const, results: [] };
   const conn = d.connectors.get(found.c.key);
   const results: { account_id: string; ok: boolean; latency_ms: number; error_code?: string }[] = [];
+  if (!conn && found.c.runtime === "python" && d.forwardPython) {
+    await d.forwardPython(m);
+    return { status: "forwarded" as const, results };
+  }
   if (!conn) {
     await audit(d.db, "connector.health_check.result", m.connector_id, { job_id: m.job_id, status: "NOT_SUPPORTED_BY_RUNTIME" });
     return { status: "unsupported" as const, results };
