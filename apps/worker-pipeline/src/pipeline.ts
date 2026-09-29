@@ -3,11 +3,13 @@
 //   post cocok & match baru  → ai.enrich (≤ 64 item/batch, posts_ref berisi baris post)
 //   post baru tak cocok      → sink.analytics langsung (matches = []) — disimpan untuk backfill, tanpa AI (P-17)
 // Counter run: pending_batches −1 (pesan ini) + N (batch anak); run ditutup bila tak ada lagi yang tertunda.
+// Mode collection stream (I-22, ADR-009): item dicocokkan ke SEMUA query anggota stream (inverted index) → batch AI
+// per (tenant, topik); satu fetch melayani banyak topik lintas tenant.
 import type { CanonicalItem, PipelineItemsPayload, PostRecord } from "@smip/contracts";
 import { claimMessage, type Db, finalizeRunIfDone, type Tx, withSystem, writeJobOutbox } from "@smip/db";
 import type { Gazetteer } from "@smip/geo";
 import type { Logger } from "@smip/observability";
-import { type CompiledQuery, matchQuery, type QueryAst } from "@smip/query";
+import { type CompiledQuery, type QueryAst, QueryIndex } from "@smip/query";
 import type { BlobStore } from "@smip/storage";
 import { sql } from "drizzle-orm";
 import { type Deduper, seenKey, seenMatchKey } from "./dedupe";
@@ -37,20 +39,50 @@ export interface PipelineResult {
 /** Model AI yang diminta per item (AI_SPEC §1); flag per tenant (psikografi) menyusul bersama worker-ai. */
 const MODELS = { sentiment: "active", emotion: "active", keyphrase: "active", lang: "active" };
 
-async function loadQuery(tx: Tx, queryId: string) {
-  const [q] = (await tx.execute(sql`select q.query_ast, q.languages, q.media_tags, q.not_media_tags, q.enabled,
-      t.filter_ads, t.language_hints, t.status as topic_status
-    from topic_queries q join topics t on t.id = q.topic_id where q.id = ${queryId}`)) as unknown as {
-    query_ast: QueryAst;
-    languages: string[] | null;
-    media_tags: string[] | null;
-    not_media_tags: string[] | null;
-    enabled: boolean;
-    filter_ads: boolean;
-    language_hints: string[];
-    topic_status: string;
-  }[];
-  return q;
+/** Pelanggan hasil: query aktif yang item-nya dicocokkan (satu untuk plan, banyak untuk stream). */
+interface Subscriber {
+  id: string; // topic_query_id
+  tenantId: string;
+  topicId: string;
+  query: CompiledQuery;
+  filterAds: boolean;
+}
+type QueryRow = {
+  id: string;
+  tenant_id: string;
+  topic_id: string;
+  query_ast: QueryAst;
+  languages: string[] | null;
+  media_tags: string[] | null;
+  not_media_tags: string[] | null;
+  filter_ads: boolean;
+  language_hints: string[];
+};
+
+/** Query aktif (topik belum diarsipkan): per id (plan) atau semua anggota stream. Query/topik tak aktif → item jadi tak-match. */
+async function loadSubscribers(tx: Tx, m: PipelineItemsPayload): Promise<Subscriber[]> {
+  const where = m.collection_stream_id
+    ? sql`q.id in (select topic_query_id from stream_topic_links where stream_id = ${m.collection_stream_id})`
+    : m.topic_query_id
+      ? sql`q.id = ${m.topic_query_id}`
+      : null;
+  if (!where) return [];
+  const rows = (await tx.execute(sql`select q.id, q.tenant_id, q.topic_id, q.query_ast, q.languages, q.media_tags, q.not_media_tags,
+      t.filter_ads, t.language_hints
+    from topic_queries q join topics t on t.id = q.topic_id
+    where ${where} and q.enabled and t.status <> 'archived' and t.deleted_at is null`)) as unknown as QueryRow[];
+  return rows.map((q) => ({
+    id: q.id,
+    tenantId: q.tenant_id,
+    topicId: q.topic_id,
+    filterAds: q.filter_ads,
+    query: {
+      ast: q.query_ast,
+      languages: q.languages ?? (q.language_hints?.length ? q.language_hints : null),
+      mediaTags: q.media_tags ?? [],
+      notMediaTags: q.not_media_tags ?? [],
+    },
+  }));
 }
 
 export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPayload): Promise<PipelineResult> {
@@ -82,31 +114,29 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
       res.duplicateMessage = true;
       return res;
     }
-    const q = m.topic_query_id ? await loadQuery(tx, m.topic_query_id) : undefined;
-    // query/topik dihapus/diarsipkan setelah fetch: item tetap disimpan sebagai post tak-match
-    const active = !!q && q.enabled && q.topic_status !== "archived";
-    const compiled: CompiledQuery | null = active
-      ? {
-          ast: q.query_ast,
-          languages: q.languages ?? (q.language_hints?.length ? q.language_hints : null),
-          mediaTags: q.media_tags ?? [],
-          notMediaTags: q.not_media_tags ?? [],
-        }
-      : null;
+    const subs = await loadSubscribers(tx, m);
+    const index = new QueryIndex(subs);
 
     const newContent = await d.dedupe.claim(
       items.map((i) => seenKey(i.platform, i.platform_post_id)),
       owner,
     );
-    const decisions = items.map((i) => {
-      const isAd = active && q!.filter_ads && i.is_ad === true; // FR-I07: is_ad null = tidak diketahui → tidak disaring
-      if (isAd) res.ads++;
-      const ok = !!compiled && !isAd && matchQuery(compiled, { text: i.text ?? "", hashtags: i.hashtags, lang: i.lang_hint }).match;
-      return ok;
+    // per item: satu match per (tenant, topik) — query pertama yang cocok mewakili topik (seenm per topik)
+    const hits = items.map((i) => {
+      const matched = index.match({ text: i.text ?? "", hashtags: i.hashtags, lang: i.lang_hint });
+      const perTopic = new Map<string, Subscriber>();
+      for (const sub of matched) {
+        if (sub.filterAds && i.is_ad === true) {
+          res.ads++; // FR-I07: is_ad null = tidak diketahui → tidak disaring
+          continue;
+        }
+        if (!perTopic.has(`${sub.tenantId}|${sub.topicId}`)) perTopic.set(`${sub.tenantId}|${sub.topicId}`, sub);
+      }
+      return [...perTopic.values()];
     });
-    const matchedIdx = items.map((_, k) => k).filter((k) => decisions[k]);
+    const pairs = hits.flatMap((subsOfItem, k) => subsOfItem.map((sub) => ({ k, sub })));
     const newMatch = await d.dedupe.claim(
-      matchedIdx.map((k) => seenMatchKey(m.tenant_id ?? "-", m.topic_id ?? "-", items[k]!.platform, items[k]!.platform_post_id)),
+      pairs.map(({ k, sub }) => seenMatchKey(sub.tenantId, sub.topicId, items[k]!.platform, items[k]!.platform_post_id)),
       owner,
     );
 
@@ -114,59 +144,67 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
       const g = gaz.infer({ placeName: i.geo?.place_name, locationRaw: i.author?.location_raw });
       return { ...i, geo_region_code: g?.code ?? null, geo_confidence: g?.confidence ?? null, matched };
     };
-    const aiItems: { rec: PostRecord; isNew: boolean }[] = [];
+    const groups = new Map<string, { tenantId: string; topicId: string; items: { rec: PostRecord; isNew: boolean; queryId: string }[] }>();
     const unmatched: PostRecord[] = [];
+    const records = new Map<number, PostRecord>();
+    pairs.forEach(({ k, sub }, j) => {
+      if (!newMatch[j]) {
+        res.duplicateMatches++;
+        return;
+      }
+      const key = `${sub.tenantId}|${sub.topicId}`;
+      if (!groups.has(key)) groups.set(key, { tenantId: sub.tenantId, topicId: sub.topicId, items: [] });
+      if (!records.has(k)) records.set(k, toRecord(items[k]!, true));
+      groups.get(key)!.items.push({ rec: records.get(k)!, isNew: newContent[k]!, queryId: sub.id });
+      res.matched++;
+    });
     items.forEach((i, k) => {
       if (newContent[k]) res.newPosts++;
-      if (decisions[k]) {
-        const pos = matchedIdx.indexOf(k);
-        if (newMatch[pos]) aiItems.push({ rec: toRecord(i, true), isNew: newContent[k]! });
-        else res.duplicateMatches++;
-      } else if (newContent[k]) {
-        unmatched.push(toRecord(i, false));
-      }
+      if (!hits[k]!.length && newContent[k]) unmatched.push(toRecord(i, false));
     });
-    res.matched = aiItems.length;
 
     const suffix = m.part ? `.${m.part}` : "";
     const base = `posts/${m.crawl_run_id}/${m.attempt_no}${m.part ? `-${m.part}` : ""}`;
     const priority = run.kind === "backfill" ? "backfill" : "realtime";
-    for (let b = 0; b * batchSize < aiItems.length; b++) {
-      const chunk = aiItems.slice(b * batchSize, (b + 1) * batchSize);
-      const batchId = Bun.randomUUIDv7();
-      const postsRef = await d.blobs.putJsonl(
-        `${base}/m${b}.jsonl.gz`,
-        chunk.map((c) => c.rec),
-      );
-      await writeJobOutbox(tx, m.crawl_run_id, {
-        queue: "ai.enrich",
-        idempotencyKey: `ai.${m.crawl_run_id}.${m.attempt_no}${suffix}.${b}`,
-        type: "ai.enrich",
-        tenantId: m.tenant_id,
-        payload: {
-          batch_id: batchId,
-          crawl_run_id: m.crawl_run_id,
-          tenant_id: m.tenant_id,
-          topic_id: m.topic_id,
-          priority_class: priority,
-          items: chunk.map(({ rec, isNew }) => ({
-            platform: rec.platform,
-            post_id: rec.platform_post_id,
-            text: rec.text ?? "",
-            lang_hint: rec.lang_hint,
-            is_new_post: isNew,
-            author: {
-              platform_user_id: rec.author.platform_user_id,
-              display_name: rec.author.display_name,
-              created_at: rec.author.created_at,
-            },
-            match: { topic_query_id: m.topic_query_id },
-          })),
-          items_ref: postsRef,
-          models: MODELS,
-        },
-      });
-      res.aiBatches++;
+    let gi = 0;
+    for (const g of groups.values()) {
+      for (let b = 0; b * batchSize < g.items.length; b++) {
+        const chunk = g.items.slice(b * batchSize, (b + 1) * batchSize);
+        const postsRef = await d.blobs.putJsonl(
+          `${base}/m${gi}-${b}.jsonl.gz`,
+          chunk.map((c) => c.rec),
+        );
+        await writeJobOutbox(tx, m.crawl_run_id, {
+          queue: "ai.enrich",
+          idempotencyKey: `ai.${m.crawl_run_id}.${m.attempt_no}${suffix}.${gi}.${b}`,
+          type: "ai.enrich",
+          tenantId: g.tenantId,
+          payload: {
+            batch_id: Bun.randomUUIDv7(),
+            crawl_run_id: m.crawl_run_id,
+            tenant_id: g.tenantId,
+            topic_id: g.topicId,
+            priority_class: priority,
+            items: chunk.map(({ rec, isNew, queryId }) => ({
+              platform: rec.platform,
+              post_id: rec.platform_post_id,
+              text: rec.text ?? "",
+              lang_hint: rec.lang_hint,
+              is_new_post: isNew,
+              author: {
+                platform_user_id: rec.author.platform_user_id,
+                display_name: rec.author.display_name,
+                created_at: rec.author.created_at,
+              },
+              match: { topic_query_id: queryId },
+            })),
+            items_ref: postsRef,
+            models: MODELS,
+          },
+        });
+        res.aiBatches++;
+      }
+      gi++;
     }
     if (unmatched.length) {
       const postsRef = await d.blobs.putJsonl(`${base}/u.jsonl.gz`, unmatched);

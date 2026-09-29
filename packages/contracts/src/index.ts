@@ -152,9 +152,11 @@ export const CrawlDispatchPayload = z.strictObject({
   crawl_run_id: Uuid,
   /** crawl_runs dipartisi per scheduled_for → wajib ikut agar update tidak memindai semua partisi. */
   scheduled_for: UtcDateTime,
-  crawl_plan_id: Uuid,
-  topic_id: Uuid,
-  topic_query_id: Uuid,
+  /** Run plan per-query; null untuk run collection stream (ADR-009). */
+  crawl_plan_id: Uuid.nullable(),
+  collection_stream_id: Uuid.nullable().optional(),
+  topic_id: Uuid.nullable(),
+  topic_query_id: Uuid.nullable(),
   platform: PlatformCode,
   operation: Operation,
   run_kind: RunKind,

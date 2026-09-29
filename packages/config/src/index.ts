@@ -96,6 +96,12 @@ const scheduler = z.object({
   SCHEDULER_BACKPRESSURE_WAITING: z.coerce.number().int().min(1).default(5000),
   /** Celah partial success lebih tua dari ini dibuang (data hilang yang disadari, CONNECTOR_SPEC §7). */
   SCHEDULER_MAX_GAP_AGE_SEC: z.coerce.number().int().min(3600).default(86_400),
+  /** Dedup planner collection stream (ADR-009). Additive: false → semua topik di-crawl per query (fallback). */
+  SCHEDULER_STREAMS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  SCHEDULER_STREAM_PLAN_MS: z.coerce.number().int().min(10_000).default(300_000),
 });
 
 const SHAPES: Record<ServiceName, z.ZodObject<z.ZodRawShape>[]> = {

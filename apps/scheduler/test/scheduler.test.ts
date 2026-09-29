@@ -5,7 +5,8 @@ import { CrawlDispatchPayload } from "@smip/contracts";
 import { createDb, publishOutbox, up } from "@smip/db";
 import { BullMqQueue } from "@smip/queue";
 import postgres from "postgres";
-import { jobRelay, LeaderLock, overlapSec, reapStuckRuns, schedulerTick } from "../src";
+import { compileQuery } from "@smip/query";
+import { jobRelay, LeaderLock, overlapSec, planStreams, reapStuckRuns, schedulerTick } from "../src";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
 const REDIS_CACHE = process.env.TEST_REDIS_CACHE_URL ?? "redis://127.0.0.1:56380";
@@ -43,11 +44,21 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
 
   /** Buat topic_query + plan; kembalikan id plan. */
   async function plan(
-    o: { dueInSec?: number; status?: string; priority?: number; interval?: number; hw?: Date; gaps?: unknown[]; inflight?: string } = {},
+    o: {
+      dueInSec?: number;
+      status?: string;
+      priority?: number;
+      interval?: number;
+      hw?: Date;
+      gaps?: unknown[];
+      inflight?: string;
+      query?: string;
+    } = {},
   ) {
     const q = id(++qn);
     const p = id(++qn + 0x10000);
-    await sql`insert into topic_queries (id, tenant_id, topic_id, kind, query_text, query_ast, ast_hash) values (${q}, ${T}, ${TOPIC}, 'sub', 'x', '{}', '\\x00')`;
+    const ast = o.query ? compileQuery({ query_text: o.query }).ast : {};
+    await sql`insert into topic_queries (id, tenant_id, topic_id, kind, query_text, query_ast, ast_hash) values (${q}, ${T}, ${TOPIC}, 'sub', 'x', ${sql.json(ast as never)}, '\\x00')`;
     await sql`insert into crawl_plans (id, tenant_id, topic_id, topic_query_id, platform_code, operation, interval_sec, status, next_run_at, priority, high_watermark, gap_windows, inflight_run_id)
       values (${p}, ${T}, ${TOPIC}, ${q}, 'x', 'search_keyword', ${o.interval ?? 900}, ${o.status ?? "active"}, ${new Date(Date.now() + (o.dueInSec ?? -1) * 1000)},
               ${o.priority ?? 0}, ${o.hw ?? null}, ${sql.json((o.gaps ?? []) as never)}, ${o.inflight ?? null})`;
@@ -98,7 +109,7 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     const later = await plan({ dueInSec: 600 });
     const now = new Date();
     const r = await schedulerTick(created.db, { now: () => now, initialLookbackSec: 3600 });
-    expect(r).toEqual({ scheduled: 1, coalesced: 0, deferred: 0, gapRuns: 0, gapsAbandoned: {} });
+    expect(r).toEqual({ scheduled: 1, coalesced: 0, deferred: 0, gapRuns: 0, gapsAbandoned: {}, streamsScheduled: 0, streamsCoalesced: 0 });
     const [run1] = await runsOf(due);
     expect(run1).toMatchObject({ kind: "incremental", status: "queued" });
     expect(run1!.window_to.getTime()).toBe(now.getTime());
@@ -250,5 +261,27 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     expect(pl!.gap_windows).toEqual([oldRunning, young]);
     expect((await schedulerTick(created.db, { now: () => now, maxGapAgeSec: 86_400 })).gapsAbandoned).toEqual({});
     await sql`update crawl_plans set status = 'paused' where id = ${p}`;
+  });
+
+  test("I-22: stream mengambil alih plan anggota; query dinonaktifkan → stream dilepas, plan mewarisi watermark stream & jalan lagi", async () => {
+    await sql`update crawl_plans set status = 'paused' where status = 'active'`; // isolasi dari tes sebelumnya
+    const a = await plan({ query: "banjir OR bencana" });
+    const b = await plan({ query: "bencana OR gempa" });
+    expect(await planStreams(created.db)).toMatchObject({ created: 1, links: 2 });
+    const tick = await schedulerTick(created.db);
+    expect([tick.scheduled, tick.streamsScheduled]).toEqual([0, 1]);
+    const [s1] = await sql`select id from collection_streams where enabled`;
+    const hw = new Date(Date.now() - 600_000);
+    await sql`update collection_streams set high_watermark = ${hw} where id = ${s1!.id}`;
+    const [qb] = await sql`select topic_query_id from crawl_plans where id = ${b}`;
+    await sql`update topic_queries set enabled = false where id = ${qb!.topic_query_id}`;
+    await sql`update crawl_plans set status = 'disabled' where id = ${b}`; // seperti SyncCrawlPlans (API) saat query dimatikan
+    expect(await planStreams(created.db)).toMatchObject({ active: 0, retired: 1 });
+    const [pa] = await sql`select high_watermark from crawl_plans where id = ${a}`;
+    expect(pa!.high_watermark.getTime()).toBe(hw.getTime()); // mewarisi watermark stream → tidak fetch ulang dari awal
+    expect((await sql`select count(*)::int as n from stream_topic_links`)[0]!.n).toBe(0);
+    await sql`update crawl_plans set next_run_at = now() - interval '1 second' where id = ${a}`;
+    expect((await schedulerTick(created.db)).scheduled).toBe(1); // kembali jadi plan biasa
+    await sql`update crawl_plans set status = 'paused' where id in ${sql([a, b])}`;
   });
 });

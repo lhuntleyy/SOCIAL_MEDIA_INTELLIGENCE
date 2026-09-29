@@ -6,7 +6,7 @@
 // pesan duplikat/terlambat diabaikan oleh compare-and-set status + nomor attempt.
 import type { AttemptOutcome, FailoverDecision, RouteInput } from "@smip/core";
 import type { CrawlDispatchPayload, FetchRequestPayload, FetchResultPayload, PipelineItemsPayload, QueryFeature } from "@smip/contracts";
-import { type Db, finalizeRunIfDone, jsonbValue, settleGap, type Tx, withSystem, writeJobOutbox } from "@smip/db";
+import { type Db, finalizeRunIfDone, jsonbValue, type RunOwnerTable, settleGap, type Tx, withSystem, writeJobOutbox } from "@smip/db";
 import type { Logger } from "@smip/observability";
 import { compileGeneric, coverHashtags, type Node } from "@smip/query";
 import { failureBackoffSec, type Router, shouldAlertConsecutive, type Snapshot } from "@smip/router";
@@ -52,22 +52,32 @@ type RunRow = {
   routing: Partial<Routing>;
   tenant_id: string | null;
   crawl_plan_id: string | null;
+  collection_stream_id: string | null;
   kind: CrawlDispatchPayload["run_kind"];
   window_from: Date | null;
   window_to: Date | null;
   items_fetched: number;
 };
+/** Pemilik run: plan per-query atau collection stream (ADR-009) — dispatch memperlakukan keduanya seragam. */
 type PlanRow = {
+  table: RunOwnerTable;
+  owner_id: string;
   plan_status: string;
   interval_sec: number;
-  topic_id: string;
-  topic_query_id: string;
+  topic_id: string | null;
+  topic_query_id: string | null;
   platform_code: string;
   operation: CrawlDispatchPayload["operation"];
   query_ast: Node & { version?: number };
   query_enabled: boolean;
   topic_status: string;
+  /** Konteks router: tenant plan / tenant stream privat / NIL untuk stream shared pool (R-15). */
+  route_tenant_id: string;
+  shared_pool_only: boolean;
 };
+
+/** Tenant pengganti untuk run stream shared pool — quota tenant/topik dilewati (atribusi I-25). */
+export const SHARED_TENANT = "00000000-0000-0000-0000-000000000000";
 
 const RETRYABLE_WAIT_MIN_MS = 1000;
 const iso = (d: Date) => d.toISOString();
@@ -102,17 +112,48 @@ export function astFeatures(n: Node, depth = 0, out = new Set<QueryFeature>()): 
 
 async function loadRun(tx: Tx, where: ReturnType<typeof sql>): Promise<RunRow | undefined> {
   const [r] =
-    (await tx.execute(sql`select id, scheduled_for, scheduled_for::text as sf, status, attempts, routing, tenant_id, crawl_plan_id, kind, window_from, window_to, items_fetched
+    (await tx.execute(sql`select id, scheduled_for, scheduled_for::text as sf, status, attempts, routing, tenant_id, crawl_plan_id, collection_stream_id, kind, window_from, window_to, items_fetched
     from crawl_runs where ${where} for update`)) as unknown as RunRow[];
   return r;
 }
-async function loadPlan(tx: Tx, planId: string): Promise<PlanRow | undefined> {
-  const [p] =
-    (await tx.execute(sql`select p.status as plan_status, p.interval_sec, p.topic_id, p.topic_query_id, p.platform_code, p.operation,
-      q.query_ast, q.enabled as query_enabled, t.status as topic_status
-    from crawl_plans p join topic_queries q on q.id = p.topic_query_id join topics t on t.id = p.topic_id
-    where p.id = ${planId}`)) as unknown as PlanRow[];
-  return p;
+async function loadPlan(tx: Tx, run: Pick<RunRow, "crawl_plan_id" | "collection_stream_id" | "tenant_id">): Promise<PlanRow | undefined> {
+  if (run.crawl_plan_id) {
+    const [p] =
+      (await tx.execute(sql`select 'crawl_plans' as table, p.id as owner_id, p.status as plan_status, p.interval_sec, p.topic_id, p.topic_query_id,
+        p.platform_code, p.operation, q.query_ast, q.enabled as query_enabled, t.status as topic_status
+      from crawl_plans p join topic_queries q on q.id = p.topic_query_id join topics t on t.id = p.topic_id
+      where p.id = ${run.crawl_plan_id}`)) as unknown as PlanRow[];
+    return p && { ...p, route_tenant_id: run.tenant_id!, shared_pool_only: false };
+  }
+  if (!run.collection_stream_id) return undefined;
+  const [s] = (await tx.execute(sql`select id, platform_code, operation, interval_sec, terms, enabled, visibility_tenant_id
+    from collection_streams where id = ${run.collection_stream_id}`)) as unknown as {
+    id: string;
+    platform_code: string;
+    operation: CrawlDispatchPayload["operation"];
+    interval_sec: number;
+    terms: string[];
+    enabled: boolean;
+    visibility_tenant_id: string | null;
+  }[];
+  if (!s) return undefined;
+  // query stream = OR semua term penutup anggota (recall); presisi di pipeline per AST asli anggota
+  const leaves: Node[] = s.terms.map((t) => (t.includes(" ") ? { type: "phrase", value: t } : { type: "term", value: t }));
+  return {
+    table: "collection_streams",
+    owner_id: s.id,
+    plan_status: s.enabled ? "active" : "disabled",
+    interval_sec: s.interval_sec,
+    topic_id: null,
+    topic_query_id: null,
+    platform_code: s.platform_code,
+    operation: s.operation,
+    query_ast: leaves.length === 1 ? leaves[0]! : { type: "or", children: leaves },
+    query_enabled: s.terms.length > 0,
+    topic_status: "active",
+    route_tenant_id: s.visibility_tenant_id ?? SHARED_TENANT,
+    shared_pool_only: s.visibility_tenant_id === null,
+  };
 }
 
 async function finishRun(
@@ -136,27 +177,28 @@ async function releasePlan(
   intervalSec: number,
   now: Date,
 ) {
-  if (!run.crawl_plan_id) return;
-  if (run.kind === "backfill") await settleGap(tx, run.crawl_plan_id, run.id, false);
+  const ownerId = run.crawl_plan_id ?? run.collection_stream_id;
+  if (!ownerId) return;
+  const table: RunOwnerTable = run.crawl_plan_id ? "crawl_plans" : "collection_streams";
+  const t = sql.raw(table);
+  if (run.kind === "backfill") await settleGap(tx, ownerId, run.id, false, table);
   if (outcome === "failure") {
-    const [p] = (await tx.execute(sql`update crawl_plans set consecutive_failures = consecutive_failures + 1, updated_at = now(),
+    const [p] = (await tx.execute(sql`update ${t} set consecutive_failures = consecutive_failures + 1, updated_at = now(),
         inflight_run_id = case when inflight_run_id = ${run.id} then null else inflight_run_id end
-      where id = ${run.crawl_plan_id} returning consecutive_failures`)) as unknown as { consecutive_failures: number }[];
+      where id = ${ownerId} returning consecutive_failures`)) as unknown as { consecutive_failures: number }[];
     const n = p?.consecutive_failures ?? 1;
     const next = new Date(now.getTime() + failureBackoffSec(intervalSec, n) * 1000);
-    await tx.execute(
-      sql`update crawl_plans set next_run_at = greatest(next_run_at, ${iso(next)}::timestamptz) where id = ${run.crawl_plan_id}`,
-    );
+    await tx.execute(sql`update ${t} set next_run_at = greatest(next_run_at, ${iso(next)}::timestamptz) where id = ${ownerId}`);
     if (shouldAlertConsecutive(n)) {
-      d.logger?.warn("plan gagal berturut-turut", { plan_id: run.crawl_plan_id, count: n });
-      d.onAlert?.({ kind: "consecutive_failures", planId: run.crawl_plan_id, count: n });
+      d.logger?.warn("plan/stream gagal berturut-turut", { owner: table, id: ownerId, count: n });
+      d.onAlert?.({ kind: "consecutive_failures", planId: ownerId, count: n });
     }
     return;
   }
-  await tx.execute(sql`update crawl_plans set updated_at = now(),
+  await tx.execute(sql`update ${t} set updated_at = now(),
       inflight_run_id = case when inflight_run_id = ${run.id} then null else inflight_run_id end
       ${outcome === "success" ? sql`, consecutive_failures = 0` : sql``}
-    where id = ${run.crawl_plan_id}`);
+    where id = ${ownerId}`);
 }
 
 async function redispatch(
@@ -174,7 +216,8 @@ async function redispatch(
   const payload: CrawlDispatchPayload = {
     crawl_run_id: run.id,
     scheduled_for: iso(run.scheduled_for),
-    crawl_plan_id: run.crawl_plan_id!,
+    crawl_plan_id: run.crawl_plan_id,
+    ...(run.collection_stream_id ? { collection_stream_id: run.collection_stream_id } : {}),
     topic_id: plan.topic_id,
     topic_query_id: plan.topic_query_id,
     platform: plan.platform_code,
@@ -223,7 +266,7 @@ export async function handleDispatch(
     // cari per id (index PK tiap partisi); scheduled_for di payload bisa kehilangan presisi mikrodetik
     const run = await loadRun(tx, sql`id = ${m.crawl_run_id}`);
     if (run?.status !== "queued" || run.attempts >= m.attempt_no) return "ignored";
-    const plan = run.crawl_plan_id ? await loadPlan(tx, run.crawl_plan_id) : undefined;
+    const plan = await loadPlan(tx, run);
     if (!plan || plan.plan_status === "disabled" || plan.topic_status !== "active" || !plan.query_enabled) {
       await finishRun(tx, run, "cancelled", now, { code: "PLAN_INACTIVE", message: "plan/topik/query tidak aktif saat dispatch" });
       await releasePlan(tx, d, run, "neutral", plan?.interval_sec ?? m.interval_sec, now);
@@ -236,7 +279,8 @@ export async function handleDispatch(
     if (m.recompile) routing.recompiled = true;
     const { version: _v, ...ast } = plan.query_ast;
     const input: RouteInput = {
-      tenantId: run.tenant_id!,
+      tenantId: plan.route_tenant_id,
+      sharedPoolOnly: plan.shared_pool_only,
       platform: plan.platform_code,
       operation: plan.operation,
       runKind: run.kind,
@@ -246,7 +290,7 @@ export async function handleDispatch(
       excludeAccountIds: routing.exclude_account_ids,
       // results = 0: quota hasil dipotong saat commit (aktual); hard quota tetap memblok saat used ≥ limit
       estimatedUnits: { requests: f.pageLimit, results: 0 },
-      topicId: plan.topic_id,
+      topicId: plan.topic_id ?? undefined,
     };
     const { decision, trace } = await d.router.planWithTrace(input);
     if (decision.kind === "none_available") {
@@ -351,7 +395,7 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
   return withSystem(d.db, async (tx) => {
     const run = await loadRun(tx, sql`id = ${m.crawl_run_id}`);
     if (run?.status !== "fetching" || run.attempts !== m.attempt_no) return "ignored";
-    const plan = (await loadPlan(tx, run.crawl_plan_id!))!;
+    const plan = (await loadPlan(tx, run))!;
     const routing = routingOf(run.routing);
     const part = m.part ?? 0;
     if (part !== (routing.resumes ?? 0)) return "ignored"; // hasil bagian basi/duplikat
@@ -400,6 +444,7 @@ export async function handleFetchResult(d: DispatchDeps, m: FetchResultPayload):
         tenant_id: run.tenant_id,
         topic_id: plan.topic_id,
         topic_query_id: plan.topic_query_id,
+        ...(run.collection_stream_id ? { collection_stream_id: run.collection_stream_id } : {}),
         query_ast_version: plan.query_ast.version ?? 1,
         part,
         items_ref: m.items_ref,

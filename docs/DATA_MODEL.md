@@ -268,6 +268,8 @@ Additive di atas `crawl_plans`: dedup planner menggabung query beririsan jadi st
 **`stream_topic_links`**
 | stream_id uuid FK | tenant_id uuid | topic_query_id uuid FK | PK(stream_id, topic_query_id) | — RLS via tenant_id |
 
+> **Implementasi (I-22):** migrasi 0017 menambah `consecutive_failures`, `priority`, `updated_at` + index due; watermark stream memakai kolom `high_watermark`/`gap_windows` (sama pola `crawl_plans`), `cursor_state` belum dipakai. Detail: ADR-009 § Implementasi.
+
 **Atribusi biaya stream.** Run stream bersifat system-owned (`crawl_runs.tenant_id = NULL`). Biaya `usage` per run dialokasikan ke tenant anggota **proporsional jumlah post yang match topic tenant tsb** di run itu (sisa yang tidak match siapa pun → dibagi rata ke tenant anggota stream). Alokasi ditulis ke `quota_usage` tenant (scope `tenant`) oleh worker-sink, sehingga cost guard per tenant (COST_MODEL §8) tetap bekerja. Tabel `cost_allocations(run_id, tenant_id, cost_units, basis)` menyimpan jejaknya untuk audit/tagihan.
 
 Recall dari stream, **presisi tetap dari local matcher atas AST asli** (ADR-006). Post yang tak match topic mana pun tetap disimpan untuk backfill (§9). Kunci berbagi `ast_hash` (§3.5). Detail: ADR-009.

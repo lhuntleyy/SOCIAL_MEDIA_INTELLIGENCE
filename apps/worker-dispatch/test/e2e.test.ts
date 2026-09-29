@@ -15,11 +15,14 @@ import {
   publishOutbox,
   setAccountCooldown,
   up,
+  loadGeoRegions,
 } from "@smip/db";
 import { astHash, compileQuery } from "@smip/query";
 import { BullMqQueue } from "@smip/queue";
 import { HealthCache, HealthMonitor, RedisReserver, Router, SnapshotStore } from "@smip/router";
-import { jobRelay, schedulerTick } from "@smip/scheduler";
+import { jobRelay, planStreams, schedulerTick } from "@smip/scheduler";
+import { Gazetteer } from "@smip/geo";
+import { cachedGazetteer, Deduper, handlePipelineItems } from "@smip/worker-pipeline";
 import { MemoryBlobStore } from "@smip/storage";
 import { dbAccountLoader, fetchAndReport } from "@smip/worker-fetch-bun";
 import postgres from "postgres";
@@ -349,5 +352,74 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
     ]);
     await sql`update crawl_runs set status = 'succeeded' where status in ('queued', 'dispatching', 'fetching')`;
     await sql`update crawl_plans set gap_windows = '[]', inflight_run_id = null`;
+  });
+
+  test("P-14: 2 topik beririsan (2 tenant) → satu collection stream → fetch 1× → matcher memetakan ke kedua topik", async () => {
+    // run plan bawaan beforeEach dibatalkan (belum dipublikasikan) — tes ini mengukur run stream
+    await sql`update outbox set published_at = now() where published_at is null`;
+    await sql`update crawl_runs set status = 'cancelled' where status = 'queued'`;
+    const T2 = id(0x101);
+    const TOPIC2 = id(0x102);
+    const QUERY2 = id(0x103);
+    const PLAN2 = id(0x104);
+    const q2 = compileQuery({ query_text: "kopdes" });
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`insert into tenants (id, slug, name) values (${T2}, 'b', 'B')`;
+      await tx`insert into topics (id, tenant_id, name) values (${TOPIC2}, ${T2}, 'Kopdes B')`;
+      await tx`insert into topic_queries (id, tenant_id, topic_id, kind, query_text, query_ast, ast_hash)
+        values (${QUERY2}, ${T2}, ${TOPIC2}, 'main', 'kopdes', ${tx.json(q2.ast as never)}, ${Buffer.from(await astHash(q2))})`;
+      await tx`insert into crawl_plans (id, tenant_id, topic_id, topic_query_id, platform_code, operation, interval_sec, next_run_at, priority)
+        values (${PLAN2}, ${T2}, ${TOPIC2}, ${QUERY2}, 'x', 'search_keyword', 900, now() - interval '1 second', 0)`;
+    });
+    await sql`update crawl_plans set next_run_at = now() - interval '1 second', inflight_run_id = null, high_watermark = null`;
+    const plan = await planStreams(deps.db);
+    expect(plan).toMatchObject({ active: 1, created: 1, links: 2 });
+    const [stream] = await sql`select id, terms, visibility_tenant_id from collection_streams where enabled`;
+    expect([stream!.terms.sort(), stream!.visibility_tenant_id]).toEqual([["kopdes", "koperasi merah putih"], null]);
+    expect((await planStreams(deps.db)).created).toBe(0); // idempoten
+
+    const before = (await sql`select count(*)::int as n from crawl_runs`)[0]!.n;
+    const tick = await schedulerTick(deps.db);
+    expect([tick.scheduled, tick.streamsScheduled]).toEqual([0, 1]); // plan anggota dilayani stream → 1 run, bukan 2
+    expect((await sql`select count(*)::int as n from crawl_runs`)[0]!.n - before).toBe(1);
+
+    fakes.a.script([
+      {
+        respond: {
+          items: [
+            { ...items(900, 1)[0]!, text: "kopdes di desa kami" },
+            { ...items(901, 1)[0]!, text: "Koperasi Merah Putih resmi" },
+          ], // waktu dalam window
+        },
+      },
+      { respond: { items: [{ ...items(902, 1)[0]!, text: "berita lain sama sekali" }] } },
+    ]);
+    await pump(async () => pipelineJobs.some((j) => j.collection_stream_id === stream!.id));
+    const job = pipelineJobs.find((j) => j.collection_stream_id === stream!.id)!;
+    expect(job).toMatchObject({ tenant_id: null, topic_id: null, topic_query_id: null, items_count: 3 });
+    const [run] = await sql`select tenant_id, crawl_plan_id, collection_stream_id from crawl_runs where id = ${job.crawl_run_id}`;
+    expect(run).toEqual({ tenant_id: null, crawl_plan_id: null, collection_stream_id: stream!.id }); // system-owned
+
+    const r = await handlePipelineItems(
+      {
+        db: deps.db,
+        blobs,
+        dedupe: new Deduper(cache, `${prefix}:p14:`),
+        gazetteer: cachedGazetteer(async () => new Gazetteer(await loadGeoRegions(deps.db))),
+      },
+      job,
+    );
+    expect(r).toMatchObject({ matched: 3, aiBatches: 2, unmatchedBatch: true });
+    const ai =
+      await sql`select payload->'payload' as p from outbox where event_type = 'enqueue.ai.enrich' and aggregate_id = ${job.crawl_run_id}`;
+    const byTopic = Object.fromEntries(
+      ai.map((x) => [x.p.topic_id, x.p.items.map((i: { match: { topic_query_id: string } }) => i.match.topic_query_id).length]),
+    );
+    expect(byTopic).toEqual({ [TOPIC]: 2, [TOPIC2]: 1 }); // "kopdes…" → kedua topik; "Koperasi Merah Putih" → topik A saja
+
+    await sql`update collection_streams set enabled = false`;
+    await sql`delete from stream_topic_links`;
+    await sql`update crawl_runs set status = 'succeeded' where status in ('queued', 'dispatching', 'fetching', 'processing')`;
   });
 });

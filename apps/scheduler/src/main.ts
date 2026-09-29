@@ -7,6 +7,7 @@ import { BullMqQueue } from "@smip/queue";
 import { LeaderLock } from "./leader";
 import { reapStuckRuns } from "./reaper";
 import { jobRelay } from "./relay";
+import { planStreams } from "./streams";
 import { schedulerTick } from "./tick";
 
 const cfg = loadConfig("scheduler");
@@ -27,6 +28,7 @@ const bus = { publish: (c: string, m: string) => cache.publish(c, m), incr: (k: 
 
 let busy = false;
 let lastReap = 0;
+let lastPlan = 0;
 async function tick() {
   if (busy) return;
   busy = true;
@@ -43,6 +45,11 @@ async function tick() {
       logger.warn("celah dibuang (melewati max_gap_age) — data hilang yang disadari", { platform, count: n });
     }
     if (r.scheduled || r.coalesced || r.deferred) logger.info("tick", { ...r, fetch_waiting: fetchWaiting });
+    if (cfg.SCHEDULER_STREAMS_ENABLED && Date.now() - lastPlan >= cfg.SCHEDULER_STREAM_PLAN_MS!) {
+      lastPlan = Date.now();
+      const p = await planStreams(db);
+      if (p.created || p.retired) logger.info("collection stream direncanakan ulang", { ...p });
+    }
     if (Date.now() - lastReap >= 60_000) {
       lastReap = Date.now();
       const stuck = await reapStuckRuns(db, { graceSec: GRACE_SEC });

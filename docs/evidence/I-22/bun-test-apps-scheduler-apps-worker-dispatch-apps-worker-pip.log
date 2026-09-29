@@ -1,0 +1,10 @@
+# I-22 — 2026-09-29T05:59:29Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun test apps/scheduler apps/worker-dispatch apps/worker-pipeline packages/query
+bun test v1.4.2 (744846f84)
+
+ 59 pass
+ 0 fail
+ 3323 expect() calls
+Ran 59 tests across 7 files. [9.42s]
+# exit 0

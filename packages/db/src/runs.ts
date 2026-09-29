@@ -14,27 +14,42 @@ export interface PlanForRun {
   interval_sec: number;
 }
 
+/** Collection stream (ADR-009): run system-owned — tanpa tenant/topik; tenant ditentukan saat matching. */
+export interface StreamForRun {
+  stream: true;
+  id: string;
+  platform_code: string;
+  operation: CrawlDispatchPayload["operation"];
+  interval_sec: number;
+}
+
+/** Tabel pemilik run: crawl_plans (per query) atau collection_streams (gabungan). */
+export type RunOwnerTable = "crawl_plans" | "collection_streams";
+const ownerSql = (t: RunOwnerTable) => sql.raw(t === "collection_streams" ? "collection_streams" : "crawl_plans");
+
 /** BullMQ priority: 1 = tertinggi. Backfill manual/celah = 10 (paling rendah, QUEUE_SPEC §3). */
 export const BACKFILL_PRIORITY = 10;
 
 export async function createCrawlRun(
   tx: Tx,
-  p: PlanForRun,
+  p: PlanForRun | StreamForRun,
   kind: "incremental" | "backfill",
   window: { since: Date; until: Date },
   now: Date,
   priority: number,
 ): Promise<string> {
   const id = Bun.randomUUIDv7();
-  await tx.execute(sql`insert into crawl_runs (id, tenant_id, crawl_plan_id, scheduled_for, kind, status, window_from, window_to)
-    values (${id}, ${p.tenant_id}, ${p.id}, ${now.toISOString()}::timestamptz, ${kind}::e_run_kind, 'queued',
-            ${window.since.toISOString()}::timestamptz, ${window.until.toISOString()}::timestamptz)`);
+  const stream = "stream" in p;
+  await tx.execute(sql`insert into crawl_runs (id, tenant_id, crawl_plan_id, collection_stream_id, scheduled_for, kind, status, window_from, window_to)
+    values (${id}, ${stream ? null : p.tenant_id}, ${stream ? null : p.id}, ${stream ? p.id : null}, ${now.toISOString()}::timestamptz,
+            ${kind}::e_run_kind, 'queued', ${window.since.toISOString()}::timestamptz, ${window.until.toISOString()}::timestamptz)`);
   const payload: CrawlDispatchPayload = {
     crawl_run_id: id,
     scheduled_for: now.toISOString(),
-    crawl_plan_id: p.id,
-    topic_id: p.topic_id,
-    topic_query_id: p.topic_query_id,
+    crawl_plan_id: stream ? null : p.id,
+    ...(stream ? { collection_stream_id: p.id } : {}),
+    topic_id: stream ? null : p.topic_id,
+    topic_query_id: stream ? null : p.topic_query_id,
     platform: p.platform_code,
     operation: p.operation,
     run_kind: kind,
@@ -48,7 +63,7 @@ export async function createCrawlRun(
     queue: "crawl.dispatch",
     idempotencyKey: `run.${id}.attempt.1`,
     type: "crawl.dispatch",
-    tenantId: p.tenant_id,
+    tenantId: stream ? null : p.tenant_id,
     payload,
     priority,
   });
@@ -59,8 +74,8 @@ export async function createCrawlRun(
  * Celah (gap_windows) milik run backfill: sukses → dibuang; gagal → `run_id` dilepas agar scheduler mencoba lagi
  * (CONNECTOR_SPEC §7; umur maksimum celah = I-24).
  */
-export async function settleGap(tx: Tx, planId: string, runId: string, ok: boolean): Promise<void> {
-  await tx.execute(sql`update crawl_plans set gap_windows = coalesce((
+export async function settleGap(tx: Tx, planId: string, runId: string, ok: boolean, table: RunOwnerTable = "crawl_plans"): Promise<void> {
+  await tx.execute(sql`update ${ownerSql(table)} set gap_windows = coalesce((
       select jsonb_agg(case when g->>'run_id' = ${runId} then g - 'run_id' else g end)
       from jsonb_array_elements(gap_windows) g
       where not (${ok} and g->>'run_id' = ${runId})), '[]'::jsonb)
@@ -98,19 +113,21 @@ export function gapWindow(
  */
 export async function pruneGaps(tx: Tx, maxAgeSec: number, now = new Date()): Promise<Record<string, number>> {
   const cutoff = new Date(now.getTime() - maxAgeSec * 1000).toISOString();
-  const rows = (await tx.execute(sql`
-    with old as (
-      select p.id, p.platform_code,
-             count(*) filter (where g->>'run_id' is null and (g->>'created_at')::timestamptz < ${cutoff}::timestamptz) as n
-      from crawl_plans p, jsonb_array_elements(p.gap_windows) g
-      group by p.id, p.platform_code)
-    update crawl_plans p set gap_windows = coalesce((
-        select jsonb_agg(g) from jsonb_array_elements(p.gap_windows) g
-        where not (g->>'run_id' is null and (g->>'created_at')::timestamptz < ${cutoff}::timestamptz)), '[]'::jsonb), updated_at = now()
-    from old where old.id = p.id and old.n > 0
-    returning old.platform_code, old.n`)) as unknown as { platform_code: string; n: string | number }[];
   const out: Record<string, number> = {};
-  for (const r of rows) out[r.platform_code] = (out[r.platform_code] ?? 0) + Number(r.n);
+  for (const table of ["crawl_plans", "collection_streams"] as const) {
+    const rows = (await tx.execute(sql`
+      with old as (
+        select p.id, p.platform_code,
+               count(*) filter (where g->>'run_id' is null and (g->>'created_at')::timestamptz < ${cutoff}::timestamptz) as n
+        from ${ownerSql(table)} p, jsonb_array_elements(p.gap_windows) g
+        group by p.id, p.platform_code)
+      update ${ownerSql(table)} p set gap_windows = coalesce((
+          select jsonb_agg(g) from jsonb_array_elements(p.gap_windows) g
+          where not (g->>'run_id' is null and (g->>'created_at')::timestamptz < ${cutoff}::timestamptz)), '[]'::jsonb), updated_at = now()
+      from old where old.id = p.id and old.n > 0
+      returning old.platform_code, old.n`)) as unknown as { platform_code: string; n: string | number }[];
+    for (const r of rows) out[r.platform_code] = (out[r.platform_code] ?? 0) + Number(r.n);
+  }
   return out;
 }
 
@@ -119,6 +136,7 @@ export interface FinalizedRun {
   outcome: "succeeded" | "partial";
   tenantId: string | null;
   planId: string | null;
+  streamId: string | null;
 }
 
 /**
@@ -128,11 +146,13 @@ export interface FinalizedRun {
  */
 export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date()): Promise<FinalizedRun | null> {
   const [r] =
-    (await tx.execute(sql`select r.id, r.scheduled_for::text as sf, r.status, r.pending_batches, r.error_code, r.crawl_plan_id, r.tenant_id, r.kind,
+    (await tx.execute(sql`select r.id, r.scheduled_for::text as sf, r.status, r.pending_batches, r.error_code, r.crawl_plan_id, r.collection_stream_id, r.tenant_id, r.kind,
       r.window_from, r.window_to, r.min_published_at, r.max_published_at,
       -- urutan hasil connector attempt terakhir (declared.result_order) → sisi window mana yang hilang
-      (select cc.declared->>'result_order' from connector_capabilities cc join crawl_plans p on p.id = r.crawl_plan_id
-        where cc.connector_id::text = r.routing->>'connector_id' and cc.operation = p.operation) as result_order
+      (select cc.declared->>'result_order' from connector_capabilities cc
+        where cc.connector_id::text = r.routing->>'connector_id'
+          and cc.operation = coalesce((select operation from crawl_plans where id = r.crawl_plan_id),
+                                      (select operation from collection_streams where id = r.collection_stream_id))) as result_order
     from crawl_runs r where r.id = ${runId} for update of r`)) as unknown as {
       id: string;
       sf: string;
@@ -140,6 +160,7 @@ export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date())
       pending_batches: number;
       error_code: string | null;
       crawl_plan_id: string | null;
+      collection_stream_id: string | null;
       tenant_id: string | null;
       kind: string;
       window_from: Date | null;
@@ -153,27 +174,29 @@ export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date())
   // scheduled_for via teks: Date JS hanya milidetik, timestamptz Postgres mikrodetik → perbandingan Date bisa meleset
   await tx.execute(sql`update crawl_runs set status = ${outcome}::e_run_status, finished_at = ${now.toISOString()}::timestamptz
     where id = ${r.id} and scheduled_for = ${r.sf}::timestamptz`);
-  if (r.crawl_plan_id) {
+  const ownerId = r.crawl_plan_id ?? r.collection_stream_id;
+  const table: RunOwnerTable = r.crawl_plan_id ? "crawl_plans" : "collection_streams";
+  if (ownerId) {
     if (outcome === "succeeded") {
-      await tx.execute(sql`update crawl_plans set consecutive_failures = 0, updated_at = now(),
+      await tx.execute(sql`update ${ownerSql(table)} set consecutive_failures = 0, updated_at = now(),
           inflight_run_id = case when inflight_run_id = ${r.id} then null else inflight_run_id end,
           high_watermark = case when ${r.kind} = 'incremental' and ${r.max_published_at?.toISOString() ?? null}::timestamptz is not null
                                 then greatest(coalesce(high_watermark, '-infinity'), ${r.max_published_at?.toISOString() ?? null}::timestamptz)
                                 else high_watermark end
-        where id = ${r.crawl_plan_id}`);
-      await settleGap(tx, r.crawl_plan_id, r.id, true);
+        where id = ${ownerId}`);
+      await settleGap(tx, ownerId, r.id, true, table);
     } else {
       const gap = r.window_from ? [{ ...gapWindow(r, now), created_at: now.toISOString() }] : [];
-      await tx.execute(sql`update crawl_plans set updated_at = now(),
+      await tx.execute(sql`update ${ownerSql(table)} set updated_at = now(),
           inflight_run_id = case when inflight_run_id = ${r.id} then null else inflight_run_id end,
           gap_windows = (select coalesce(jsonb_agg(g order by g->>'created_at'), '[]'::jsonb) from (
             select g from jsonb_array_elements(gap_windows || ${JSON.stringify(r.kind === "incremental" ? gap : [])}::text::jsonb) g
             order by g->>'created_at' desc limit ${MAX_GAPS}) t)
-        where id = ${r.crawl_plan_id}`);
-      await settleGap(tx, r.crawl_plan_id, r.id, false);
+        where id = ${ownerId}`);
+      await settleGap(tx, ownerId, r.id, false, table);
     }
   }
-  return { runId: r.id, outcome, tenantId: r.tenant_id, planId: r.crawl_plan_id };
+  return { runId: r.id, outcome, tenantId: r.tenant_id, planId: r.crawl_plan_id, streamId: r.collection_stream_id };
 }
 
 /** Baris gazetteer (geo_regions) untuk worker-pipeline. */

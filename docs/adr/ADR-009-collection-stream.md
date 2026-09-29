@@ -30,3 +30,11 @@ Tiga lubang di keputusan awal, ditutup:
 - Interval efektif stream = `interval_class` (clamp capability) — lihat amandemen.
 - Retensi post global harus mempertahankan post tak-match untuk backfill (DATA_MODEL §9).
 - Fondasi juga menyelesaikan skalabilitas matcher untuk 108+ topic.
+
+## Implementasi (I-22, 2026-09-29)
+- **Planner** (`apps/scheduler/src/streams.ts`, tiap `SCHEDULER_STREAM_PLAN_MS`, aktif bila `SCHEDULER_STREAMS_ENABLED=true` — default **false** di produksi, true di `.env.dev`): set penutup (`coverSet`) tiap query → per (platform, operation, visibility) → kelas interval cepat→lambat; query lambat yang term-nya ⊆ stream lebih cepat **menumpang**; sisanya komponen terhubung via term bersama, **hanya komponen ≥ 2 query** jadi stream (tanpa irisan = tanpa penghematan → tetap plan). Tenant ber-akun BYO aktif → stream privat.
+- **Rekonsiliasi idempoten** (`stream_key` = sha256(platform|operation|kelas|visibility|term)): stream yang tak diinginkan lagi dinonaktifkan dan **plan anggota mewarisi watermark stream**; stream baru mulai dari watermark **terendah** anggota → tidak ada celah maupun fetch ulang dari awal.
+- **Scheduler**: plan yang dilayani stream aktif dilewati; stream dijadwalkan seperti plan (coalescing, window watermark−overlap, celah, backoff — migrasi 0017).
+- **Dispatch**: pemilik run = plan **atau** stream; stream shared → `sharedPoolOnly` (R-15), privat → konteks tenant-nya. AST fetch = OR term stream.
+- **Pipeline**: `QueryIndex` (inverted index atas set penutup; diuji identik dengan brute force) memetakan item ke semua query anggota → batch `ai.enrich` per (tenant, topik); `seenm` per topik.
+- **Belum (I-25):** atribusi biaya run stream ke `quota_usage` tenant + `cost_allocations`; riwayat run stream belum tampil di `GET /topics/{id}/runs` (run stream `tenant_id` NULL tidak lolos RLS tenant).
