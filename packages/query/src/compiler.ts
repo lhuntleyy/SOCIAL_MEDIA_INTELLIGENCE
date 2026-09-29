@@ -4,9 +4,9 @@
 //       term/frasa → {dirinya}; OR → gabungan semua anak; AND → penutup anak positif TERKECIL (cukup satu sisi);
 //       NOT → tidak bisa dipakai untuk recall.
 //     Lalu leaf digabung dengan OR (bila didukung) sampai batas panjang → jumlah sub-query (= biaya request) minimal.
-import type { Node } from "./ast";
 
 import type { QueryFeature } from "@smip/contracts";
+import type { Node } from "./ast";
 
 export type { QueryFeature };
 

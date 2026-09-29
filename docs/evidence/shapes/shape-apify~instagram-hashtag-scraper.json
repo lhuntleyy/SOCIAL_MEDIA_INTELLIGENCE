@@ -1,0 +1,355 @@
+{
+  "date": "2026-09-29T17:10:15.745Z",
+  "actor": "apify/instagram-hashtag-scraper",
+  "build": "0.0.667",
+  "input": {
+    "hashtags": [
+      "kopdes"
+    ],
+    "resultsLimit": 3,
+    "resultsType": "posts"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 3490,
+  "items": 3,
+  "cost_usd": 0,
+  "charged_events": {
+    "result": 0
+  },
+  "account_usage_usd": {
+    "before": 2.979477883023807,
+    "after": 2.979477883023807,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "hashtags": {
+      "type": "array",
+      "editor": "stringList",
+      "description": "Type in or paste the hashtag with or without <code>#</code> symbol.<br><br> ⚠️ Each hashtag is treated as <strong>one single search term</strong>. If you put several words in one line (e.g. <code>trav"
+    },
+    "keywordSearch": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Enable this option if you want to get posts or reels by a specific keyword instead of a hashtag. Add your keywords to the <strong>Hashtags or keywords</strong> field above. Unlike with hashtags, <b>mu"
+    },
+    "resultsType": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "posts",
+        "reels",
+        "stories"
+      ],
+      "description": "Choose whether to scrape posts or reels for the selected hashtags or keywords."
+    },
+    "resultsLimit": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Set the maximum number of results (reels or posts) you want to scrape. If you set this to <code>5</code>, you will scrape 5 posts for each hashtag or keyword you provide. With this setup, if you decid"
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "caption": [
+      "string"
+    ],
+    "childPosts": [
+      "array(empty)"
+    ],
+    "commentsCount": [
+      "int"
+    ],
+    "dimensionsHeight": [
+      "int"
+    ],
+    "dimensionsWidth": [
+      "int"
+    ],
+    "displayUrl": [
+      "string:url"
+    ],
+    "firstComment": [
+      "string"
+    ],
+    "hashtags": [
+      "array(…)"
+    ],
+    "hashtags[]": [
+      "string"
+    ],
+    "id": [
+      "string:numeric-id"
+    ],
+    "images": [
+      "array(empty)"
+    ],
+    "inputUrl": [
+      "string:url"
+    ],
+    "latestComments": [
+      "array(empty)"
+    ],
+    "likesCount": [
+      "int"
+    ],
+    "mentions": [
+      "array(empty)"
+    ],
+    "musicInfo": [
+      "object"
+    ],
+    "musicInfo.audio_canonical_id": [
+      "string",
+      "string:numeric-id"
+    ],
+    "musicInfo.audio_type": [
+      "null",
+      "string"
+    ],
+    "musicInfo.music_info": [
+      "null",
+      "object"
+    ],
+    "musicInfo.music_info.audio_canonical_id": [
+      "string:numeric-id"
+    ],
+    "musicInfo.music_info.music_asset_info": [
+      "object"
+    ],
+    "musicInfo.music_info.music_asset_info.allows_saving": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_asset_info.artist_id": [
+      "null",
+      "string:numeric-id"
+    ],
+    "musicInfo.music_info.music_asset_info.audio_id": [
+      "string:numeric-id"
+    ],
+    "musicInfo.music_info.music_asset_info.caption": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.cover_artwork_thumbnail_uri": [
+      "string:url"
+    ],
+    "musicInfo.music_info.music_asset_info.cover_artwork_uri": [
+      "string:url"
+    ],
+    "musicInfo.music_info.music_asset_info.dark_message": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.display_artist": [
+      "string"
+    ],
+    "musicInfo.music_info.music_asset_info.duration_in_ms": [
+      "int"
+    ],
+    "musicInfo.music_info.music_asset_info.fast_start_progressive_download_url": [
+      "string:url"
+    ],
+    "musicInfo.music_info.music_asset_info.has_lyrics": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_asset_info.highlight_start_times_in_ms": [
+      "array(…)"
+    ],
+    "musicInfo.music_info.music_asset_info.highlight_start_times_in_ms[]": [
+      "int"
+    ],
+    "musicInfo.music_info.music_asset_info.id": [
+      "string:numeric-id"
+    ],
+    "musicInfo.music_info.music_asset_info.ig_username": [
+      "null",
+      "string"
+    ],
+    "musicInfo.music_info.music_asset_info.is_eligible_for_audio_effects": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_asset_info.is_eligible_for_vinyl_sticker": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_asset_info.is_explicit": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_asset_info.licensed_music_subtype": [
+      "string"
+    ],
+    "musicInfo.music_info.music_asset_info.lyrics": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.progressive_download_url": [
+      "string:url"
+    ],
+    "musicInfo.music_info.music_asset_info.reactive_audio_download_url": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.related_audios": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.sanitized_title": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.song_monetization_info": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.spotify_track_metadata": [
+      "null"
+    ],
+    "musicInfo.music_info.music_asset_info.subtitle": [
+      "string"
+    ],
+    "musicInfo.music_info.music_asset_info.title": [
+      "string"
+    ],
+    "musicInfo.music_info.music_asset_info.web_30s_preview_download_url": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info": [
+      "object"
+    ],
+    "musicInfo.music_info.music_consumption_info.allow_media_creation_with_music": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.audio_asset_start_time_in_ms": [
+      "int"
+    ],
+    "musicInfo.music_info.music_consumption_info.audio_filter_infos": [
+      "array(empty)"
+    ],
+    "musicInfo.music_info.music_consumption_info.audio_muting_info": [
+      "object"
+    ],
+    "musicInfo.music_info.music_consumption_info.audio_muting_info.allow_audio_editing": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.audio_muting_info.mute_audio": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.audio_muting_info.mute_reason_str": [
+      "string"
+    ],
+    "musicInfo.music_info.music_consumption_info.audio_muting_info.show_muted_audio_toast": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.contains_lyrics": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.derived_content_id": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.derived_content_start_time_in_composition_in_ms": [
+      "int"
+    ],
+    "musicInfo.music_info.music_consumption_info.display_labels": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.display_labels_with_translations": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.formatted_clips_media_count": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist": [
+      "null",
+      "object"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist.full_name": [
+      "string"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist.id": [
+      "string"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist.is_private": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist.is_verified": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist.profile_pic_id": [
+      "string:numeric-id"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist.profile_pic_url": [
+      "string:url"
+    ],
+    "musicInfo.music_info.music_consumption_info.ig_artist.username": [
+      "string"
+    ],
+    "musicInfo.music_info.music_consumption_info.is_bookmarked": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.is_trending_in_clips": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.music_creation_restriction_reason": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.overlap_duration_in_ms": [
+      "int"
+    ],
+    "musicInfo.music_info.music_consumption_info.placeholder_profile_pic_url": [
+      "string:url"
+    ],
+    "musicInfo.music_info.music_consumption_info.previous_trend_rank": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.related_audios": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.should_allow_music_editing": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.should_mute_audio": [
+      "boolean"
+    ],
+    "musicInfo.music_info.music_consumption_info.should_mute_audio_reason": [
+      "string"
+    ],
+    "musicInfo.music_info.music_consumption_info.should_mute_audio_reason_type": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.trend_rank": [
+      "null"
+    ],
+    "musicInfo.music_info.music_consumption_info.user_notes": [
+      "null"
+    ],
+    "musicInfo.original_sound_info": [
+      "null"
+    ],
+    "musicInfo.pinned_media_ids": [
+      "array(empty)",
+      "null"
+    ],
+    "ownerFullName": [
+      "string"
+    ],
+    "ownerId": [
+      "string",
+      "string:epoch-s"
+    ],
+    "ownerUsername": [
+      "string"
+    ],
+    "paidPartnership": [
+      "boolean"
+    ],
+    "productType": [
+      "string"
+    ],
+    "shortCode": [
+      "string"
+    ],
+    "timestamp": [
+      "string:iso-z"
+    ],
+    "type": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ]
+  }
+}

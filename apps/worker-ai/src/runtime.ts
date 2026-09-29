@@ -124,9 +124,7 @@ export class LlmRuntime {
   }
 
   /** Pengaturan efektif tugas (tugas sendiri → `default`); null = LLM tidak dikonfigurasi/aktif. */
-  async resolve(
-    task: Task,
-  ): Promise<{
+  async resolve(task: Task): Promise<{
     primary: { provider: ProviderRow; model: string } | null;
     fallback: { provider: ProviderRow; model: string } | null;
     params: TaskRow["params"];

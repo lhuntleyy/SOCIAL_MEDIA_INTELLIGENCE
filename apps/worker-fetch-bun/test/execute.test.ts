@@ -1,8 +1,8 @@
 // I-13 unit worker-fetch-bun: batas halaman/item, error di tengah (item tetap diteruskan), deadline, redaksi.
 import { beforeEach, describe, expect, test } from "bun:test";
-import type { FetchRequestPayload } from "@smip/contracts";
-import { ConnectorError } from "@smip/connector-sdk";
 import { FakeConnector, fakeItem } from "@smip/connector-fake";
+import { ConnectorError } from "@smip/connector-sdk";
+import type { FetchRequestPayload } from "@smip/contracts";
 import { createLogger } from "@smip/observability";
 import { MemoryBlobStore } from "@smip/storage";
 import { type AccountLoader, executeFetch } from "../src";

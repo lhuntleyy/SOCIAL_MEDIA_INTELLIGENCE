@@ -25,11 +25,15 @@ import { handleDispatch, handleEngagementRefresh, handleFetchResult } from "./di
 const cfg = loadConfig("worker-dispatch");
 const logger = createLogger({ service: "worker-dispatch", version: cfg.SERVICE_VERSION, env: cfg.NODE_ENV, level: cfg.LOG_LEVEL });
 const { db, close } = createDb(cfg.DATABASE_URL, { max: 10 });
+// Pool TERPISAH untuk internal router (muat snapshot, seed quota, efek akun/capability). Handler dispatch memanggil router
+// DI DALAM transaksi; bila keduanya berbagi pool, saat snapshot perlu dimuat ulang semua koneksi sudah dipegang transaksi
+// yang menunggu router → deadlock sampai timeout job (teramati live 2026-09-30: 45 run backfill mati "timeout 10000 ms").
+const ctl = createDb(cfg.DATABASE_URL, { max: 3 });
 const cache = new Bun.RedisClient(cfg.REDIS_CACHE_URL);
 const queue = new BullMqQueue({ connection: { url: cfg.REDIS_URL }, logger });
-const store = new SnapshotStore((v) => loadRoutingSnapshot(db, v), { get: (k) => cache.get(k) }, { logger });
+const store = new SnapshotStore((v) => loadRoutingSnapshot(ctl.db, v), { get: (k) => cache.get(k) }, { logger });
 const reserver = new RedisReserver(cache, {
-  seed: (k) => loadQuotaUsage(db, k),
+  seed: (k) => loadQuotaUsage(ctl.db, k),
   onThreshold: (e) => logger.warn("quota threshold", { key: e.key, threshold: e.threshold }),
 });
 const monitor = new HealthMonitor(cache, { onTransition: (t) => logger.warn("circuit berubah", { ...t }) });
@@ -41,9 +45,9 @@ const router = new Router({
   monitor,
   logger,
   effects: {
-    accountAttention: (a, code) => markAccountAttention(db, a, code),
-    accountCooldown: (a, until, code) => setAccountCooldown(db, a, new Date(until), code),
-    capabilityFailed: (c, op) => markCapabilityFailed(db, c, op),
+    accountAttention: (a, code) => markAccountAttention(ctl.db, a, code),
+    accountCooldown: (a, until, code) => setAccountCooldown(ctl.db, a, new Date(until), code),
+    capabilityFailed: (c, op) => markCapabilityFailed(ctl.db, c, op),
     alert: async (e) => logger.warn("alert router", { event: e.event, connector_id: e.connectorId, code: e.code }),
   },
 });
@@ -108,6 +112,7 @@ async function shutdown() {
   sub.close();
   cache.close();
   await close();
+  await ctl.close();
   process.exit(0);
 }
 process.on("SIGTERM", shutdown);

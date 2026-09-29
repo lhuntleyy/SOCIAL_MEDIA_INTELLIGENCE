@@ -4,6 +4,10 @@
 >
 > Pengisian dilakukan di TASK fase 0 (S-10..S-13, S-16, S-17). Setiap verifikasi mencatat: tanggal, URL dokumen, versi API/actor, dan (jika dites) link evidence contract test.
 
+> **Temuan live 2026-09-30 (routing):** IG = hashtag (70%) + boolean (30%) berbobot pada prioritas sama; TikTok = clockworks → xmolodtsov
+> (xmolodtsov 0 hasil pada window incremental karena tanpa filter tanggal). Volume data platform non-X dibatasi terutama oleh
+> anggaran Apify (FREE $5/bln) — lihat `docs/INSTALL.md` §8.
+
 ## 1. Status legend
 
 | Status | Arti |
@@ -28,7 +32,7 @@ Uji kontrak nyata via Apify (kata kunci "koperasi merah putih", 10–20 item/run
 | X | 5 | X API official | DOCS | $5,00 | — | cadangan mahal, cap 3 juta read/bln |
 | Instagram (keyword) | 1 | Apify `scraping_solutions/instagram-boolean-search-scraper-posts-reels` · `apify.instagram.boolean` | **VERIFIED** 2026-09-29 (5 sampel, p50 7,1 s) | $1,55 | $0,01/halaman search | **tanpa login**; boolean AND/OR/NOT (maks 32 cabang); hasil **tidak terurut terbaru** → `oldestPostDate`/`newestPostDate` + saring lokal |
 | Instagram (keyword) | 2 | Apify `crawlerbros/instagram-keyword-search-scraper` | **TESTED** | $5,00 | $0,05 per GB memori (pakai 1 GB) | hasil segar (≤ 3 hari), 9/10 relevan, 2 caption-only; **memakai pool sesi Instagram yang login** (risk tinggi, S-15); `pub_date` **tanpa zona waktu** |
-| Instagram (hashtag) | 3 | Apify `apidojo/instagram-scraper` / `apify/instagram-hashtag-scraper` | DOCS | $0,47 / $2,60 | — | cadangan recall via hashtag (§6.3) |
+| Instagram (hashtag) | 1 (bobot 70) | Apify `apify/instagram-hashtag-scraper` · `apify.instagram.hashtag` | **VERIFIED** 2026-09-29 (3 sampel, 45 item, p50 3,7 s) | $2,60 | — | query → hashtag (frasa digabung); **recall jauh lebih tinggi** dari boolean: probe "koperasi merah putih" OR kopdes → boolean 6 post/7 hari vs hashtag 11 post/1 hari. Tanpa filter tanggal → item di luar window run disimpan (≤ 30 hari). `apidojo` tidak dipakai |
 | Instagram | 4 | ScrapeCreators `/v1/instagram/search` · EnsembleData IG keyword | DOCS | tidak publik / langganan | — | vendor non-Apify |
 | Instagram | — | Apify `viralanalyzer/instagram-keyword-search-scraper` | **TESTED → gagal** | $1,00 | — | `BLOCKED` (tembok login) tanpa cookie → tidak dipakai |
 | Facebook (keyword) | 1 | Apify `scraper_one/facebook-posts-search` · `apify.facebook.scraperone` | **VERIFIED** 2026-09-29 (5 sampel, p50 2,9 s) | $4,00 | ~0 | `startDate`/`endDate` + saring lokal; `timestamp` epoch ms; handle dari `profileUrl` |

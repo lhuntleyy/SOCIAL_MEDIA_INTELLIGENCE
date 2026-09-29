@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CryptoError, LocalDevKms, VaultTransitKms, createKms, credentialAad, displayHint, fingerprint, open, rewrap, seal } from "../src";
+import { CryptoError, createKms, credentialAad, displayHint, fingerprint, LocalDevKms, open, rewrap, seal, VaultTransitKms } from "../src";
 
 const b64 = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64");
 const SECRET = { token: "apify_api_AbCdEf1234567890", note: "ünïcödé ✓" };

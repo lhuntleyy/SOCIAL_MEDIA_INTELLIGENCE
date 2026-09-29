@@ -53,7 +53,7 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
   beforeAll(async () => {
     h = await apiHarness("topics", undefined, (db) => ({ topics: new TopicService(db, { previewer }) }));
     const { sql } = h;
-    await sql`insert into plans (id, code, name, limits) values (${tid(90)}, 'pro', 'Pro', ${sql.json({ max_topics: 3, min_interval_sec: 900 })})`;
+    await sql`insert into plans (id, code, name, limits) values (${tid(90)}, 'pro', 'Pro', ${sql.json({ max_topics: 3, min_interval_sec: 900, initial_backfill_days: 0 })})`;
     await sql`insert into tenants (id, slug, name, plan_id) values (${A}, 'org-a', 'Org A', ${tid(90)}), (${B}, 'org-b', 'Org B', ${tid(90)})`;
     for (const [id, email, t, role] of [
       [U.adminA, "admin@a.id", A, "admin"],
@@ -273,7 +273,7 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     expect([lim.status, (await j(lim)).error?.code]).toEqual([403, "PLAN_LIMIT"]);
     await h.sql.begin(async (tx) => {
       await tx`SET LOCAL ROLE smip_system`;
-      await tx`update plans set limits = ${tx.json({ max_topics: 10, min_interval_sec: 900 })}`;
+      await tx`update plans set limits = ${tx.json({ max_topics: 10, min_interval_sec: 900, initial_backfill_days: 0 })}`;
       await tx`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard) values (${Bun.randomUUIDv7()}, 'tenant', ${A}, 'day', 'requests', 100, true)`;
       // soft cap (I-23): tidak menolak, hanya memperingatkan throttle
       await tx`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard) values (${Bun.randomUUIDv7()}, 'tenant', ${A}, 'month', 'requests', 50, false)`;
@@ -308,7 +308,7 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     expect(await noInterval()).toBe(24);
     await h.sql.begin(async (tx) => {
       await tx`SET LOCAL ROLE smip_system`;
-      await tx`update plans set limits = ${tx.json({ max_topics: 10, min_interval_sec: 900, default_interval_sec: 1800 })}`;
+      await tx`update plans set limits = ${tx.json({ max_topics: 10, min_interval_sec: 900, default_interval_sec: 1800, initial_backfill_days: 0 })}`;
     });
     expect(await noInterval()).toBe(48);
   });
@@ -390,5 +390,28 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     const sr = runs.data.find((r) => r.id === run)!;
     expect(sr).toMatchObject({ source: "stream", items_matched: 7, cost_units: 0.07 }); // porsi tenant A saja, bukan total run
     expect(runs.data.filter((r) => r.source === "plan").every((r) => r.cost_units === null)).toBe(true);
+  });
+
+  test("scrape awal otomatis: topik baru langsung di-backfill N hari (plan), platform yang baru ditambah juga", async () => {
+    await h.sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`update plans set limits = ${tx.json({ max_topics: 20, min_interval_sec: 900, initial_backfill_days: 2 })}`;
+      await tx`delete from quota_policies where scope_id = ${A}`;
+    });
+    const r = await h.call("POST", "/topics", {
+      token: tok.analystA,
+      body: { name: "Auto Scrape", platforms: [{ code: "x" }], queries: [{ kind: "main", query_text: "banjir" }] },
+    });
+    expect(r.status).toBe(201);
+    const t = await j<{ id: string; version: number; initial_backfill: { days: number; runs: number } }>(r);
+    expect(t.data.initial_backfill).toEqual({ days: 2, runs: 2 }); // 1 plan × 2 hari
+    const kinds = await h.sql`select r.kind from crawl_runs r join crawl_plans p on p.id = r.crawl_plan_id where p.topic_id = ${t.data.id}`;
+    expect(kinds.map((x) => x.kind)).toEqual(["backfill", "backfill"]);
+    const u = await h.call("PATCH", `/topics/${t.data.id}`, {
+      token: tok.analystA,
+      headers: { "if-match": String(t.data.version) },
+      body: { platforms: [{ code: "x" }, { code: "instagram" }] },
+    });
+    expect((await j<{ initial_backfill: { days: number; runs: number } }>(u)).data.initial_backfill).toEqual({ days: 2, runs: 2 }); // hanya instagram
   });
 });

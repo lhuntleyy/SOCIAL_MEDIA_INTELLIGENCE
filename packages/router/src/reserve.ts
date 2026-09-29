@@ -9,7 +9,7 @@
 // (profil MVP); untuk Redis Cluster semua kunci perlu hash tag yang sama.
 import type { RouteInput } from "@smip/core";
 import { type QuotaRule, type QuotaUnit, scopeKey } from "@smip/core";
-import { estimatedRunCost, type Reserver, type ReserveResult } from "./select";
+import { estimatedRunCost, type ReserveResult, type Reserver } from "./select";
 import type { Account, ConnectorInfo, Snapshot } from "./snapshot";
 
 /** Subset klien Redis yang dipakai (cocok dengan Bun.RedisClient). */
@@ -17,6 +17,8 @@ export interface RedisLike {
   send(command: string, args: string[]): Promise<unknown>;
 }
 
+/** Batas tunggu saat semaphore concurrency penuh sebelum mencoba lagi. */
+export const SEM_POLL_MS = 20_000;
 const RESERVE = `
 local now = tonumber(ARGV[1])
 local id = ARGV[2]
@@ -65,7 +67,9 @@ for i = 1, nS do
   redis.call('ZREMRANGEBYSCORE', key, '-inf', now)
   if redis.call('ZCARD', key) >= tonumber(ARGV[aS + i - 1]) then
     local first = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-    return {3, math.max(1, tonumber(first[2]) - now), i}
+    -- slot biasanya lepas jauh sebelum lease kedaluwarsa (run selesai dalam detik; lease = TTL reservasi) → cek ulang
+      -- paling lambat SEM_POLL_MS (teramati live 2026-09-30: 45 run backfill tertunda 10 menit per putaran)
+      return {3, math.min(${SEM_POLL_MS}, math.max(1, tonumber(first[2]) - now)), i}
   end
 end
 -- semua lolos → potong

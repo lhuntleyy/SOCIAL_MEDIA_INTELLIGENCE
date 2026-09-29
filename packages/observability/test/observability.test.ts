@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import {
-  REDACTED,
-  Registry,
   context,
   createLogger,
   extractTrace,
   initTracing,
   injectTrace,
+  REDACTED,
+  Registry,
   redact,
   redactString,
   trace,

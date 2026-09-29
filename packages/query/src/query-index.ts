@@ -12,6 +12,11 @@ export interface IndexedQuery {
 }
 
 const leafKey = (value: string) => value.replace(/^#/, "").split(" ")[0]!;
+/** Frasa juga cocok dengan hashtag gabungannya ("koperasi merah putih" ↔ #koperasimerahputih) — lihat evalNode. */
+const leafKeys = (value: string) => {
+  const v = value.replace(/^#/, "");
+  return v.includes(" ") ? [leafKey(v), v.replace(/ /g, "")] : [leafKey(v)];
+};
 
 export class QueryIndex<Q extends IndexedQuery> {
   private readonly byKey = new Map<string, Q[]>();
@@ -28,7 +33,7 @@ export class QueryIndex<Q extends IndexedQuery> {
         this.always.push(q);
         continue;
       }
-      for (const key of new Set(cover.map((l) => leafKey(l.value)))) {
+      for (const key of new Set(cover.flatMap((l) => leafKeys(l.value)))) {
         const list = this.byKey.get(key);
         if (list) list.push(q);
         else this.byKey.set(key, [q]);

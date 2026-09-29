@@ -518,8 +518,13 @@ Implementasi F-10 (`apps/api/src/{admin,routes/admin.ts}`), aturan yang berlaku:
 |---|---|---|
 | `/admin/tenants*` | operator (JWT, bukan API key) | slug unik → 409 |
 | `GET /users` | admin+ tenant | hanya anggota tenant (users ber-RLS) |
-| `POST /users` `{email,name,role}` | admin+; role `owner` hanya oleh owner/operator | user baru → `status: invited` + `invite_token` (sekali pakai, 72 jam, **ditampilkan sekali**); user lama → hanya membership |
-| `POST /auth/accept-invite` `{token,password≥12}` | publik | set password + aktifkan |
+| `POST /users` `{email,name,role,password?}` | admin+; role `owner` hanya oleh owner/operator | user baru → `status: invited` + `invite_token` (sekali pakai, 72 jam, **ditampilkan sekali**); **dengan `password` (≥ 12)** → langsung `active`, tanpa token; user lama → hanya membership (password lama tidak diubah, `password_ignored: true`) |
+| `POST /users/{id}/password` `{password?}` | admin+ tenant sendiri | dengan `password` → diganti langsung; tanpa → `reset_token` (link sekali pakai 72 jam). **Ditolak (403)** bila user juga anggota kantor lain atau owner platform (cegah pengambilalihan lintas kantor); owner kantor hanya oleh owner. Sesi (refresh token) user dicabut; diaudit `user.password_set` / `user.password_reset_link` |
+| `POST /auth/accept-invite` `{token,password≥12}` | publik | token undangan (user `invited`) **atau** token reset (user `active`) → set password; reset juga mencabut sesi lama |
+| `GET/POST /admin/owners`, `DELETE /admin/owners/{id}` | owner platform | owner platform = `is_platform_operator`, anggota tenant internal `kind='platform'` (migrasi 0022, tidak tampil di daftar kantor); login owner masuk ke tenant platform; data kantor dilihat via impersonasi. Tidak bisa mencabut diri sendiri; owner terakhir → 409 |
+| `GET /admin/users` | owner platform | semua user non-owner + daftar kantor & peran |
+| `POST /admin/users/{id}/password` `{password?}` | owner platform | seperti di atas, lintas kantor |
+| `GET /admin/tenants/{id}/users` | owner platform | user satu kantor (tanpa owner platform) |
 | `PATCH /users/{id}` `{role?, status?}` | admin+; mengubah/menetapkan owner hanya owner/operator; `status` (global) hanya operator | owner terakhir tidak bisa diturunkan → 409 |
 | `POST /users/{id}/memberships` | operator | lintas tenant |
 | `DELETE /users/{id}/memberships/{tenant_id}` | admin+ tenant sendiri (tenant lain → 404) atau operator | owner terakhir → 409 |

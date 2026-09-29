@@ -7,7 +7,7 @@
 // Rekonsiliasi idempoten: stream_key = hash(platform, operation, kelas, visibility, term) — term berubah = stream baru.
 // Watermark: stream baru mulai dari watermark TERENDAH anggota; stream dilepas → plan anggota mewarisi watermark stream.
 import type { CrawlDispatchPayload } from "@smip/contracts";
-import { type Db, textArray, type Tx, withSystem } from "@smip/db";
+import { type Db, type Tx, textArray, withSystem } from "@smip/db";
 import { coverSet, type Node, normalizeText } from "@smip/query";
 import { sql } from "drizzle-orm";
 

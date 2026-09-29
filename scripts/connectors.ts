@@ -19,7 +19,6 @@ const kmsEnv = () => createKms({ NODE_ENV: process.env.NODE_ENV ?? "development"
 const registry = connectorRegistry(process.env.NODE_ENV ?? "development");
 const [cmd, ...args] = process.argv.slice(2);
 
-
 /** Manifest connector runtime python (worker-fetch-py) — bentuk sama dgn ConnectorManifest TS. */
 async function pythonManifests(): Promise<Connector["manifest"][]> {
   const py = `${import.meta.dir}/../.venv/bin/python`;

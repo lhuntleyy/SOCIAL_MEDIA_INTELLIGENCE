@@ -107,5 +107,5 @@ export interface Me {
   user: { id: string; name: string; email: string; is_platform_operator: boolean; mfa_enabled: boolean };
   current_tenant: { id: string; role: "owner" | "admin" | "analyst" | "viewer" };
   mfa: "ok" | "setup_required";
-  tenants: { id: string; name: string; role: string }[];
+  tenants: { id: string; name: string; role: string; kind?: "office" | "platform" }[];
 }

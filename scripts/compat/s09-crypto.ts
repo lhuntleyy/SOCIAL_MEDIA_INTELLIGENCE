@@ -1,6 +1,6 @@
 // S-09: interop AES-256-GCM Web Crypto (Bun) ↔ Python `cryptography` + envelope DEK/KEK (SECURITY §4).
 // Vault transit wrap/unwrap: diuji hanya bila VAULT_ADDR + VAULT_TOKEN tersedia.
-import { assert, runPython, type Check } from "./types";
+import { assert, type Check, runPython } from "./types";
 
 const b64 = (b: ArrayBuffer | Uint8Array) => Buffer.from(b instanceof Uint8Array ? b : new Uint8Array(b)).toString("base64");
 const unb64 = (s: string) => new Uint8Array(Buffer.from(s, "base64"));

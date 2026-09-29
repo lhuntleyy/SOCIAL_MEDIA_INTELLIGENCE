@@ -2,7 +2,7 @@
 // FINAL feed, bug SummingMergeTree vs AggregatingMergeTree (v0.4 C5), media_items MV (C4), kunci Nullable (C16).
 // Juga menguji @clickhouse/client di Bun.
 import { createClient } from "@clickhouse/client";
-import { assert, INFRA, reachable, Untested, type Check } from "./types";
+import { assert, type Check, INFRA, reachable, Untested } from "./types";
 
 const DB = "compat_s07";
 const T1 = "0192f000-0000-7000-8000-000000000001";

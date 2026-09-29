@@ -1,0 +1,30 @@
+{
+  "date": "2026-09-29T17:12:05.700Z",
+  "connector": "apify.instagram.hashtag",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "\"koperasi merah putih\" OR kopdes OR kdmp",
+  "window_hours": 48,
+  "max_items": 15,
+  "samples": 3,
+  "items_valid": 45,
+  "items_invalid": 0,
+  "usage_results_returned": 45,
+  "cost_usd": 0,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.comments": 1
+  },
+  "latency_ms": {
+    "samples": [
+      4309,
+      2820,
+      3701
+    ],
+    "p50": 3701,
+    "p95": 4309
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

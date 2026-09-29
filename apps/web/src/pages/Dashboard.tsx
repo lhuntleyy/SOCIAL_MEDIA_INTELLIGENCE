@@ -24,6 +24,7 @@ import {
   useFilterSearch,
   useFilters,
 } from "../analytics";
+import { OfficePicker, useNeedsOffice } from "../office";
 import { Empty, ErrorText } from "../ui";
 
 interface Summary {
@@ -54,6 +55,11 @@ const Delta = ({ v }: { v: number | null | undefined }) =>
 
 /** Wrapper halaman analitik: filter + penyedia drill-down. */
 export function AnalyticsPage({ title, children }: { title: string; children: (f: Filters) => React.ReactNode }) {
+  if (useNeedsOffice()) return <OfficePicker to={location.pathname} />;
+  return <AnalyticsInner title={title}>{children}</AnalyticsInner>;
+}
+
+function AnalyticsInner({ title, children }: { title: string; children: (f: Filters) => React.ReactNode }) {
   const f = useFilters();
   return (
     <DrillProvider f={f}>

@@ -19,16 +19,6 @@ interface QueryRow {
   languages: string[];
   enabled: boolean;
 }
-interface Estimate {
-  requests_per_day: number;
-  results_per_day: number | null;
-  usd_per_day: number | null;
-  unverified_rates: string[];
-  quota_after_pct: Record<string, number>;
-  warnings?: { code: string; platform?: string }[];
-  would_exceed: string[];
-  would_throttle?: string[];
-}
 
 const LANGS = [
   { v: "id", l: "🇮🇩 Indonesia" },
@@ -150,7 +140,6 @@ export default function TopicForm() {
   // interval crawl TIDAK diatur di UI (sistem yang menentukan); interval topik lama tetap dipertahankan saat diubah
   const [sel, setSel] = useState<Record<string, number | null>>({ x: null });
   const [queries, setQueries] = useState<QueryRow[]>([emptyQuery("main")]);
-  const [est, setEst] = useState<Estimate | null>(null);
 
   useEffect(() => {
     const t = existing.data;
@@ -187,13 +176,6 @@ export default function TopicForm() {
       languages: q.languages.length ? q.languages : null,
       enabled: q.enabled,
     })),
-  });
-  const estimate = useMutation({
-    mutationFn: () => {
-      const b = body();
-      return api<Estimate>("/topics/cost-estimate", { method: "POST", json: { platforms: b.platforms, queries: b.queries } });
-    },
-    onSuccess: setEst,
   });
   const save = useMutation({
     mutationFn: () =>
@@ -279,54 +261,13 @@ export default function TopicForm() {
         </Card>
       </div>
       <div className="space-y-4">
-        <Card title="Estimasi biaya & simpan">
-          <Button variant="ghost" className="w-full" onClick={() => estimate.mutate()} disabled={!valid || estimate.isPending}>
-            {estimate.isPending ? "Menghitung…" : "Hitung estimasi"}
-          </Button>
-          <ErrorText error={estimate.error} />
-          {est && (
-            <dl className="mt-3 space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Request/hari</dt>
-                <dd className="tabular-nums">{est.requests_per_day.toLocaleString("id-ID")}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Hasil/hari</dt>
-                <dd className="tabular-nums">{est.results_per_day?.toLocaleString("id-ID") ?? "belum diketahui"}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-zinc-500">Biaya/hari</dt>
-                <dd className="tabular-nums">{est.usd_per_day === null ? "belum diketahui" : `$${est.usd_per_day}`}</dd>
-              </div>
-              {Object.entries(est.quota_after_pct).map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <dt className="text-zinc-500">{k}</dt>
-                  <dd className={v > 100 ? "text-red-600" : ""}>{v}%</dd>
-                </div>
-              ))}
-              {est.unverified_rates.length > 0 && (
-                <p className="text-xs text-amber-700">Tarif belum terverifikasi: {est.unverified_rates.join(", ")}</p>
-              )}
-              {est.warnings
-                ?.filter((w) => w.code !== "INTERVAL_CLAMPED")
-                .map((w) => (
-                  <p key={`${w.code}${w.platform}`} className="text-xs text-amber-700">
-                    {w.code === "NO_ACTIVE_CONNECTOR" ? `${w.platform}: belum ada sumber data aktif` : w.code}
-                  </p>
-                ))}
-              {est.would_exceed.length > 0 && (
-                <p className="text-xs text-red-600">Melebihi kuota: {est.would_exceed.join(", ")} — kurangi platform atau query.</p>
-              )}
-              {!!est.would_throttle?.length && (
-                <p className="text-xs text-amber-700">Akan diperlambat (batas lunak): {est.would_throttle.join(", ")}</p>
-              )}
-            </dl>
-          )}
-          <Button
-            className="mt-4 w-full py-2"
-            onClick={() => save.mutate()}
-            disabled={!valid || save.isPending || !!est?.would_exceed.length}
-          >
+        <Card title={editing ? "Simpan perubahan" : "Buat topik"}>
+          <p className="text-sm text-zinc-600">
+            {editing
+              ? "Platform yang baru dicentang langsung diambil datanya 7 hari ke belakang."
+              : "Setelah disimpan, data 7 hari terakhir langsung diambil otomatis — lalu terus diperbarui. Pilih rentang waktu di dashboard."}
+          </p>
+          <Button className="mt-3 w-full py-2" onClick={() => save.mutate()} disabled={!valid || save.isPending}>
             {save.isPending ? "Menyimpan…" : editing ? "Simpan perubahan" : "Buat topik"}
           </Button>
           <ErrorText error={save.error} />

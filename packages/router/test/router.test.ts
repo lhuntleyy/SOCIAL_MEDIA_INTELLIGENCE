@@ -2,8 +2,8 @@
 // dengan dua connector palsu yang diskenariokan — R-06, R-07, R-08 (TESTING.md).
 // Loop run di bawah ini = versi minimal worker-dispatch (I-13 akan memakai pola yang sama).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { AttemptContext, RouteInput } from "@smip/core";
 import { ConnectorError } from "@smip/connector-sdk";
+import type { AttemptContext, RouteInput } from "@smip/core";
 import {
   createDb,
   loadRoutingSnapshot,

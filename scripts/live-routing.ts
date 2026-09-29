@@ -18,27 +18,35 @@ const PLAN: Record<string, { rules: [string, number, number][] }> = {
       ["apify.youtube.streamers", 2, 0],
     ],
   }, // Apify = standby (mahal)
+  // clockworks dulu: xmolodtsov tanpa filter tanggal → 0 hasil pada window incremental (live 2026-09-29)
   tiktok: {
     rules: [
-      ["apify.tiktok.xmolodtsov", 1, 100],
-      ["apify.tiktok.clockworks", 2, 100],
+      ["apify.tiktok.clockworks", 1, 100],
+      ["apify.tiktok.xmolodtsov", 2, 100],
     ],
   },
-  instagram: { rules: [["apify.instagram.boolean", 1, 100]] },
+  // prioritas sama → dibagi berbobot: hashtag (recall jauh lebih tinggi, probe 2026-09-29) + boolean keyword (caption)
+  instagram: {
+    rules: [
+      ["apify.instagram.hashtag", 1, 70],
+      ["apify.instagram.boolean", 1, 30],
+    ],
+  },
   facebook: { rules: [["apify.facebook.scraperone", 1, 100]] },
   threads: { rules: [["apify.threads.scrapersdelight", 1, 100]] },
 };
-/** USD per bulan per connector (hard). Σ ≈ $4,3 < kuota FREE Apify $5. */
+/** USD per bulan per connector (hard). Σ ≈ $4,3 < kuota FREE Apify $5 — naikkan bila plan Apify berbayar. */
 const MONTHLY_USD: Record<string, number> = {
   "apify.x.xquik": 0.5,
-  "apify.x.kaito": 0.3,
-  "apify.x.scraperone": 0.3,
-  "apify.tiktok.xmolodtsov": 0.6,
-  "apify.tiktok.clockworks": 0.4,
-  "apify.instagram.boolean": 0.6,
+  "apify.x.kaito": 0.2,
+  "apify.x.scraperone": 0.2,
+  "apify.tiktok.clockworks": 0.8,
+  "apify.tiktok.xmolodtsov": 0.2,
+  "apify.instagram.hashtag": 0.8,
+  "apify.instagram.boolean": 0.3,
   "apify.facebook.scraperone": 0.6,
   "apify.threads.scrapersdelight": 0.6,
-  "apify.youtube.streamers": 0.3,
+  "apify.youtube.streamers": 0.1,
 };
 const dry = process.argv.includes("--dry");
 const sql = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });

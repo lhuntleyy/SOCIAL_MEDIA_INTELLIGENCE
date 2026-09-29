@@ -5,6 +5,14 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Sesi 2026-09-30 (lanjutan) — owner platform, password, laporan, scrape awal, sumber data IG/TikTok, perbaikan antrean:**
+  - **Owner platform** di luar kantor (migrasi 0022: tenant internal `kind='platform'`; login owner masuk ke sana; halaman data meminta *pilih kantor*); `GET/POST/DELETE /admin/owners`, `GET /admin/users` (semua user + kantor), halaman *Kantor & pengguna* bertab Kantor / Semua pengguna / Owner.
+  - **Password oleh admin:** isi password saat membuat user (langsung aktif) atau link undangan; **reset password** (`POST /users/{id}/password`, `POST /admin/users/{id}/password`) langsung / link reset sekali pakai; ditolak untuk user yang juga anggota kantor lain; sesi lama dicabut; diaudit.
+  - **Scrape awal otomatis:** topik baru (dan platform yang baru dicentang) langsung di-backfill 7 hari (`plans.limits.initial_backfill_days`); "Hitung estimasi" dihapus dari form.
+  - **Laporan** (`/report`): ringkasan naratif otomatis, chart, hashtag/akun/lokasi teratas, post teramai & sorotan negatif → Cetak/Simpan PDF (CSS print A4) + unduh CSV post.
+  - Filter analitik (topik/rentang/platform) diingat antar halaman (localStorage + URL).
+  - Connector **`apify.instagram.hashtag`** (Apify resmi, VERIFIED) — query → hashtag; routing IG hashtag 70% / boolean 30%; TikTok clockworks jadi utama.
+  - `docs/INSTALL.md` — panduan instalasi & konfigurasi lengkap dari server kosong.
 - **Sesi 2026-09-30 — UI disederhanakan + analitik ala produk referensi (drill-down):**
   - **Klik diagram → post** (drill-down) di semua chart: popup berisi post di balik angka (urut terbaru / engagement tertinggi, "muat lebih banyak", jumlah total) + **"Jadikan filter"** untuk platform/rentang waktu. Feed `/posts` menerima `hashtag`, `issue`, `author_id`, `region`, `content_type` (termasuk kelompok `replies`/`reposts`), `sort`, `count=1` → `meta.total`.
   - Endpoint analitik baru (dari agregat): `emotion/timeline`, `accounts/active`, `accounts/reposted`, `platforms` (post/balasan/repost per platform), `activity` (heatmap hari×jam WIB), `accounts/created-year`; `exposure?mode=engagement`; `accounts/top?by=replies|reposts&sentiment=`.
@@ -96,6 +104,12 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Kode spike: `package.json`, `.bun-version` (1.4.2), `scripts/compat-check.ts` + `scripts/compat/*`, `scripts/spike-infra.sh`, bukti `docs/evidence/`.
 
 ### Fixed
+- **Keamanan:** port Postgres/Redis/ClickHouse/S3/Vault compose ter-publish ke `0.0.0.0` (Docker melewati ufw) → diikat `127.0.0.1`; secret tersegel dipindah ke Vault baru tanpa kehilangan (DEK dibungkus ulang).
+- **Deadlock dispatch:** router memuat snapshot/seed quota lewat pool DB yang sama dengan transaksi dispatch → semua koneksi habis → job mati "timeout 10000 ms" (45 run backfill hilang). Router kini punya pool sendiri.
+- **Reaper** menggagalkan run `queued` yang job-nya hilang tanpa pernah mencoba → kini diantrekan ulang (maks. 4×) sebelum STUCK_RUN.
+- Semaphore concurrency penuh → tunggu sampai lease habis (±10 menit) → kini cek ulang ≤ 20 s + jitter (backfill 45 run: ±2 jam → ±4 menit).
+- Actor tanpa filter tanggal: post di luar potongan window run dibuang padahal sudah dibayar (IG hashtag 70 → 14, Threads 65 → 4) → disimpan bila ≤ 30 hari.
+- Matcher: frasa kini cocok dengan hashtag gabungannya (`"koperasi merah putih"` ↔ `#KoperasiMerahPutih`); teks < 3 kata tidak ditolak karena deteksi bahasa (TikTok "Kopdes" → `da`).
 - **v0.4:** partial success melompati celah (`since = max`) → window celah + watermark hanya maju saat `succeeded`; post tak-match tanpa jalur ke ClickHouse; `media_items` MV tanpa kolom sumber; SummingMergeTree menjumlahkan followers; agregat issue/akun tanpa dimensi sentiment; `agg_author_age_1d` menghitung post bukan akun; coverage psychography tak bisa dihitung; `nlp_labels` menunjuk teks yang terhapus 30 hari; retensi post tak-match; collection stream (interval, atribusi biaya, BYO); estimasi biaya berbasis request; nama queue `fetch.failed`; SSE tanpa cookie yang bisa dipakai.
 - **v0.4 (dari spike):** jobId BullMQ tanpa `:`; SSE `idleTimeout: 0`; `set_config` + `nullif` untuk RLS; `non_replicated_deduplication_window` wajib; sort key `topic_matches` + `published_at`.
 - FK ke tabel partisi `crawl_runs` (sertakan `scheduled_for`).

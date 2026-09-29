@@ -110,7 +110,7 @@ describe.skipIf(!infraUp)("auth API (integrasi)", () => {
     expect(res.status).toBe(200);
     expect(json.data.access_token.split(".")).toHaveLength(3);
     expect(json.data.mfa).toBe("ok");
-    expect(json.data.tenants).toEqual([{ id: T, name: "Org", role: "analyst" }]);
+    expect(json.data.tenants).toEqual([{ id: T, name: "Org", role: "analyst", kind: "office" }]);
     const sc = res.headers.get("set-cookie")!;
     for (const attr of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/v1/auth"]) expect(sc).toContain(attr);
     expect(JSON.stringify(json)).not.toContain(cookieOf(res)!.split("=")[1]!); // refresh token tidak di body

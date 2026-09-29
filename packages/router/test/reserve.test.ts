@@ -5,7 +5,7 @@ import type { QuotaRule, RateLimit } from "@smip/core";
 import { scopeKey } from "@smip/core";
 import { createDb, flushQuotaUsage, loadQuotaUsage, up } from "@smip/db";
 import postgres from "postgres";
-import { periodInfo, RedisReserver, type Snapshot, select, type ThresholdEvent } from "../src";
+import { periodInfo, RedisReserver, SEM_POLL_MS, type Snapshot, select, type ThresholdEvent } from "../src";
 import { connector, input, rule, snapshot, T_A } from "./fixtures";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
@@ -116,6 +116,10 @@ describe.skipIf(!infraUp)("I-08/I-09 reservasi atomik (Redis)", () => {
     const res = await Promise.all(Array.from({ length: 50 }, () => r.tryReserve(reserveArgs(s))));
     const ok = res.filter((x) => x.ok) as { ok: true; reservationId: string }[];
     expect(ok).toHaveLength(3);
+    const busy = res.find((x) => !x.ok) as { ok: false; reason: string; retryAfterMs: number };
+    // penuh → coba lagi paling lambat SEM_POLL_MS, bukan menunggu lease (= TTL reservasi) habis
+    expect(busy.reason).toBe("THROTTLED");
+    expect(busy.retryAfterMs).toBeLessThanOrEqual(SEM_POLL_MS);
     await r.release(ok[0]!.reservationId);
     expect((await r.tryReserve(reserveArgs(s))).ok).toBe(true);
     expect((await r.tryReserve(reserveArgs(s))).ok).toBe(false);

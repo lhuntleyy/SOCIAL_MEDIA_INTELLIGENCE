@@ -17,6 +17,9 @@ import {
 import type { CanonicalItem } from "@smip/contracts";
 import { APIFY_HOSTS, type ApifyRun, datasetItems, failIfBad, getRun, PLAN_LIMIT_LOG, RUNNING, runLog, startRun } from "./client";
 
+/** Umur maksimum item (hari sebelum window.since) yang disimpan dari actor tanpa filter tanggal. */
+export const LOOKBACK_DAYS = 30;
+
 export interface ActorConfig {
   /** Override id actor (mis. fork) — default dari spec. */
   actorId?: string;
@@ -118,10 +121,17 @@ export class ApifyActorConnector implements Connector {
       : null;
     const items: CanonicalItem[] = [];
     let dropped = 0;
+    // Actor yang MENDUKUNG filter tanggal: saring ketat ke window (jaring pengaman; contract: published_at ≥ since).
+    // Actor TANPA filter tanggal (feed hashtag, search "terbaru"): hasilnya sudah dibayar dan tetap post topik yang sah →
+    // jangan dibuang hanya karena di luar potongan window run; cukup batasi umur (LOOKBACK_DAYS sebelum since). Duplikat
+    // antar run ditangani dedupe pipeline. Teramati live 2026-09-30: IG hashtag 70 → 14, Threads 65 → 4 karena dibuang.
+    const op = this.spec.operations[req.operation];
+    const since = req.window?.since;
+    const until = req.window?.until;
+    const floor = since && !op?.supportsSince ? new Date(Date.parse(since) - LOOKBACK_DAYS * 86_400_000).toISOString() : since;
     for (const r of raw) {
       const it = this.spec.normalize(r, { key: this.spec.key, version: this.spec.version, fetchedAt, rawRef });
-      // actor sudah memfilter window; saring lokal sebagai jaring pengaman (contract: published_at ≥ since)
-      if (!it || (req.window?.since && it.published_at < req.window.since) || (req.window?.until && it.published_at > req.window.until)) {
+      if (!it || (floor && it.published_at < floor) || (until && op?.supportsUntil && it.published_at > until)) {
         dropped++;
         continue;
       }

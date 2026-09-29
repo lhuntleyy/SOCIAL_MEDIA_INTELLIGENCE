@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { TenantId, isUuid } from "../src";
+import { isUuid, TenantId } from "../src";
 
 describe("branded ids", () => {
   test("menerima UUIDv7 dan menormalkan ke lowercase", () => {

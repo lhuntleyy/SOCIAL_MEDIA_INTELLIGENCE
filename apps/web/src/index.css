@@ -7,3 +7,13 @@
   --color-brand-600: #b91c1c;
   --color-brand-700: #991b1b;
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+  body {
+    background: white;
+  }
+}

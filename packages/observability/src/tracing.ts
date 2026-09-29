@@ -8,11 +8,11 @@ import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   BasicTracerProvider,
   BatchSpanProcessor,
+  ParentBasedSampler,
+  SimpleSpanProcessor,
   type SpanExporter,
   type SpanProcessor,
-  SimpleSpanProcessor,
   TraceIdRatioBasedSampler,
-  ParentBasedSampler,
 } from "@opentelemetry/sdk-trace-base";
 
 export interface TracingOptions {

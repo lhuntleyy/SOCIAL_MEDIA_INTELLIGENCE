@@ -251,6 +251,38 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     await sql`update crawl_plans set status = 'paused' where id = ${gp}`;
   });
 
+  test("reaper: run queued yang job dispatch-nya hilang diantrekan ulang (maks. 4×), baru digagalkan setelahnya", async () => {
+    const p = await plan({ dueInSec: 600 });
+    const lost = id(++qn + 0x40000);
+    await sql`insert into crawl_runs (id, tenant_id, crawl_plan_id, scheduled_for, kind, status, window_from, window_to)
+      values (${lost}, ${T}, ${p}, ${new Date(Date.now() - 2000_000)}, 'backfill', 'queued', now() - interval '2 days', now() - interval '1 day')`;
+    const jobs = async () =>
+      (await sql`select payload from outbox where aggregate = 'job' and aggregate_id = ${lost} order by id`).map(
+        (r) => r.payload as { idempotencyKey: string; priority: number; payload: { run_kind: string; attempt_no: number } },
+      );
+    expect(await reapStuckRuns(created.db, { graceSec: 900 })).toEqual([]); // diantrekan ulang, bukan gagal
+    let j = await jobs();
+    expect(j.map((x) => [x.idempotencyKey, x.priority, x.payload.run_kind, x.payload.attempt_no])).toEqual([
+      [`run.${lost}.attempt.1.requeue.1`, 10, "backfill", 1],
+    ]);
+    expect(await reapStuckRuns(created.db, { graceSec: 900 })).toEqual([]); // baru diantrekan → belum lewat grace lagi
+    expect(await jobs()).toHaveLength(1);
+    // setelah 4 kali (masing-masing lewat grace) → STUCK_RUN
+    for (let i = 2; i <= 4; i++) {
+      await sql`update crawl_runs set routing = routing || jsonb_build_object('requeued_at', (now() - interval '1 hour')::text) where id = ${lost}`;
+      expect(await reapStuckRuns(created.db, { graceSec: 900 })).toEqual([]);
+    }
+    j = await jobs();
+    expect(j.map((x) => x.idempotencyKey.split(".").at(-1))).toEqual(["1", "2", "3", "4"]);
+    await sql`update crawl_runs set routing = routing || jsonb_build_object('requeued_at', (now() - interval '1 hour')::text) where id = ${lost}`;
+    expect(await reapStuckRuns(created.db, { graceSec: 900 })).toEqual([lost]);
+    // run yang sudah pernah di-dispatch (attempts > 0) tidak diantrekan ulang
+    const tried = id(++qn + 0x40000);
+    await sql`insert into crawl_runs (id, tenant_id, crawl_plan_id, scheduled_for, kind, status, attempts) values (${tried}, ${T}, ${p}, ${new Date(Date.now() - 2000_000)}, 'incremental', 'queued', 1)`;
+    expect(await reapStuckRuns(created.db, { graceSec: 900 })).toEqual([tried]);
+    await sql`update crawl_plans set status = 'paused' where id = ${p}`;
+  });
+
   test("leader lock: satu pemimpin; pemilik memperpanjang; lock kedaluwarsa diambil replika lain", async () => {
     const key = `test:lock:${Date.now()}`;
     const a = new LeaderLock(cache, { key, ttlMs: 300 });

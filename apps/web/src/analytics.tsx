@@ -2,7 +2,7 @@
 // diklik → popup berisi post di balik angka itu (+ "jadikan filter" untuk platform / rentang waktu).
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, apiFull } from "./api";
 import type { TopicSummary } from "./types";
@@ -84,38 +84,75 @@ export interface Post {
   url: string | null;
 }
 
+// Filter terakhir diingat (localStorage) → pindah halaman / buka ulang tetap di topik & rentang yang sama.
+// URL tetap sumber utama (link bisa dibagikan); nilai tersimpan hanya mengisi yang tidak ada di URL.
+const STORE_KEY = "smip.filters";
+function loadStored(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+function saveStored(v: Record<string, string>) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(v));
+  } catch {
+    /* storage tidak tersedia → hanya URL */
+  }
+}
+function effectiveParams(sp: URLSearchParams) {
+  const stored = loadStored();
+  const out: Record<string, string> = {};
+  for (const k of PARAM_KEYS) {
+    const v = sp.has(k) ? sp.get(k) : stored[k];
+    if (v) out[k] = v;
+  }
+  return out;
+}
+
 /** Query-string filter analitik untuk link antar halaman (topik/rentang/platform ikut terbawa). */
 export function useFilterSearch() {
   const [sp] = useSearchParams();
-  const n = new URLSearchParams();
-  for (const k of PARAM_KEYS) {
-    const v = sp.get(k);
-    if (v) n.set(k, v);
-  }
-  const s = n.toString();
+  const s = new URLSearchParams(effectiveParams(sp)).toString();
   return s ? `?${s}` : "";
 }
 
 export function useFilters() {
   const topics = useQuery({ queryKey: ["topics", ""], queryFn: () => api<TopicSummary[]>("/topics?limit=50") });
   const [sp, setSp] = useSearchParams();
+  const p = effectiveParams(sp);
   const list = topics.data?.filter((t) => t.status !== "archived");
-  const topic = sp.get("topic") ?? list?.[0]?.id ?? "";
-  const platform = sp.get("platform") ?? "";
-  const refresh = REFRESH.find((r) => r.id === sp.get("refresh")) ?? REFRESH[2]!;
-  const custom = sp.get("range") === "custom" && sp.get("from") && sp.get("to");
-  const range = custom ? null : (RANGES.find((r) => r.id === sp.get("range")) ?? RANGES[1]!);
+  // topik tersimpan bisa milik kantor lain (mis. setelah "lihat data") → hanya dipakai bila ada di daftar
+  const topic = (p.topic && (!list || list.some((t) => t.id === p.topic)) ? p.topic : list?.[0]?.id) ?? "";
+  const platform = p.platform ?? "";
+  const refresh = REFRESH.find((r) => r.id === p.refresh) ?? REFRESH[2]!;
+  const custom = p.range === "custom" && p.from && p.to;
+  const range = custom ? null : (RANGES.find((r) => r.id === p.range) ?? RANGES[1]!);
   // jangkar waktu dibulatkan ke 5 menit → query key stabil antar render, bergeser sendiri tiap 5 menit
-  const to = custom ? new Date(sp.get("to")!) : new Date(Math.ceil(Date.now() / 300_000) * 300_000);
-  const from = custom ? new Date(sp.get("from")!) : new Date(to.getTime() - range!.ms);
+  const to = custom ? new Date(p.to!) : new Date(Math.ceil(Date.now() / 300_000) * 300_000);
+  const from = custom ? new Date(p.from!) : new Date(to.getTime() - range!.ms);
   const set = (kv: Record<string, string | null>) => {
     const n = new URLSearchParams(sp);
+    const stored: Record<string, string> = { ...p, topic };
     for (const [k, v] of Object.entries(kv)) {
-      if (v === null || v === "") n.delete(k);
-      else n.set(k, v);
+      if (v === null || v === "") {
+        n.delete(k);
+        delete stored[k];
+      } else {
+        n.set(k, v);
+        stored[k] = v;
+      }
     }
+    for (const [k, v] of Object.entries(stored)) if (!n.has(k)) n.set(k, v);
+    saveStored(stored);
     setSp(n, { replace: true });
   };
+  // filter dari URL (mis. link "Lihat dashboard" / link yang dibagikan) juga diingat
+  const snapshot = JSON.stringify({ ...p, ...(topic ? { topic } : {}) });
+  useEffect(() => {
+    if (snapshot !== JSON.stringify(loadStored())) saveStored(JSON.parse(snapshot) as Record<string, string>);
+  }, [snapshot]);
   const qs = `topic_id=${topic}&from=${from.toISOString()}&to=${to.toISOString()}${platform ? `&platforms=${platform}` : ""}`;
   return { topics, list, topic, platform, range, custom: !!custom, from, to, refresh, set, qs };
 }
@@ -138,7 +175,7 @@ export function FilterBar({ f, title }: { f: Filters; title: string }) {
     staleTime: 600_000,
   });
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm print:hidden">
       <h1 className="mr-2 text-xl font-bold uppercase tracking-wide text-zinc-700">{title}</h1>
       <Select value={f.topic} onChange={(e) => f.set({ topic: e.target.value })} className="py-1.5">
         {f.list?.map((t) => (

@@ -12,11 +12,13 @@ import Conversation from "./pages/Conversation";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Mfa from "./pages/Mfa";
+import Report from "./pages/Report";
 import Settings from "./pages/Settings";
 import TopicForm from "./pages/TopicForm";
 import { TopicList, TopicPage } from "./pages/Topics";
 import Users, { AcceptInvite } from "./pages/Users";
 
+const ROLE_NAME: Record<string, string> = { owner: "Admin kantor", admin: "Admin kantor", analyst: "Analis", viewer: "Pembaca" };
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: false } } });
 
 function Shell() {
@@ -35,8 +37,8 @@ function Shell() {
   return (
     <div className="min-h-screen">
       {view && (
-        <div className="bg-amber-100 px-4 py-1.5 text-center text-sm text-amber-900">
-          Anda (administrator) sedang melihat data kantor <b>{view.tenantName}</b> — setiap akses tercatat di audit.{" "}
+        <div className="bg-amber-100 px-4 py-1.5 text-center text-sm text-amber-900 print:hidden">
+          Anda (owner) sedang berada di kantor <b>{view.tenantName}</b> — setiap akses tercatat di audit.{" "}
           <button
             type="button"
             className="font-semibold underline"
@@ -46,11 +48,11 @@ function Shell() {
               location.assign("/users");
             }}
           >
-            Kembali ke administrator
+            Keluar dari kantor
           </button>
         </div>
       )}
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur print:hidden">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-2">
           <span className="mr-4 text-lg font-bold text-brand-600">SMIP</span>
           {/* filter analitik (topik/rentang/platform) ikut terbawa antar halaman analitik */}
@@ -65,6 +67,9 @@ function Shell() {
           </NavLink>
           <NavLink to={`/audience${search}`} className={link}>
             Audiens
+          </NavLink>
+          <NavLink to={`/report${search}`} className={link}>
+            Laporan
           </NavLink>
           <span className="mx-1 hidden h-5 w-px bg-zinc-200 md:inline-block" />
           <NavLink to="/topics" className={link}>
@@ -85,7 +90,8 @@ function Shell() {
               {me.user.name}
               <br />
               <span className="text-xs">
-                {view ? view.tenantName : tenantName} · {op ? "administrator" : me.current_tenant.role}
+                {view ? view.tenantName : op ? "Platform" : tenantName} ·{" "}
+                {op ? "Owner" : (ROLE_NAME[me.current_tenant.role] ?? me.current_tenant.role)}
               </span>
             </span>
             <button
@@ -101,7 +107,7 @@ function Shell() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl p-4">
+      <main className="mx-auto max-w-7xl p-4 print:max-w-none print:p-0">
         <Outlet />
       </main>
     </div>
@@ -122,6 +128,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/conversation" element={<Conversation />} />
               <Route path="/contributors" element={<Contributors />} />
               <Route path="/audience" element={<Audience />} />
+              <Route path="/report" element={<Report />} />
               <Route path="/topics" element={<TopicList />} />
               <Route path="/topics/new" element={<TopicForm />} />
               <Route path="/topics/:id" element={<TopicPage />} />

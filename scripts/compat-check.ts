@@ -3,9 +3,9 @@
 //   bun run compat hono clickhouse
 // Infra lokal: scripts/spike-infra.sh start (Redis, ClickHouse, Postgres, S3). Check yang infranya tidak ada → UNTESTED.
 // Hasil: docs/evidence/compat/results.{json,md}
-import { arch, cpus, platform, totalmem } from "node:os";
+
 import { mkdir } from "node:fs/promises";
-import { Untested, type Check, type CheckResult } from "./compat/types";
+import { arch, cpus, platform, totalmem } from "node:os";
 import { biome } from "./compat/s01-tooling";
 import { bunBuiltins, hono, joseCheck, zod } from "./compat/s02-http";
 import { bullmq, bullmqInterop } from "./compat/s03-queue";
@@ -13,6 +13,7 @@ import { otel } from "./compat/s06-otel";
 import { clickhouse } from "./compat/s07-clickhouse";
 import { drizzleKit, playwrightCheck, postgresCheck, s3Check, viteCheck } from "./compat/s08-data";
 import { cryptoInterop } from "./compat/s09-crypto";
+import { type Check, type CheckResult, Untested } from "./compat/types";
 
 const keda: Check = {
   id: "keda-bullmq-scaler",

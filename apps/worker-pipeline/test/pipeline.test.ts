@@ -1,8 +1,8 @@
 // I-14 integrasi (Postgres + Redis-cache compose): P-01, P-02, P-04, P-12 + iklan, geo, retry aman, batching,
 // penutupan run (succeeded → watermark maju; partial → celah, watermark diam).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { AiEnrichPayload, type CanonicalItem, type PostRecord, SinkAnalyticsPayload } from "@smip/contracts";
 import { fakeItem } from "@smip/connector-fake";
+import { AiEnrichPayload, type CanonicalItem, type PostRecord, SinkAnalyticsPayload } from "@smip/contracts";
 import { createDb, loadGeoRegions, up } from "@smip/db";
 import { Gazetteer } from "@smip/geo";
 import { astHash, compileQuery } from "@smip/query";
@@ -146,7 +146,7 @@ describe.skipIf(!infraUp)("I-14 worker-pipeline (integrasi)", () => {
     const r = await send(ids, [
       post(11, "banjir lagi #jakarta", { lang_hint: "in" }), // cocok (alias in→id, hashtag = media tag)
       post(12, "genangan di jalan", { lang_hint: "id", hashtags: ["jakarta"] }), // cocok via keyword
-      post(13, "flood again #jakarta banjir", { lang_hint: "en" }), // bahasa salah
+      post(13, "flood again in the city #jakarta banjir", { lang_hint: "en" }), // bahasa salah
       post(14, "banjir besar", { lang_hint: "id" }), // tanpa media tag
       post(15, "banjir #jakarta #hoax", { lang_hint: "id" }), // not_media_tags
       post(16, "banjir #jakarta", { lang_hint: null }), // bahasa tak diketahui → lolos (ADR-008)

@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
   ConnectorError,
   codeForStatus,
-  toConnectorError,
   compareIds,
   count,
   HttpClient,
@@ -10,6 +9,7 @@ import {
   maxId,
   parseRetryAfter,
   stripPii,
+  toConnectorError,
   toUtcIso,
 } from "../src";
 

@@ -1,8 +1,8 @@
 // S-03: bullmq + ioredis di Bun (delay, retry, stalled, priority, jobId idempotency) + Lua EVALSHA + Bun.redis.
 // S-04: interop BullMQ TS <-> Python pada queue yang sama.
-import { Queue, Worker, QueueEvents, type Job } from "bullmq";
+import { type Job, Queue, QueueEvents, Worker } from "bullmq";
 import IORedis from "ioredis";
-import { assert, INFRA, reachable, runPython, Untested, type Check } from "./types";
+import { assert, type Check, INFRA, reachable, runPython, Untested } from "./types";
 
 const connection = { host: "127.0.0.1", port: 6390, maxRetriesPerRequest: null };
 

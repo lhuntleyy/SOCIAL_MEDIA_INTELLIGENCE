@@ -3,6 +3,7 @@
 import { ApifyActorConnector } from "./actor";
 import { FACEBOOK_SCRAPERONE } from "./facebook-scraperone";
 import { INSTAGRAM_BOOLEAN } from "./instagram-boolean";
+import { INSTAGRAM_HASHTAG } from "./instagram-hashtag";
 import { THREADS_SCRAPERSDELIGHT } from "./threads-scrapersdelight";
 import { TIKTOK_CLOCKWORKS } from "./tiktok-clockworks";
 import { TIKTOK_XMOLODTSOV } from "./tiktok-xmolodtsov";
@@ -15,6 +16,7 @@ export * from "./actor";
 export * from "./client";
 export * from "./facebook-scraperone";
 export * from "./instagram-boolean";
+export * from "./instagram-hashtag";
 export * from "./threads-scrapersdelight";
 export * from "./tiktok-clockworks";
 export * from "./tiktok-xmolodtsov";
@@ -29,6 +31,7 @@ export const APIFY_SPECS = [
   X_KAITO,
   X_SCRAPERONE,
   INSTAGRAM_BOOLEAN,
+  INSTAGRAM_HASHTAG,
   FACEBOOK_SCRAPERONE,
   TIKTOK_CLOCKWORKS,
   TIKTOK_XMOLODTSOV,

@@ -365,7 +365,8 @@ export async function handleDispatch(
         return "skipped";
       }
       if (decision.reason === "ALL_THROTTLED") {
-        const delay = Math.max(RETRYABLE_WAIT_MIN_MS, decision.retryAfterMs);
+        // jitter: banyak run menunggu slot yang sama → jangan bangun serentak (thundering herd)
+        const delay = Math.max(RETRYABLE_WAIT_MIN_MS, decision.retryAfterMs) + Math.floor(Math.random() * 5000);
         await redispatch(
           tx,
           run,

@@ -80,7 +80,7 @@ export class AuthService {
 
   private async memberTenants(tx: Tx, userId: string) {
     return tx
-      .select({ id: tenants.id, name: tenants.name, role: memberships.role })
+      .select({ id: tenants.id, name: tenants.name, role: memberships.role, kind: tenants.kind })
       .from(memberships)
       .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
       .where(and(eq(memberships.userId, userId), eq(tenants.status, "active"), isNull(tenants.deletedAt)))
@@ -126,8 +126,11 @@ export class AuthService {
       const passOk = await Bun.password.verify(i.password, u?.passwordHash ?? DUMMY_HASH);
       if (!u?.passwordHash || !passOk || u.status !== "active") return { fail: "credentials" as const };
 
-      const member = await this.memberTenants(tx, u.id);
-      const chosen = i.tenantId ? member.find((m) => m.id === i.tenantId) : member[0];
+      // tenant platform hanya untuk owner platform; owner platform masuk ke "rumah" platform-nya secara default
+      const member = (await this.memberTenants(tx, u.id)).filter((m) => m.kind === "office" || u.isPlatformOperator);
+      const chosen = i.tenantId
+        ? member.find((m) => m.id === i.tenantId)
+        : (member.find((m) => m.kind === "platform" && u.isPlatformOperator) ?? member[0]);
       if (!chosen) return { fail: "no_tenant" as const };
 
       if (u.mfaSecretEnc) {
@@ -141,7 +144,7 @@ export class AuthService {
       return {
         issued,
         user: { id: u.id, name: u.name, email: u.email },
-        tenants: member.map((m) => ({ id: m.id, name: m.name, role: m.role })),
+        tenants: member.map((m) => ({ id: m.id, name: m.name, role: m.role, kind: m.kind })),
       };
     });
 

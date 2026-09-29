@@ -4,10 +4,10 @@
 //                { op: "search_keyword", fail: { code: "RATE_LIMITED", retryAfterMs: 30000 } },
 //                { op: "search_keyword", delayMs: 5000 },            // untuk timeout
 //                { op: "search_keyword", respond: { items: MALFORMED } }]);  // → PARSE_ERROR
-import { CanonicalItem, type ConnectorErrorCode, type Operation } from "@smip/contracts";
+
 import {
-  type Connector,
   type AsyncHandle,
+  type Connector,
   type ConnectorContext,
   ConnectorError,
   type ConnectorManifest,
@@ -16,6 +16,7 @@ import {
   type HealthProbeResult,
   type OperationSupport,
 } from "@smip/connector-sdk";
+import { CanonicalItem, type ConnectorErrorCode, type Operation } from "@smip/contracts";
 
 export interface FakeRespond {
   items: unknown[];

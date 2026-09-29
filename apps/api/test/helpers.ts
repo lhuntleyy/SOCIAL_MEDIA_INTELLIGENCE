@@ -4,7 +4,7 @@ import { createDb, type Db, up } from "@smip/db";
 import { exportPKCS8, generateKeyPair } from "jose";
 import postgres from "postgres";
 import { AdminService } from "../src/admin/service";
-import { createApp, type AppDeps } from "../src/app";
+import { type AppDeps, createApp } from "../src/app";
 import { type AccessClaims, type JwtKeys, loadJwtKeys, signAccess } from "../src/auth/jwt";
 import { LoginLimiter } from "../src/auth/rate-limit";
 import { AuthService } from "../src/auth/service";

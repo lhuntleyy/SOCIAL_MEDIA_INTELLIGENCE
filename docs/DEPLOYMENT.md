@@ -75,6 +75,10 @@ Stack dev + `infra/compose/docker-compose.demo.yml`: **api** & **workers** (semu
 (repo di-mount read-only), **web** = Caddy: file statis `apps/web/dist` + reverse proxy `/v1/*` → api, **HTTPS otomatis** Let's Encrypt
 untuk `SITE_HOST` (`infra/compose/.env.demo`: `43-156-61-233.sslip.io` — layanan DNS wildcard yang menunjuk ke IP, tanpa beli domain).
 HTTPS wajib: cookie refresh `Secure`. Akses via IP langsung dialihkan ke hostname HTTPS. Port 80/443 di-publish Docker (tidak lewat ufw).
+**Port infra (Postgres/Redis/ClickHouse/S3/Vault) diikat ke `127.0.0.1`** (perbaikan 2026-09-30: sebelumnya `0.0.0.0` → karena Docker
+melewati ufw, database dev dengan password di repo bisa dijangkau dari internet). Container aplikasi memakai jaringan internal Docker.
+Vault dev menyimpan KEK di memori — **membuat ulang container vault menghilangkan semua secret tersegel** kecuali DEK dibungkus ulang
+(lihat RUNBOOK §9 rotasi KEK; dilakukan sekali 2026-09-30 saat memindah port). Panduan lengkap dari nol: `docs/INSTALL.md`.
 - Secret di luar repo: `~/.config/smip/jwt-demo.pem` (kunci JWT EdDSA, chmod 600).
 - `demo:up` = build web → migrasi PG + CH → compose up. `demo:down` menghentikan api/workers/web.
 - Akun: `bun --env-file=infra/compose/.env.dev scripts/set-password.ts <email> [--operator]` (password dicetak sekali; MFA daftar ulang).

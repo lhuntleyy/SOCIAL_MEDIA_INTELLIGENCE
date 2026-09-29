@@ -10,21 +10,21 @@ services:
       POSTGRES_USER: smip_owner          # pemilik skema (menjalankan migrasi)
       POSTGRES_PASSWORD: smip_owner_dev   # hanya dev
       POSTGRES_DB: smip
-    ports: ["55432:5432"]
+    ports: ["127.0.0.1:55432:5432"]
     volumes: [pg:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U smip_owner -d smip"], interval: 3s, timeout: 3s, retries: 30 }
 
   redis-queue:                           # BullMQ: noeviction + AOF (DATA_MODEL §7)
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
-    ports: ["56379:6379"]
+    ports: ["127.0.0.1:56379:6379"]
     volumes: [redisq:/data]
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 3s, timeout: 3s, retries: 30 }
 
   redis-cache:                           # cache/dedupe/rate/quota — TERPISAH dari queue
     image: redis:7-alpine
     command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "volatile-ttl"]
-    ports: ["56380:6379"]
+    ports: ["127.0.0.1:56380:6379"]
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 3s, timeout: 3s, retries: 30 }
 
   clickhouse:
@@ -33,7 +33,7 @@ services:
       CLICKHOUSE_USER: smip
       CLICKHOUSE_PASSWORD: smip_dev
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-    ports: ["58123:8123"]
+    ports: ["127.0.0.1:58123:8123"]
     ulimits: { nofile: { soft: 262144, hard: 262144 } }
     volumes:
       - ch:/var/lib/clickhouse
@@ -48,14 +48,14 @@ services:
       ROOT_ACCESS_KEY: smip_dev
       ROOT_SECRET_KEY: smip_dev_secret_123
     command: ["--port", ":7070", "posix", "/data"]
-    ports: ["57070:7070"]
+    ports: ["127.0.0.1:57070:7070"]
     volumes: [s3:/data]
 
   vault:                                 # dev mode (in-memory) — JANGAN dipakai di produksi
     image: hashicorp/vault:2.1.1
     command: ["server", "-dev", "-dev-root-token-id=smip-dev", "-dev-listen-address=0.0.0.0:8200"]
     cap_add: [IPC_LOCK]
-    ports: ["58200:8200"]
+    ports: ["127.0.0.1:58200:8200"]
     healthcheck: { test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"], interval: 3s, timeout: 3s, retries: 30 }
 
 volumes: { pg: {}, redisq: {}, ch: {}, s3: {} }

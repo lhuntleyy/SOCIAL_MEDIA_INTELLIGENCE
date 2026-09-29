@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../api";
 import { useAuth } from "../auth";
+import { OfficePicker, useNeedsOffice } from "../office";
 import type { TopicDetail, TopicSummary } from "../types";
 import { Badge, Button, Card, Empty, ErrorText, Input, PLATFORM_LABEL } from "../ui";
 
@@ -17,6 +18,11 @@ export function useRole(min: "analyst" | "admin") {
 }
 
 export function TopicList() {
+  if (useNeedsOffice()) return <OfficePicker to="/topics" />;
+  return <TopicListInner />;
+}
+
+function TopicListInner() {
   const canWrite = useRole("analyst");
   const [search, setSearch] = useState("");
   const q = useQuery({

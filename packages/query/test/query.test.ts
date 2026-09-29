@@ -11,6 +11,7 @@ import {
   positiveLeaves,
   prepareItem,
   QueryError,
+  QueryIndex,
   stringify,
 } from "../src";
 
@@ -164,7 +165,7 @@ describe("matcher lokal", () => {
     });
     const r = (item: Parameters<typeof matchQuery>[1]) => matchQuery(q, item);
     expect(r({ text: "KDMP launching #resmi", lang: "in" })).toEqual({ match: true }); // X: "in" = Indonesia
-    expect(r({ text: "kopdes launching", lang: "en", tags: ["video"] })).toEqual({ match: false, reason: "language" });
+    expect(r({ text: "kopdes launching today in town", lang: "en", tags: ["video"] })).toEqual({ match: false, reason: "language" });
     expect(r({ text: "kopdes launching", lang: "id" })).toEqual({ match: false, reason: "media_tags" });
     expect(r({ text: "kopdes #iklan", lang: "id", tags: ["video"] })).toEqual({ match: false, reason: "not_media_tags" });
     expect(r({ text: "berita lain", lang: "id", tags: ["video"] })).toEqual({ match: false, reason: "query" });
@@ -187,5 +188,25 @@ describe("matcher lokal", () => {
       true,
       false,
     ]);
+  });
+});
+
+describe("pencocokan realistis dari data live (2026-09-30)", () => {
+  const kdmp = { query_text: '"koperasi merah putih" OR kopdes', languages: ["id"] as ("id" | "en" | "ms")[] };
+  test("frasa cocok dengan hashtag gabungannya (#KoperasiMerahPutih), juga lewat index kandidat", () => {
+    const item = {
+      text: "Info baru, pembayaran kewajiban KDMP ditanggung APBN #KoperasiMerahPutih",
+      hashtags: ["KoperasiMerahPutih"],
+      lang: "id",
+    };
+    expect(m(kdmp, item)).toBe(true);
+    expect(m(kdmp, { text: "rapat koperasi desa", hashtags: [], lang: "id" })).toBe(false);
+    const idx = new QueryIndex([{ id: "k", query: compileQuery(kdmp) }]);
+    expect(idx.match({ text: "mantap #koperasimerahputih", lang: null }).map((q) => q.id)).toEqual(["k"]);
+  });
+  test("teks sangat pendek: bahasa hasil deteksi tidak dipakai untuk menolak ('Kopdes' → 'da')", () => {
+    expect(m(kdmp, { text: "Kopdes", lang: "da" })).toBe(true);
+    expect(m(kdmp, { text: "Kopdes #fyp #viral #foryou", lang: "da" })).toBe(true); // hashtag tidak dihitung kata
+    expect(m(kdmp, { text: "the kopdes story is about a village cooperative", lang: "en" })).toBe(false); // cukup panjang → filter berlaku
   });
 });

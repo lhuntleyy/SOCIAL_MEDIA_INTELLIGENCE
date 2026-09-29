@@ -28,6 +28,14 @@ function actor(c: { get: (k: "auth" | "requestId") => unknown; req: { header: (n
     requestId: c.get("requestId") as string,
   };
 }
+/** Password yang diisi admin: sama dengan aturan halaman undangan (min. 12 karakter). */
+const Password = z.string().min(12, "minimal 12 karakter").max(200);
+const NewUserZ = z.strictObject({
+  email: z.email().max(254),
+  name: z.string().min(1).max(120),
+  role: RoleZ,
+  password: Password.optional(),
+});
 const param = (c: { req: { param: (n: string) => string } }, n: string) => {
   const r = Id.safeParse(c.req.param(n));
   if (!r.success) throw new ApiError("VALIDATION_FAILED", "ID tidak valid", [{ path: n, issue: "bukan UUID" }]);
@@ -41,6 +49,26 @@ export function adminRoutes(svc: AdminService) {
   r.use("/users", humanOnly);
   r.use("/api-keys/*", humanOnly);
   r.use("/api-keys", humanOnly);
+
+  // ----- owner platform: owner lain, semua user, password -----
+  r.get("/admin/owners", requireOperator, async (c) => c.json({ data: await svc.listOwners() }));
+  r.post("/admin/owners", requireOperator, async (c) => {
+    const b = await parseJson(
+      c,
+      z.strictObject({ email: z.email().max(254), name: z.string().min(1).max(120), password: Password.optional() }),
+    );
+    return c.json({ data: await svc.addOwner(actor(c), b) }, 201);
+  });
+  r.delete("/admin/owners/:id", requireOperator, async (c) => {
+    await svc.removeOwner(actor(c), param(c, "id"));
+    return c.body(null, 204);
+  });
+  r.get("/admin/users", requireOperator, async (c) => c.json({ data: await svc.listAllUsers() }));
+  r.post("/admin/users/:id/password", requireOperator, async (c) => {
+    const b = await parseJson(c, z.strictObject({ password: Password.optional() }));
+    const a = c.get("auth");
+    return c.json({ data: await svc.setPassword(actor(c), param(c, "id"), b, { role: a.role, op: a.op, crossTenant: true }) });
+  });
 
   // ----- operator: tenant -----
   r.get("/admin/tenants", requireOperator, async (c) => c.json({ data: await svc.listTenants() }));
@@ -67,17 +95,22 @@ export function adminRoutes(svc: AdminService) {
 
   r.get("/admin/tenants/:id/users", requireOperator, async (c) => c.json({ data: await svc.listUsers(param(c, "id") as never) }));
   r.post("/admin/tenants/:id/users", requireOperator, async (c) => {
-    const b = await parseJson(c, z.strictObject({ email: z.email().max(254), name: z.string().min(1).max(120), role: RoleZ }));
+    const b = await parseJson(c, NewUserZ);
     return c.json({ data: await svc.inviteToTenant(actor(c), param(c, "id"), b) }, 201);
   });
 
   // ----- tenant admin: user & membership -----
   r.get("/users", requireRole("admin"), async (c) => c.json({ data: await svc.listUsers(c.get("auth").tid as never) }));
   r.post("/users", requireRole("admin"), async (c) => {
-    const b = await parseJson(c, z.strictObject({ email: z.email().max(254), name: z.string().min(1).max(120), role: RoleZ }));
+    const b = await parseJson(c, NewUserZ);
     if (b.role === "owner" && c.get("auth").role !== "owner" && !c.get("auth").op)
       throw new ApiError("FORBIDDEN", "Hanya owner yang dapat menambah owner");
     return c.json({ data: await svc.inviteUser(actor(c), b) }, 201);
+  });
+  r.post("/users/:id/password", requireRole("admin"), async (c) => {
+    const b = await parseJson(c, z.strictObject({ password: Password.optional() }));
+    const a = c.get("auth");
+    return c.json({ data: await svc.setPassword(actor(c), param(c, "id"), b, { role: a.role, op: a.op, crossTenant: false }) });
   });
   r.patch("/users/:id", requireRole("admin"), async (c) => {
     const b = await parseJson(c, z.strictObject({ role: RoleZ.optional(), status: z.enum(["active", "disabled"]).optional() }));

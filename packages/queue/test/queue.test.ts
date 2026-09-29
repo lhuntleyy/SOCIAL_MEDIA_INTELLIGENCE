@@ -1,8 +1,8 @@
 // Integrasi F-08 (QUEUE_SPEC §4.3 / TESTING §4.3) — butuh Redis-queue (scripts/spike-infra.sh start → :6390).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import { PermanentJobError, type Subscription } from "@smip/core";
 import { initTracing, tracer } from "@smip/observability";
-import { InMemorySpanExporter } from "@opentelemetry/sdk-trace-base";
 import IORedis from "ioredis";
 import { z } from "zod";
 import { BullMqQueue, createEnvelope } from "../src";

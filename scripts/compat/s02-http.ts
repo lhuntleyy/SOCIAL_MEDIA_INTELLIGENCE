@@ -1,8 +1,8 @@
 // S-02: hono (+SSE), zod, jose di Bun.
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { z } from "zod";
 import * as jose from "jose";
+import { z } from "zod";
 import { assert, type Check } from "./types";
 
 async function readSse(res: Response): Promise<{ events: string[]; firstMs: number }> {

@@ -16,6 +16,8 @@ export interface MatchItem {
 
 export interface PreparedItem {
   joined: string; // " tok1 tok2 … " — pencocokan frasa kontigu & term utuh
+  /** jumlah kata teks (tanpa hashtag) — teks sangat pendek → deteksi bahasa tidak dipercaya */
+  words: number;
   hashtags: Set<string>;
   lang: string | null;
   tags: Set<string>;
@@ -35,6 +37,7 @@ export function prepareItem(i: MatchItem): PreparedItem {
   const tokens = tokenize(i.text);
   return {
     joined: ` ${tokens.join(" ")} `,
+    words: tokenize(i.text.replace(/#[\p{L}\p{N}_]+/gu, " ")).length,
     hashtags,
     lang: normalizeLang(i.lang),
     tags: new Set([...(i.tags ?? []).map(normalizeTag), ...hashtags].filter(Boolean)),
@@ -46,7 +49,8 @@ export function evalNode(n: Node, p: PreparedItem): boolean {
     case "term":
       return n.value.startsWith("#") ? p.hashtags.has(n.value.slice(1)) : p.joined.includes(` ${n.value} `) || p.hashtags.has(n.value);
     case "phrase":
-      return p.joined.includes(` ${n.value} `);
+      // "koperasi merah putih" juga cocok dengan #KoperasiMerahPutih (hashtag = frasa tanpa spasi — lazim di IG/TikTok)
+      return p.joined.includes(` ${n.value} `) || p.hashtags.has(n.value.replace(/ /g, ""));
     case "not":
       return !evalNode(n.child, p);
     case "and":
@@ -56,6 +60,8 @@ export function evalNode(n: Node, p: PreparedItem): boolean {
   }
 }
 
+export const MIN_WORDS_FOR_LANG = 3;
+
 export type MatchResult = { match: true } | { match: false; reason: "query" | "language" | "media_tags" | "not_media_tags" };
 
 /**
@@ -64,7 +70,8 @@ export type MatchResult = { match: true } | { match: false; reason: "query" | "l
  */
 export function matchQuery(q: CompiledQuery, item: MatchItem | PreparedItem): MatchResult {
   const p = "joined" in item ? item : prepareItem(item);
-  if (q.languages && p.lang && !q.languages.includes(p.lang)) return { match: false, reason: "language" };
+  // deteksi bahasa teks < MIN_WORDS_FOR_LANG kata tidak andal ("Kopdes" → "da" oleh TikTok) → jangan ditolak karena bahasa
+  if (q.languages && p.lang && p.words >= MIN_WORDS_FOR_LANG && !q.languages.includes(p.lang)) return { match: false, reason: "language" };
   if (q.mediaTags.length && !q.mediaTags.some((t) => p.tags.has(normalizeTag(t)))) return { match: false, reason: "media_tags" };
   if (q.notMediaTags.some((t) => p.tags.has(normalizeTag(t)))) return { match: false, reason: "not_media_tags" };
   return evalNode(q.ast, p) ? { match: true } : { match: false, reason: "query" };

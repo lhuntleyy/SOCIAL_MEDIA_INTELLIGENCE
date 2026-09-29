@@ -11,7 +11,9 @@ import {
   FACEBOOK_SCRAPERONE,
   fbHandle,
   INSTAGRAM_BOOLEAN,
+  INSTAGRAM_HASHTAG,
   KAITO_MIN_ITEMS,
+  queryToHashtags,
   THREADS_SCRAPERSDELIGHT,
   TIKTOK_CLOCKWORKS,
   TIKTOK_XMOLODTSOV,
@@ -193,6 +195,39 @@ const FIXTURES: Record<string, { spec: ActorSpec; items: unknown[]; expectCount:
         locationName: "Bandung",
       },
       { shortCode: "Cold", publishedAt: "2026-05-01T00:00:00+00:00", username: "lama", caption: "post lama (tak terurut) → dibuang" },
+    ],
+  },
+  instagram_hashtag: {
+    spec: INSTAGRAM_HASHTAG,
+    expectCount: 1,
+    items: [
+      {
+        shortCode: "Chash1",
+        id: "3500000000000000001",
+        url: "https://www.instagram.com/p/Chash1/",
+        caption: "gerai #kopdes baru",
+        timestamp: IN,
+        ownerUsername: "koperasi_b",
+        ownerId: "41",
+        ownerFullName: "Koperasi B",
+        type: "Video",
+        productType: "clips",
+        likesCount: 12,
+        commentsCount: 2,
+        videoViewCount: 300,
+        hashtags: ["kopdes"],
+        mentions: ["@desa_b"],
+        displayUrl: "https://m.example.invalid/h.jpg",
+        locationName: "Garut",
+        paidPartnership: true,
+      },
+      {
+        shortCode: "Chold",
+        timestamp: "2026-05-01T00:00:00Z",
+        ownerUsername: "lama",
+        ownerId: "42",
+        caption: "> 30 hari sebelum window → dibuang",
+      },
     ],
   },
   facebook: {
@@ -466,6 +501,28 @@ describe("detail normalizer & input", () => {
     ).rejects.toMatchObject({
       code: "INVALID_QUERY",
     });
+  });
+
+  test("Instagram hashtag: query → hashtag (frasa digabung, unik, ≥ 3 huruf), paidPartnership → iklan, window lokal", async () => {
+    expect(queryToHashtags('"koperasi merah putih" OR kopdes OR #KDMP OR ab OR Kopdes')).toEqual(["koperasimerahputih", "kopdes", "kdmp"]);
+    const [p] = await fetchOf(INSTAGRAM_HASHTAG);
+    expect(p).toMatchObject({
+      platform_post_id: "Chash1",
+      is_ad: true,
+      mentions: ["desa_b"],
+      media: [{ type: "video" }],
+      geo: { place_name: "Garut" },
+      author: { handle: "koperasi_b", display_name: "Koperasi B" },
+      metrics: { likes: 12, views: 300 },
+    });
+    expect(bodies["apify~instagram-hashtag-scraper"]).toEqual({ hashtags: ["koperasimerahputih"], resultsType: "posts", resultsLimit: 20 });
+    // actor tanpa filter tanggal: post di luar potongan window (tapi ≤ LOOKBACK_DAYS) TIDAK dibuang — sudah dibayar & sah
+    const narrow = { since: "2026-09-29T00:30:00.000Z", until: "2026-09-29T00:40:00.000Z" };
+    const kept = await new ApifyActorConnector(INSTAGRAM_HASHTAG).fetch(req(INSTAGRAM_HASHTAG, { window: narrow }), ctx());
+    expect(kept.items.map((i) => i.platform_post_id)).toEqual(["Chash1"]);
+    await expect(
+      new ApifyActorConnector(INSTAGRAM_HASHTAG).fetch(req(INSTAGRAM_HASHTAG, { query: { native: '"!!"', sourceNodeIds: [] } }), ctx()),
+    ).rejects.toMatchObject({ code: "INVALID_QUERY" });
   });
 
   test("Facebook: handle dari profileUrl (username / profile.php?id), reaksi = likes, hashtag dari teks", async () => {

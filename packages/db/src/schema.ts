@@ -42,6 +42,8 @@ export const tenants = pgTable("tenants", {
   planId: uuid("plan_id"),
   timezone: text("timezone").notNull().default("Asia/Jakarta"),
   settings: jsonb("settings").notNull().default({}),
+  /** 'platform' = rumah sesi owner platform (satu saja, tersembunyi dari daftar kantor) — migrasi 0022 */
+  kind: text("kind").notNull().default("office"),
   createdAt: ts("created_at").notNull().defaultNow(),
   updatedAt: ts("updated_at").notNull().defaultNow(),
   deletedAt: ts("deleted_at"),

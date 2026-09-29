@@ -252,7 +252,9 @@ export class TopicService {
   /** Interval crawl bawaan bila topik/platform tidak menyebut interval (UI tidak lagi menampilkan interval — diatur sistem). */
   static readonly DEFAULT_INTERVAL_SEC = 3600;
 
-  private async planLimits(tx: Tx): Promise<{ max_topics?: number; min_interval_sec?: number; default_interval_sec?: number }> {
+  private async planLimits(
+    tx: Tx,
+  ): Promise<{ max_topics?: number; min_interval_sec?: number; default_interval_sec?: number; initial_backfill_days?: number }> {
     const [r] = await rows<{ limits: Record<string, number> | null }>(
       tx,
       sql`select p.limits from tenants t left join plans p on p.id = t.plan_id where t.id = smip_current_tenant()`,
@@ -597,7 +599,33 @@ export class TopicService {
     if (Number(n) >= limits.max_topics) throw new ApiError("PLAN_LIMIT", `Batas topik paket tercapai (${limits.max_topics})`);
   }
 
+  /**
+   * Scrape awal otomatis: topik baru (atau platform yang baru ditambahkan) langsung di-backfill N hari terakhir
+   * (`plans.limits.initial_backfill_days`, bawaan 7; 0 = mati) supaya dashboard langsung terisi — pengguna tinggal
+   * memilih rentang waktu. Best-effort: gagal backfill tidak menggagalkan simpan topik.
+   */
+  static readonly INITIAL_BACKFILL_DAYS = 7;
+  private async autoBackfill(a: Actor, id: string, platforms?: string[]) {
+    if (platforms && !platforms.length) return null;
+    try {
+      const limits = await this.tenant(a, (tx) => this.planLimits(tx));
+      const days = Math.min(MAX_BACKFILL_DAYS, limits.initial_backfill_days ?? TopicService.INITIAL_BACKFILL_DAYS);
+      if (days <= 0) return null;
+      const to = this.opts.now?.() ?? new Date();
+      const from = new Date(to.getTime() - days * 86_400_000);
+      const r = await this.backfill(a, id, { from: from.toISOString(), to: to.toISOString(), platforms });
+      return { days, runs: r.runs_created };
+    } catch {
+      return null;
+    }
+  }
+
   async create(a: Actor, b: TopicBody) {
+    const out = await this.createTx(a, b);
+    return { ...out, initial_backfill: await this.autoBackfill(a, String(out.id)) };
+  }
+
+  private async createTx(a: Actor, b: TopicBody) {
     return this.tenant(a, async (tx) => {
       await this.checkPlatforms(
         tx,
@@ -642,10 +670,22 @@ export class TopicService {
   }
 
   async update(a: Actor, id: string, b: TopicPatch, ifMatch?: number) {
+    let before: string[] = [];
+    const out = await this.updateTx(a, id, b, ifMatch, (p) => {
+      before = p;
+    });
+    const added = (out.platforms as { code: string; enabled: boolean }[])
+      .filter((p) => p.enabled && !before.includes(p.code))
+      .map((p) => p.code);
+    return { ...out, initial_backfill: added.length ? await this.autoBackfill(a, id, added) : null };
+  }
+
+  private async updateTx(a: Actor, id: string, b: TopicPatch, ifMatch: number | undefined, seen: (enabled: string[]) => void) {
     return this.tenant(a, async (tx) => {
       const cur = await this.lockVersion(tx, id, ifMatch);
       if (cur.status === "archived") throw new ApiError("CONFLICT", "Topik sudah diarsipkan");
       const existing = await this.load(tx, id);
+      seen((existing.platforms as { code: string; enabled: boolean }[]).filter((p) => p.enabled).map((p) => String(p.code)));
       const platforms: PlatformBody[] =
         b.platforms ??
         existing.platforms.map((p) => ({

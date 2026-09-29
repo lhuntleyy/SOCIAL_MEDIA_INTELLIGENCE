@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { api, getViewAs, setViewAs } from "../api";
+import { api, getViewAs } from "../api";
 import { useAuth } from "../auth";
-import { Badge, Button, Card, Empty, ErrorText, Input, Select } from "../ui";
+import { type Office, useEnterOffice } from "../office";
+import { Badge, Button, Card, Empty, ErrorText, Input, Select, Tabs } from "../ui";
 
 interface Member {
   id: string;
@@ -12,34 +13,28 @@ interface Member {
   status: string;
   role: string;
 }
-interface Office {
-  id: string;
-  slug: string;
-  name: string;
-  status: string;
-  users: number;
-  topics: number;
-  active_topics: number;
-  topic_names: string[];
-}
 
-/** Peran disederhanakan jadi 3 (owner & admin sama-sama "Admin kantor"). */
+/** Peran: Owner = pemilik platform (di luar kantor). Di dalam kantor: Admin kantor (owner/admin), Analis, Pembaca. */
 const ROLE_LABEL: Record<string, string> = { owner: "Admin kantor", admin: "Admin kantor", analyst: "Analis", viewer: "Pembaca" };
 const ROLE_HINT: Record<string, string> = {
-  owner: "kelola user & topik",
-  admin: "kelola user & topik",
-  analyst: "buat & ubah topik",
+  owner: "kelola user & topik kantornya",
+  admin: "kelola user & topik kantornya",
+  analyst: "buat & ubah topik, lihat semua data",
   viewer: "hanya melihat dashboard",
 };
-const inviteLink = (token: string) => `${location.origin}/invite?token=${encodeURIComponent(token)}`;
+const ROLE_OPTIONS = [
+  ["owner", "Admin kantor"],
+  ["analyst", "Analis"],
+  ["viewer", "Pembaca"],
+] as const;
+const linkFor = (token: string) => `${location.origin}/invite?token=${encodeURIComponent(token)}`;
 
-function InviteResult({ token }: { token?: string }) {
+function CopyLink({ token, label }: { token: string; label: string }) {
   const [copied, setCopied] = useState(false);
-  if (!token) return <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-sm">User sudah terdaftar — langsung ditambahkan.</p>;
-  const link = inviteLink(token);
+  const link = linkFor(token);
   return (
     <div className="mt-2 rounded-lg bg-emerald-50 p-3 text-sm">
-      <p className="mb-1 font-medium">Kirim link ini ke user (berlaku 72 jam, sekali pakai) — user membuat password sendiri:</p>
+      <p className="mb-1 font-medium">{label}</p>
       <div className="flex gap-2">
         <code className="block flex-1 break-all rounded bg-white p-2 text-xs">{link}</code>
         <Button
@@ -56,7 +51,117 @@ function InviteResult({ token }: { token?: string }) {
   );
 }
 
-/** Daftar user satu kantor + undang. `office` = mode administrator (kantor mana pun); tanpa `office` = kantor sendiri. */
+/** Form tambah user: password opsional — diisi = user langsung bisa login; kosong = link undangan. */
+function NewUserForm({
+  title,
+  roles,
+  defaultRole,
+  onSubmit,
+}: {
+  title: string;
+  roles?: readonly (readonly [string, string])[];
+  defaultRole?: string;
+  onSubmit: (b: {
+    email: string;
+    name: string;
+    role?: string;
+    password?: string;
+  }) => Promise<{ invite_token?: string; password_ignored?: boolean }>;
+}) {
+  const empty = { email: "", name: "", role: defaultRole ?? "analyst", password: "" };
+  const [v, setV] = useState(empty);
+  const m = useMutation({
+    mutationFn: () =>
+      onSubmit({ email: v.email, name: v.name, ...(roles ? { role: v.role } : {}), ...(v.password ? { password: v.password } : {}) }),
+    onSuccess: () => setV({ ...empty, role: v.role }),
+  });
+  const pwBad = v.password.length > 0 && v.password.length < 12;
+  return (
+    <div className="rounded-lg bg-zinc-50 p-3">
+      <div className="mb-2 text-xs font-semibold uppercase text-zinc-500">{title}</div>
+      <div className={`grid gap-2 ${roles ? "md:grid-cols-[1fr_1fr_auto_1fr_auto]" : "md:grid-cols-[1fr_1fr_1fr_auto]"}`}>
+        <Input placeholder="Email" type="email" value={v.email} onChange={(e) => setV({ ...v, email: e.target.value })} />
+        <Input placeholder="Nama" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} />
+        {roles && (
+          <Select value={v.role} onChange={(e) => setV({ ...v, role: e.target.value })}>
+            {roles.map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </Select>
+        )}
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="Password (opsional)"
+          value={v.password}
+          onChange={(e) => setV({ ...v, password: e.target.value })}
+        />
+        <Button onClick={() => m.mutate()} disabled={!v.email || !v.name || pwBad || m.isPending}>
+          Tambah
+        </Button>
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">
+        {roles && `${ROLE_LABEL[v.role]}: ${ROLE_HINT[v.role]}. `}
+        {pwBad
+          ? "Password minimal 12 karakter."
+          : "Isi password → user langsung bisa login (berikan password-nya). Kosongkan → dapat link undangan untuk membuat password sendiri."}
+        {v.role === "owner" && roles && " Admin kantor wajib autentikasi 2 langkah saat login pertama."}
+      </p>
+      <ErrorText error={m.error} />
+      {m.data?.invite_token && (
+        <CopyLink token={m.data.invite_token} label="Kirim link undangan ini ke user (berlaku 72 jam, sekali pakai):" />
+      )}
+      {m.isSuccess && !m.data?.invite_token && (
+        <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-sm">
+          {m.data?.password_ignored
+            ? "Email sudah terdaftar — user ditambahkan, password lamanya tidak diubah."
+            : "Berhasil ditambahkan — user bisa langsung login."}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Ganti password user lain: isi password baru, atau buat link reset (sekali pakai, 72 jam). Sesi lama user dicabut. */
+function ResetPassword({ path, onDone }: { path: string; onDone: () => void }) {
+  const [pw, setPw] = useState("");
+  const m = useMutation({
+    mutationFn: (withPw: boolean) => api<{ reset_token?: string }>(path, { method: "POST", json: withPw ? { password: pw } : {} }),
+  });
+  return (
+    <div className="mt-2 w-full rounded-lg border border-amber-200 bg-amber-50 p-3">
+      <div className="flex flex-wrap gap-2">
+        <Input
+          type="password"
+          autoComplete="new-password"
+          placeholder="Password baru (min. 12 karakter)"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          className="max-w-xs"
+        />
+        <Button onClick={() => m.mutate(true)} disabled={pw.length < 12 || m.isPending}>
+          Simpan password
+        </Button>
+        <span className="self-center text-xs text-zinc-500">atau</span>
+        <Button variant="ghost" onClick={() => m.mutate(false)} disabled={m.isPending}>
+          Buat link reset
+        </Button>
+        <button type="button" className="ml-auto text-xs text-zinc-500" onClick={onDone}>
+          tutup
+        </button>
+      </div>
+      <ErrorText error={m.error} />
+      {m.data?.reset_token && (
+        <CopyLink token={m.data.reset_token} label="Kirim link ini ke user untuk membuat password baru (72 jam, sekali pakai):" />
+      )}
+      {m.isSuccess && !m.data?.reset_token && <p className="mt-2 text-sm text-emerald-700">Password diganti — user harus login ulang.</p>}
+    </div>
+  );
+}
+
+/** Daftar user satu kantor. `office` = mode owner platform (kantor mana pun); tanpa `office` = kantor sendiri. */
 function OfficeUsers({ office }: { office?: Office }) {
   const { me } = useAuth();
   const qc = useQueryClient();
@@ -65,122 +170,107 @@ function OfficeUsers({ office }: { office?: Office }) {
   const q = useQuery({ queryKey: key, queryFn: () => api<Member[]>(office ? `/admin/tenants/${office.id}/users` : "/users") });
   const isOwner = me?.current_tenant.role === "owner" || me?.user.is_platform_operator;
   const adminRole = office || isOwner ? "owner" : "admin";
-  const [inv, setInv] = useState({ email: "", name: "", role: office ? "owner" : "analyst" });
-  const invite = useMutation({
-    mutationFn: () =>
-      api<{ invite_token?: string }>(office ? `/admin/tenants/${office.id}/users` : "/users", {
-        method: "POST",
-        json: { ...inv, role: inv.role === "owner" ? adminRole : inv.role },
-      }),
-    onSuccess: () => {
-      setInv({ email: "", name: "", role: "analyst" });
-      void qc.invalidateQueries({ queryKey: key });
-      void qc.invalidateQueries({ queryKey: ["tenants"] });
-    },
-  });
+  const [resetFor, setResetFor] = useState<string | null>(null);
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: key });
+    void qc.invalidateQueries({ queryKey: ["tenants"] });
+    void qc.invalidateQueries({ queryKey: ["all-users"] });
+  };
   const role = useMutation({
     mutationFn: (x: { id: string; role: string }) => api(`/users/${x.id}`, { method: "PATCH", json: { role: x.role } }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: key }),
+    onSuccess: refresh,
   });
   const remove = useMutation({
     mutationFn: (id: string) => api(`/users/${id}/memberships/${tenantId}`, { method: "DELETE" }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: key });
-      void qc.invalidateQueries({ queryKey: ["tenants"] });
-    },
+    onSuccess: refresh,
   });
-  const roleOptions = (current: string) =>
-    [
-      ["owner", "Admin kantor"],
-      ["analyst", "Analis"],
-      ["viewer", "Pembaca"],
-    ].map(([k, v]) => (
-      <option key={k} value={k === "owner" && current === "admin" ? "admin" : k}>
-        {v}
-      </option>
-    ));
   return (
     <div className="space-y-3">
       <ErrorText error={q.error ?? role.error ?? remove.error} />
       {q.data && !q.data.length && <Empty>Belum ada user.</Empty>}
       <ul className="divide-y divide-zinc-100">
-        {q.data?.map((u) => (
-          <li key={u.id} className="flex flex-wrap items-center gap-2 py-2">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">
-                {u.name} {u.id === me?.user.id && <span className="text-xs text-zinc-400">(Anda)</span>}
+        {q.data?.map((u) => {
+          const canManage = u.id !== me?.user.id && (u.role !== "owner" || isOwner);
+          return (
+            <li key={u.id} className="flex flex-wrap items-center gap-2 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">
+                  {u.name} {u.id === me?.user.id && <span className="text-xs text-zinc-400">(Anda)</span>}
+                </div>
+                <div className="truncate text-xs text-zinc-500">{u.email}</div>
               </div>
-              <div className="truncate text-xs text-zinc-500">{u.email}</div>
-            </div>
-            {u.status === "invited" && <Badge tone="amber">belum menerima undangan</Badge>}
-            {u.status === "disabled" && <Badge tone="red">nonaktif</Badge>}
-            {office || u.id === me?.user.id || (u.role === "owner" && !isOwner) ? (
-              <Badge tone={u.role === "owner" || u.role === "admin" ? "blue" : "zinc"}>{ROLE_LABEL[u.role] ?? u.role}</Badge>
-            ) : (
-              <Select
-                className="py-1"
-                value={u.role}
-                onChange={(e) => role.mutate({ id: u.id, role: e.target.value === "owner" ? adminRole : e.target.value })}
-              >
-                {roleOptions(u.role)}
-              </Select>
-            )}
-            {u.id !== me?.user.id && (
-              <button
-                type="button"
-                className="text-xs text-zinc-400 hover:text-red-600"
-                onClick={() => confirm(`Keluarkan ${u.email} dari kantor ini?`) && remove.mutate(u.id)}
-              >
-                keluarkan
-              </button>
-            )}
-          </li>
-        ))}
+              {u.status === "invited" && <Badge tone="amber">belum menerima undangan</Badge>}
+              {u.status === "disabled" && <Badge tone="red">nonaktif</Badge>}
+              {office || !canManage ? (
+                <Badge tone={u.role === "owner" || u.role === "admin" ? "blue" : "zinc"}>{ROLE_LABEL[u.role] ?? u.role}</Badge>
+              ) : (
+                <Select
+                  className="py-1"
+                  value={u.role === "admin" ? "owner" : u.role}
+                  onChange={(e) => role.mutate({ id: u.id, role: e.target.value === "owner" ? adminRole : e.target.value })}
+                >
+                  {ROLE_OPTIONS.map(([k, l]) => (
+                    <option key={k} value={k}>
+                      {l}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              {canManage && (
+                <>
+                  <button
+                    type="button"
+                    className="text-xs text-zinc-500 hover:text-brand-600"
+                    onClick={() => setResetFor(resetFor === u.id ? null : u.id)}
+                  >
+                    reset password
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs text-zinc-400 hover:text-red-600"
+                    onClick={() => confirm(`Keluarkan ${u.email} dari kantor ini?`) && remove.mutate(u.id)}
+                  >
+                    keluarkan
+                  </button>
+                </>
+              )}
+              {resetFor === u.id && (
+                <ResetPassword
+                  path={office ? `/admin/users/${u.id}/password` : `/users/${u.id}/password`}
+                  onDone={() => setResetFor(null)}
+                />
+              )}
+            </li>
+          );
+        })}
       </ul>
-      <div className="rounded-lg bg-zinc-50 p-3">
-        <div className="mb-2 text-xs font-semibold uppercase text-zinc-500">Undang user</div>
-        <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto_auto]">
-          <Input placeholder="Email" type="email" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} />
-          <Input placeholder="Nama" value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} />
-          <Select value={inv.role} onChange={(e) => setInv({ ...inv, role: e.target.value })}>
-            {[
-              ["owner", "Admin kantor"],
-              ["analyst", "Analis"],
-              ["viewer", "Pembaca"],
-            ].map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </Select>
-          <Button onClick={() => invite.mutate()} disabled={!inv.email || !inv.name || invite.isPending}>
-            Undang
-          </Button>
-        </div>
-        <p className="mt-1 text-xs text-zinc-500">
-          {ROLE_LABEL[inv.role]}: {ROLE_HINT[inv.role]}.{inv.role === "owner" && " Wajib autentikasi 2 langkah saat login pertama."}
-        </p>
-        <ErrorText error={invite.error} />
-        {invite.data && <InviteResult token={invite.data.invite_token} />}
-      </div>
+      <NewUserForm
+        title="Tambah user"
+        roles={ROLE_OPTIONS}
+        defaultRole={office ? "owner" : "analyst"}
+        onSubmit={async (b) => {
+          const r = await api<{ invite_token?: string; password_ignored?: boolean }>(
+            office ? `/admin/tenants/${office.id}/users` : "/users",
+            {
+              method: "POST",
+              json: { ...b, role: b.role === "owner" ? adminRole : b.role },
+            },
+          );
+          refresh();
+          return r;
+        }}
+      />
     </div>
   );
 }
 
 function OfficeCard({ o, open, onToggle }: { o: Office; open: boolean; onToggle: () => void }) {
   const qc = useQueryClient();
-  const nav = useNavigate();
+  const enter = useEnterOffice();
   const toggle = useMutation({
     mutationFn: () => api(`/admin/tenants/${o.id}`, { method: "PATCH", json: { status: o.status === "active" ? "suspended" : "active" } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["tenants"] }),
   });
-  const viewAs = () => {
-    const reason = prompt(`Alasan melihat data "${o.name}" (dicatat di audit, min. 10 karakter):`, "Pemantauan administrator");
-    if (!reason || reason.trim().length < 10) return;
-    setViewAs({ tenantId: o.id, tenantName: o.name, reason: reason.trim() });
-    qc.clear();
-    nav("/");
-  };
   return (
     <section className="rounded-xl border border-zinc-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center gap-3 p-4">
@@ -197,8 +287,8 @@ function OfficeCard({ o, open, onToggle }: { o: Office; open: boolean; onToggle:
             </div>
           </div>
         </button>
-        <Button variant="ghost" onClick={viewAs}>
-          Lihat data
+        <Button variant="ghost" onClick={() => enter(o)}>
+          Masuk ke kantor
         </Button>
         <button
           type="button"
@@ -243,9 +333,9 @@ function Offices() {
   });
   return (
     <div className="space-y-3">
-      <Card title="Kantor & pengguna" right={<span className="text-xs text-zinc-500">{q.data?.length ?? 0} kantor</span>}>
+      <Card>
         <p className="mb-3 text-sm text-zinc-600">
-          Tiap kantor punya topik & data sendiri dan tidak bisa melihat kantor lain. Tambah kantor, lalu undang admin kantornya — admin
+          Tiap kantor punya topik & data sendiri dan tidak bisa melihat kantor lain. Tambah kantor, lalu tambahkan admin kantornya — admin
           kantor bisa menambah user-nya sendiri.
         </p>
         <div className="flex gap-2">
@@ -263,10 +353,137 @@ function Offices() {
   );
 }
 
-/** Administrator platform → semua kantor + user-nya; admin kantor → user kantornya sendiri. */
+interface AnyUser {
+  id: string;
+  email: string;
+  name: string;
+  status: string;
+  last_login_at: string | null;
+  offices: { tenant_id: string; tenant: string; role: string }[];
+}
+function AllUsers() {
+  const q = useQuery({ queryKey: ["all-users"], queryFn: () => api<AnyUser[]>("/admin/users") });
+  const [search, setSearch] = useState("");
+  const [resetFor, setResetFor] = useState<string | null>(null);
+  const s = search.toLowerCase();
+  const list = q.data?.filter((u) => !s || `${u.name} ${u.email} ${u.offices.map((o) => o.tenant).join(" ")}`.toLowerCase().includes(s));
+  return (
+    <Card>
+      <Input placeholder="Cari nama, email, atau kantor…" value={search} onChange={(e) => setSearch(e.target.value)} className="mb-3" />
+      <ErrorText error={q.error} />
+      {list && !list.length && <Empty>Tidak ada user.</Empty>}
+      <ul className="divide-y divide-zinc-100">
+        {list?.map((u) => (
+          <li key={u.id} className="flex flex-wrap items-center gap-2 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">{u.name}</div>
+              <div className="truncate text-xs text-zinc-500">{u.email}</div>
+            </div>
+            {u.status === "invited" && <Badge tone="amber">belum menerima undangan</Badge>}
+            {u.status === "disabled" && <Badge tone="red">nonaktif</Badge>}
+            <div className="flex flex-wrap gap-1">
+              {u.offices.length ? (
+                u.offices.map((o) => (
+                  <Badge key={o.tenant_id} tone={o.role === "owner" || o.role === "admin" ? "blue" : "zinc"}>
+                    {o.tenant} · {ROLE_LABEL[o.role] ?? o.role}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-xs text-zinc-400">tanpa kantor</span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="text-xs text-zinc-500 hover:text-brand-600"
+              onClick={() => setResetFor(resetFor === u.id ? null : u.id)}
+            >
+              reset password
+            </button>
+            {resetFor === u.id && <ResetPassword path={`/admin/users/${u.id}/password`} onDone={() => setResetFor(null)} />}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function Owners() {
+  const { me } = useAuth();
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ["owners"],
+    queryFn: () => api<{ id: string; email: string; name: string; status: string; last_login_at: string | null }[]>("/admin/owners"),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/admin/owners/${id}`, { method: "DELETE" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["owners"] }),
+  });
+  return (
+    <Card>
+      <p className="mb-3 text-sm text-zinc-600">
+        Owner = pemilik platform: tidak berada di kantor mana pun, bisa melihat semua kantor & user, mengatur sumber data & AI, dan menambah
+        owner lain. Wajib autentikasi 2 langkah.
+      </p>
+      <ErrorText error={q.error ?? remove.error} />
+      <ul className="mb-3 divide-y divide-zinc-100">
+        {q.data?.map((o) => (
+          <li key={o.id} className="flex items-center gap-2 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">
+                {o.name} {o.id === me?.user.id && <span className="text-xs text-zinc-400">(Anda)</span>}
+              </div>
+              <div className="truncate text-xs text-zinc-500">{o.email}</div>
+            </div>
+            {o.status === "invited" && <Badge tone="amber">belum menerima undangan</Badge>}
+            <Badge tone="blue">Owner</Badge>
+            {o.id !== me?.user.id && (
+              <button
+                type="button"
+                className="text-xs text-zinc-400 hover:text-red-600"
+                onClick={() => confirm(`Cabut status owner ${o.email}?`) && remove.mutate(o.id)}
+              >
+                cabut
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <NewUserForm
+        title="Tambah owner"
+        onSubmit={async (b) => {
+          const r = await api<{ invite_token?: string }>("/admin/owners", { method: "POST", json: b });
+          void qc.invalidateQueries({ queryKey: ["owners"] });
+          return r;
+        }}
+      />
+    </Card>
+  );
+}
+
+type Tab = "offices" | "users" | "owners";
+/** Owner platform → Kantor / Semua pengguna / Owner; admin kantor → user kantornya sendiri. */
 export default function Users() {
   const { me } = useAuth();
-  if (me?.user.is_platform_operator && !getViewAs()) return <Offices />;
+  const [sp, setSp] = useSearchParams();
+  if (me?.user.is_platform_operator && !getViewAs()) {
+    const tab = (["offices", "users", "owners"].includes(sp.get("tab") ?? "") ? sp.get("tab") : "offices") as Tab;
+    return (
+      <div className="space-y-4">
+        <Tabs
+          tabs={[
+            { id: "offices", label: "Kantor" },
+            { id: "users", label: "Semua pengguna" },
+            { id: "owners", label: "Owner" },
+          ]}
+          value={tab}
+          onChange={(v) => setSp({ tab: v }, { replace: true })}
+        />
+        {tab === "offices" && <Offices />}
+        {tab === "users" && <AllUsers />}
+        {tab === "owners" && <Owners />}
+      </div>
+    );
+  }
   const name = me?.tenants.find((t) => t.id === me.current_tenant.id)?.name;
   return (
     <Card title={`Pengguna ${getViewAs()?.tenantName ?? name ?? "kantor"}`}>
@@ -293,7 +510,7 @@ export function AcceptInvite() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-100 p-4">
       <form onSubmit={submit} className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-8 shadow-lg">
         <div className="text-2xl font-bold text-brand-600">SMIP</div>
-        <p className="text-sm text-zinc-600">Buat password untuk akun Anda (minimal 12 karakter).</p>
+        <p className="text-sm text-zinc-600">Buat password baru untuk akun Anda (minimal 12 karakter).</p>
         <Input
           type="password"
           autoComplete="new-password"

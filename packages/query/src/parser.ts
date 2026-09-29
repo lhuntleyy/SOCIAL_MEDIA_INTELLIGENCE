@@ -6,7 +6,7 @@
 //   primary := PHRASE | WORD | "(" or ")"
 // Operator hanya HURUF BESAR; "and"/"or"/"not" huruf kecil = kata biasa (bisa muncul di teks bahasa Inggris).
 // Presedensi: NOT > AND > OR.
-import { AST_VERSION, LIMITS, type Node, QueryError, type QueryAst } from "./ast";
+import { AST_VERSION, LIMITS, type Node, type QueryAst, QueryError } from "./ast";
 import { tokenize } from "./normalize";
 
 type Tok =
