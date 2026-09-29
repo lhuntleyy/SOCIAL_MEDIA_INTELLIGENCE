@@ -79,13 +79,24 @@ export class AdminService {
   }
 
   // ---------- operator: tenant ----------
+  /** Operator: semua kantor/tenant + ringkasan (jumlah user, topik aktif, nama topik) — "administrator melihat semua". */
   async listTenants() {
-    return withSystem(this.db, (tx) =>
-      tx
-        .select({ id: tenants.id, slug: tenants.slug, name: tenants.name, status: tenants.status, plan_id: tenants.planId })
-        .from(tenants)
-        .orderBy(asc(tenants.name)),
-    );
+    return withSystem(this.db, async (tx) => {
+      const rows = (await tx.execute(sql`
+        select t.id, t.slug, t.name, t.status, t.plan_id, t.created_at,
+               (select count(*)::int from memberships m where m.tenant_id = t.id) as users,
+               (select count(*)::int from topics tp where tp.tenant_id = t.id and tp.deleted_at is null) as topics,
+               (select count(*)::int from topics tp where tp.tenant_id = t.id and tp.deleted_at is null and tp.status = 'active') as active_topics,
+               (select coalesce(array_agg(tp.name order by tp.name), '{}') from topics tp where tp.tenant_id = t.id and tp.deleted_at is null) as topic_names
+        from tenants t where t.deleted_at is null order by t.name`)) as unknown as Record<string, unknown>[];
+      return rows;
+    });
+  }
+
+  /** Operator: undang user (mis. admin kantor) langsung ke tenant tertentu tanpa impersonasi. */
+  async inviteToTenant(a: Actor, tenantId: string, b: { email: string; name: string; role: Role }) {
+    if (!(await this.tenantExists(tenantId))) throw new ApiError("NOT_FOUND", "Tenant tidak ditemukan");
+    return this.inviteUser({ ...a, tenantId }, b);
   }
 
   async createTenant(a: Actor, b: { slug: string; name: string; plan_code?: string; timezone?: string }) {

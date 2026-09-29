@@ -20,6 +20,7 @@ export interface TopicDetail extends Omit<TopicSummary, "platforms"> {
   }[];
   language_hints: string[];
   filter_ads: boolean;
+  version: number;
 }
 export interface Run {
   id: string;

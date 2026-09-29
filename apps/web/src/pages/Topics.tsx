@@ -1,21 +1,42 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../api";
+import { useAuth } from "../auth";
 import type { Run, TopicDetail, TopicSummary } from "../types";
-import { Badge, Card, Empty, ErrorText, fmtTime, Input, PLATFORM_LABEL } from "../ui";
+import { Badge, Button, Card, Empty, ErrorText, fmtTime, Input, PLATFORM_LABEL } from "../ui";
 
 const statusTone = (s: string) =>
   s === "active" || s === "succeeded" ? "green" : s === "failed" ? "red" : s === "paused" || s === "partial" ? "amber" : "zinc";
 
+const RANK: Record<string, number> = { viewer: 0, analyst: 1, admin: 2, owner: 3 };
+/** Peran minimum di kantor aktif (administrator platform selalu lolos). */
+export function useRole(min: "analyst" | "admin") {
+  const { me } = useAuth();
+  return !!me && (me.user.is_platform_operator || (RANK[me.current_tenant.role] ?? 0) >= RANK[min]!);
+}
+
 export function TopicList() {
+  const canWrite = useRole("analyst");
   const [search, setSearch] = useState("");
   const q = useQuery({
     queryKey: ["topics", search],
     queryFn: () => api<TopicSummary[]>(`/topics?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}`),
   });
   return (
-    <Card title="Topik" right={<span className="text-xs text-zinc-500">{q.data?.length ?? 0} topik</span>}>
+    <Card
+      title="Topik"
+      right={
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-zinc-500">{q.data?.length ?? 0} topik</span>
+          {canWrite && (
+            <Link to="/topics/new" className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
+              + Buat topik
+            </Link>
+          )}
+        </div>
+      }
+    >
       <Input placeholder="Cari topik…" value={search} onChange={(e) => setSearch(e.target.value)} className="mb-3" />
       <ErrorText error={q.error} />
       {q.data && !q.data.length && <Empty>Belum ada topik.</Empty>}
@@ -77,8 +98,28 @@ export function RunsTable({ runs }: { runs: Run[] }) {
 
 export function TopicPage() {
   const { id = "" } = useParams();
+  const nav = useNavigate();
+  const qc = useQueryClient();
+  const canWrite = useRole("analyst");
+  const canAdmin = useRole("admin");
   const t = useQuery({ queryKey: ["topic", id], queryFn: () => api<TopicDetail>(`/topics/${id}`) });
-  const runs = useQuery({ queryKey: ["runs", id], queryFn: () => api<Run[]>(`/topics/${id}/runs?limit=30`), refetchInterval: 30_000 });
+  const runs = useQuery({
+    queryKey: ["runs", id],
+    queryFn: () => api<Run[]>(`/topics/${id}/runs?limit=30`),
+    refetchInterval: 30_000,
+    enabled: canWrite,
+  });
+  const status = useMutation({
+    mutationFn: (to: "pause" | "resume" | "archive") =>
+      to === "archive"
+        ? api(`/topics/${id}`, { method: "DELETE", headers: { "if-match": String(t.data?.version ?? "") } })
+        : api(`/topics/${id}/${to}`, { method: "POST", headers: { "if-match": String(t.data?.version ?? "") } }),
+    onSuccess: (_r, to) => {
+      void qc.invalidateQueries({ queryKey: ["topics"] });
+      if (to === "archive") nav("/topics");
+      else void qc.invalidateQueries({ queryKey: ["topic", id] });
+    },
+  });
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-1">
@@ -86,6 +127,29 @@ export function TopicPage() {
         {t.data && (
           <Card title={t.data.name} right={<Badge tone={statusTone(t.data.status)}>{t.data.status}</Badge>}>
             {t.data.description && <p className="mb-3 text-sm text-zinc-600">{t.data.description}</p>}
+            {canWrite && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                <Button onClick={() => nav(`/topics/${id}/edit`)}>Ubah</Button>
+                {t.data.status === "active" ? (
+                  <Button variant="ghost" onClick={() => status.mutate("pause")}>
+                    Jeda
+                  </Button>
+                ) : (
+                  <Button variant="ghost" onClick={() => status.mutate("resume")}>
+                    Lanjutkan
+                  </Button>
+                )}
+                {canAdmin && (
+                  <Button
+                    variant="danger"
+                    onClick={() => confirm(`Arsipkan topik "${t.data?.name}"? Crawling berhenti.`) && status.mutate("archive")}
+                  >
+                    Arsipkan
+                  </Button>
+                )}
+              </div>
+            )}
+            <ErrorText error={status.error} />
             <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-500">Platform</h3>
             <ul className="mb-3 space-y-1 text-sm">
               {t.data.platforms.map((p) => (
@@ -110,6 +174,7 @@ export function TopicPage() {
       <div className="lg:col-span-2">
         <Card title="Riwayat crawling">
           <ErrorText error={runs.error} />
+          {!canWrite && <Empty>Riwayat crawling hanya untuk analis ke atas.</Empty>}
           {runs.data && <RunsTable runs={runs.data} />}
         </Card>
       </div>

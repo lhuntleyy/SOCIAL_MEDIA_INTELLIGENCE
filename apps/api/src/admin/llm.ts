@@ -4,9 +4,9 @@
 import type { HttpClient } from "@smip/connector-sdk";
 import { ConnectorError } from "@smip/connector-sdk";
 import { auditLogs, type Db, type Tx, withSystem, writeOutbox } from "@smip/db";
+import { generateJson, type LlmKind, listModels, SENTIMENT_SCHEMA, SENTIMENT_SYSTEM } from "@smip/llm";
 import { sql } from "drizzle-orm";
 import { ApiError } from "../errors";
-import { generateJson, type LlmKind, listModels, SENTIMENT_SCHEMA, SENTIMENT_SYSTEM } from "@smip/llm";
 import { openCredential, type SealDeps, sealCredential } from "./credentials";
 import type { Actor } from "./service";
 

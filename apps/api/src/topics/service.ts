@@ -362,6 +362,18 @@ export class TopicService {
   }
 
   // ---------- CRUD ----------
+  /** API_SPEC §3 `GET /platforms`: registry platform aktif + interval minimum plan tenant (UI tidak hardcode). */
+  async platforms(a: Actor) {
+    return this.tenant(a, async (tx) => {
+      const limits = await this.planLimits(tx);
+      const list = await rows<{ code: string; name: string; icon: string | null }>(
+        tx,
+        sql`select code, name, icon from platforms where enabled order by sort_order, code`,
+      );
+      return list.map((p) => ({ ...p, enabled: true, min_interval_sec: limits.min_interval_sec }));
+    });
+  }
+
   async list(a: Actor, q: { search?: string; status?: string; type?: string; sort: string; limit: number; offset: number }) {
     return this.tenant(a, async (tx) => {
       const [col, dir] = q.sort.split(":") as [string, string];

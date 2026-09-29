@@ -121,6 +121,7 @@ export function topicRoutes(svc: TopicService) {
     const next = offset + items.length < total ? encodeCursor(offset + items.length) : null;
     return c.json({ data: items, meta: { ...meta(c), page: { next_cursor: next, limit: q.data.limit, total } } });
   });
+  r.get("/platforms", read, async (c) => c.json({ data: await svc.platforms(actor(c)), meta: meta(c) }));
   r.post("/topics/validate-query", requireRole("analyst"), write, async (c) => {
     const b = await parseJson(c, QueryZ.omit({ id: true, kind: true, label: true, enabled: true, platforms: true }));
     return c.json({ data: svc.validateQuery({ ...b, kind: "main" }), meta: meta(c) });

@@ -11,9 +11,13 @@
 	handle /v1/* {
 		reverse_proxy api:8080
 	}
+	# asset ber-hash → cache panjang; index.html selalu divalidasi ulang (menu/rute baru langsung terlihat setelah deploy)
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
 	handle {
 		root * /srv
 		try_files {path} /index.html
+		header Cache-Control "no-cache"
 		file_server
 	}
 }

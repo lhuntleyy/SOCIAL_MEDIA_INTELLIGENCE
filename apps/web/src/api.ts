@@ -44,9 +44,38 @@ export function refreshSession(): Promise<boolean> {
   return refreshing;
 }
 
+/** Administrator platform "melihat sebagai" kantor lain (impersonasi, SECURITY §3): header X-Tenant-Id + alasan, diaudit per request. */
+export interface ViewAs {
+  tenantId: string;
+  tenantName: string;
+  reason: string;
+}
+const VIEW_KEY = "smip.viewAs";
+let viewAs: ViewAs | null = (() => {
+  try {
+    return JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? "null") as ViewAs | null;
+  } catch {
+    return null;
+  }
+})();
+export const getViewAs = () => viewAs;
+export function setViewAs(v: ViewAs | null) {
+  viewAs = v;
+  try {
+    if (v) sessionStorage.setItem(VIEW_KEY, JSON.stringify(v));
+    else sessionStorage.removeItem(VIEW_KEY);
+  } catch {
+    /* sessionStorage tidak tersedia → hanya di memori */
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}, retry = true): Promise<T> {
   const headers = new Headers(init.headers);
   if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+  if (viewAs && !path.startsWith("/auth/") && !path.startsWith("/me")) {
+    headers.set("x-tenant-id", viewAs.tenantId);
+    headers.set("x-impersonation-reason", viewAs.reason);
+  }
   if (init.json !== undefined) headers.set("content-type", "application/json");
   const res = await fetch(`/v1${path}`, {
     ...init,
