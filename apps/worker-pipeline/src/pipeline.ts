@@ -6,7 +6,7 @@
 // Mode collection stream (I-22, ADR-009): item dicocokkan ke SEMUA query anggota stream (inverted index) → batch AI
 // per (tenant, topik); satu fetch melayani banyak topik lintas tenant.
 import type { CanonicalItem, PipelineItemsPayload, PostRecord } from "@smip/contracts";
-import { claimMessage, type Db, finalizeRunIfDone, type Tx, withSystem, writeJobOutbox } from "@smip/db";
+import { addTenantMatches, claimMessage, type Db, finalizeRunIfDone, type Tx, withSystem, writeJobOutbox } from "@smip/db";
 import type { Gazetteer } from "@smip/geo";
 import type { Logger } from "@smip/observability";
 import { type CompiledQuery, type QueryAst, QueryIndex } from "@smip/query";
@@ -226,6 +226,12 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
       res.unmatchedBatch = true;
     }
 
+    if (m.collection_stream_id) {
+      // dasar atribusi biaya run stream (I-25): jumlah match baru per tenant
+      const perTenant: Record<string, number> = {};
+      for (const g of groups.values()) perTenant[g.tenantId] = (perTenant[g.tenantId] ?? 0) + g.items.length;
+      await addTenantMatches(tx, m.crawl_run_id, perTenant);
+    }
     const times = items.map((i) => Date.parse(i.published_at)).filter((t) => !Number.isNaN(t));
     const minP = times.length ? new Date(Math.min(...times)).toISOString() : null;
     const maxP = times.length ? new Date(Math.max(...times)).toISOString() : null;

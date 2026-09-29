@@ -4,6 +4,7 @@
 import { loadConfig } from "@smip/config";
 import { CrawlDispatchPayload, FetchResultPayload } from "@smip/contracts";
 import {
+  applyCostAllocations,
   CONFIG_CHANNEL,
   createDb,
   flushQuotaUsage,
@@ -86,6 +87,9 @@ const loops = [
         throw e;
       }
       await reactivateCooledAccounts(db);
+      const snap = await store.get();
+      const applied = await applyCostAllocations(db, (a) => reserver.applyTenantUsage(snap, a).then(() => {}));
+      if (applied) logger.info("alokasi biaya stream diterapkan ke quota tenant", { count: applied });
     } catch (e) {
       logger.error("pemeliharaan router gagal", { error: e });
     }

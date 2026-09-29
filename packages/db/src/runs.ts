@@ -196,6 +196,7 @@ export async function finalizeRunIfDone(tx: Tx, runId: string, now = new Date())
       await settleGap(tx, ownerId, r.id, false, table);
     }
   }
+  if (r.collection_stream_id) await allocateStreamRunCost(tx, r.id); // I-25: biaya run stream → tenant
   return { runId: r.id, outcome, tenantId: r.tenant_id, planId: r.crawl_plan_id, streamId: r.collection_stream_id };
 }
 
@@ -214,4 +215,110 @@ export async function claimMessage(tx: Tx, key: string): Promise<boolean> {
     sql`insert into processed_messages (key) values (${key}) on conflict (key) do nothing returning key`,
   )) as unknown as unknown[];
   return r.length === 1;
+}
+
+export interface CostAllocation {
+  runId: string;
+  tenantId: string;
+  costUnits: number;
+  requests: number;
+  results: number;
+  matches: number;
+  basis: "matches" | "even_split";
+}
+
+/**
+ * I-25 (P-20): biaya aktual run stream (jumlah usage semua attempt) dialokasikan ke tenant proporsional jumlah match
+ * baru; tanpa match → dibagi rata ke tenant anggota stream. Sisa pembulatan ke tenant terakhir → Σ alokasi = biaya run.
+ * Idempoten (PK run_id, tenant_id). Dipanggil saat run stream ditutup (sukses/partial/gagal).
+ */
+export async function allocateStreamRunCost(tx: Tx, runId: string): Promise<CostAllocation[]> {
+  const [run] = (await tx.execute(sql`select r.id, r.scheduled_for::text as sf, r.collection_stream_id, r.tenant_matches,
+      (select coalesce(sum((a.usage->>'requests')::numeric), 0) from provider_attempts a where a.crawl_run_id = r.id) as requests,
+      (select coalesce(sum((a.usage->>'results')::numeric), 0) from provider_attempts a where a.crawl_run_id = r.id) as results,
+      (select coalesce(sum((a.usage->>'costUnits')::numeric), 0) from provider_attempts a where a.crawl_run_id = r.id) as cost
+    from crawl_runs r where r.id = ${runId}`)) as unknown as {
+    id: string;
+    sf: string;
+    collection_stream_id: string | null;
+    tenant_matches: Record<string, number>;
+    requests: string;
+    results: string;
+    cost: string;
+  }[];
+  if (!run?.collection_stream_id) return [];
+  const total = { cost: Number(run.cost), requests: Number(run.requests), results: Number(run.results) };
+  let weights = Object.entries(run.tenant_matches ?? {})
+    .filter(([, n]) => Number(n) > 0)
+    .map(([t, n]) => [t, Number(n)] as [string, number]);
+  let basis: CostAllocation["basis"] = "matches";
+  if (!weights.length) {
+    const members = (await tx.execute(
+      sql`select distinct tenant_id from stream_topic_links where stream_id = ${run.collection_stream_id}`,
+    )) as unknown as {
+      tenant_id: string;
+    }[];
+    weights = members.map((m) => [m.tenant_id, 1]);
+    basis = "even_split";
+  }
+  if (!weights.length) return [];
+  weights.sort(([a], [b]) => a.localeCompare(b));
+  const sum = weights.reduce((a, [, n]) => a + n, 0);
+  const round = (v: number) => Math.round(v * 1e9) / 1e9;
+  const acc = { cost: 0, requests: 0, results: 0 };
+  const out: CostAllocation[] = weights.map(([tenantId, n], i) => {
+    const last = i === weights.length - 1;
+    const share = (k: keyof typeof total) => (last ? round(total[k] - acc[k]) : round((total[k] * n) / sum));
+    const a = { costUnits: share("cost"), requests: share("requests"), results: share("results") };
+    acc.cost += a.costUnits;
+    acc.requests += a.requests;
+    acc.results += a.results;
+    return { runId: run.id, tenantId, matches: basis === "matches" ? n : 0, basis, ...a };
+  });
+  for (const a of out) {
+    await tx.execute(sql`insert into cost_allocations (run_id, run_scheduled_for, tenant_id, cost_units, requests, results, matches, basis)
+      values (${a.runId}, ${run.sf}::timestamptz, ${a.tenantId}, ${a.costUnits}, ${a.requests}, ${a.results}, ${a.matches}, ${a.basis})
+      on conflict (run_id, tenant_id) do nothing`);
+  }
+  return out;
+}
+
+/** Tambah jumlah match per tenant pada run stream (pipeline, bisa beberapa bagian/attempt). */
+export async function addTenantMatches(tx: Tx, runId: string, counts: Record<string, number>): Promise<void> {
+  if (!Object.keys(counts).length) return;
+  await tx.execute(sql`update crawl_runs set tenant_matches = (
+      select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) from (
+        select k, sum(v)::int as v from (
+          select key as k, value::int as v from jsonb_each_text(tenant_matches)
+          union all select key, value::int from jsonb_each_text(${JSON.stringify(counts)}::text::jsonb)) x group by k) y)
+    where id = ${runId}`);
+}
+
+/** Alokasi yang belum diterapkan ke counter quota tenant (Redis). `apply` harus idempoten per (run, tenant). */
+export async function applyCostAllocations(
+  db: Db,
+  apply: (a: { runId: string; tenantId: string; requests: number; results: number; costUnits: number }) => Promise<void>,
+  limit = 200,
+): Promise<number> {
+  return withSystem(db, async (tx) => {
+    const rows = (await tx.execute(sql`select run_id, tenant_id, requests, results, cost_units from cost_allocations
+      where applied_at is null order by created_at limit ${limit} for update skip locked`)) as unknown as {
+      run_id: string;
+      tenant_id: string;
+      requests: string;
+      results: string;
+      cost_units: string;
+    }[];
+    for (const r of rows) {
+      await apply({
+        runId: r.run_id,
+        tenantId: r.tenant_id,
+        requests: Number(r.requests),
+        results: Number(r.results),
+        costUnits: Number(r.cost_units),
+      });
+      await tx.execute(sql`update cost_allocations set applied_at = now() where run_id = ${r.run_id} and tenant_id = ${r.tenant_id}`);
+    }
+    return rows.length;
+  });
 }

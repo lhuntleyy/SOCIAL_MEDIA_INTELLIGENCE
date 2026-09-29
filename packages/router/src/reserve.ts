@@ -342,6 +342,32 @@ export class RedisReserver implements Reserver {
     return this.settle(reservationId, false);
   }
 
+  /**
+   * I-25: biaya run stream yang dialokasikan ke tenant → counter quota tenant (semua periode/unit yang berlaku),
+   * supaya hard quota & cost guard per tenant ikut menghitung biaya stream. Idempoten per (run, tenant) lewat penanda.
+   */
+  async applyTenantUsage(
+    snap: Snapshot,
+    a: { runId: string; tenantId: string; requests: number; results: number; costUnits: number },
+  ): Promise<boolean> {
+    const marker = `${this.p}alloc:${a.runId}:${a.tenantId}`;
+    if ((await this.redis.send("SET", [marker, "1", "NX", "EX", String(14 * 86_400)])) !== "OK") return false;
+    const now = new Date(this.now());
+    const amounts: Record<QuotaUnit, number> = { requests: a.requests, results: a.results, cost_units: a.costUnits };
+    for (const rule of snap.quotas.get(scopeKey("tenant", a.tenantId)) ?? []) {
+      const amount = amounts[rule.unit];
+      if (!(amount > 0)) continue;
+      const pi = periodInfo(rule.period, rule.resetTz, now);
+      const key = `${this.p}quota:tenant:${a.tenantId}:${pi.start}:${rule.unit}`;
+      const before = Number((await this.redis.send("HGET", [key, "used"])) ?? 0);
+      const after = Number(await this.redis.send("HINCRBYFLOAT", [key, "used", String(amount)]));
+      await this.redis.send("EXPIRE", [key, String(Math.ceil((pi.resetInMs + 7 * 86_400_000) / 1000))]);
+      await this.redis.send("SADD", [`${this.p}quota:dirty`, key]);
+      if (this.opts.onThreshold) this.emitThresholds(snap, key, before, after);
+    }
+    return true;
+  }
+
   /** Sweeper (worker-ops tiap ~30 s): release reservasi yang lewat deadline. */
   async sweep(limit = 500): Promise<number> {
     const ids = (await this.redis.send("ZRANGEBYSCORE", [

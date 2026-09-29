@@ -6,7 +6,17 @@
 // pesan duplikat/terlambat diabaikan oleh compare-and-set status + nomor attempt.
 import type { AttemptOutcome, FailoverDecision, RouteInput } from "@smip/core";
 import type { CrawlDispatchPayload, FetchRequestPayload, FetchResultPayload, PipelineItemsPayload, QueryFeature } from "@smip/contracts";
-import { type Db, finalizeRunIfDone, jsonbValue, type RunOwnerTable, settleGap, type Tx, withSystem, writeJobOutbox } from "@smip/db";
+import {
+  allocateStreamRunCost,
+  type Db,
+  finalizeRunIfDone,
+  jsonbValue,
+  type RunOwnerTable,
+  settleGap,
+  type Tx,
+  withSystem,
+  writeJobOutbox,
+} from "@smip/db";
 import type { Logger } from "@smip/observability";
 import { compileGeneric, coverHashtags, type Node } from "@smip/query";
 import { failureBackoffSec, type Router, shouldAlertConsecutive, type Snapshot } from "@smip/router";
@@ -181,6 +191,8 @@ async function releasePlan(
   if (!ownerId) return;
   const table: RunOwnerTable = run.crawl_plan_id ? "crawl_plans" : "collection_streams";
   const t = sql.raw(table);
+  // run stream berakhir tanpa finalize (gagal/dibatalkan/dilewati): biaya attempt tetap dialokasikan ke tenant (I-25)
+  if (table === "collection_streams") await allocateStreamRunCost(tx, run.id);
   if (run.kind === "backfill") await settleGap(tx, ownerId, run.id, false, table);
   if (outcome === "failure") {
     const [p] = (await tx.execute(sql`update ${t} set consecutive_failures = consecutive_failures + 1, updated_at = now(),

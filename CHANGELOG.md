@@ -35,6 +35,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Worker (I-13): `apps/worker-dispatch`, `apps/worker-fetch-bun`, `@smip/storage`, `bun run dev:workers`, migrasi 0013 (`crawl_runs.routing`), kontrak `queries[]`/`PipelineItemsPayload`; seed membuat akun fake + topik demo. CI GitHub Actions (F-12) hijau.
   - Pipeline (I-14): `apps/worker-pipeline`, `@smip/geo` + ADR-010 (gazetteer provinsi, UNVERIFIED), migrasi 0014 (counter penutupan run) & 0015 (38 provinsi), `finalizeRunIfDone`/`settleGap`, kontrak `PostRecord`.
   - Sink (I-15): `apps/worker-sink` (ClickHouse + guard dedup + penutupan run + realtime.notify), ledger `processed_messages` (migrasi 0016), `apps/worker-ai-stub` (dev), `FakeConnector.autoRespond`; `dev:workers` kini mengalir sampai ClickHouse.
+  - Atribusi biaya stream (I-25): `tenant_matches`, `allocateStreamRunCost`, `cost_allocations` diterapkan ke quota tenant (Redis), riwayat run stream di API; migrasi 0018. P-20.
   - Collection stream (I-22): dedup planner, stream dijadwalkan & di-dispatch seperti plan, pipeline mode stream dgn `QueryIndex` (inverted index), migrasi 0017, flag `SCHEDULER_STREAMS_ENABLED`. P-14 e2e.
   - Partial success (I-24): sisi celah per `result_order`, maks 20 celah, `pruneGaps` + `smip_crawl_gap_abandoned_total`, P-18 e2e.
   - Fix: semua connector habis setelah sebagian item diterima → run `partial` (sebelumnya `failed`, celah hilang).

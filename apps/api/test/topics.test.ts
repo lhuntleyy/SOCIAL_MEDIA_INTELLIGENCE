@@ -340,4 +340,29 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     ]);
     expect((await h.call("GET", `/topics/${banjir}/runs`, { token: tok.ownerB })).status).toBe(404);
   });
+
+  test("I-25: riwayat run memuat run collection stream yang melayani topik + porsi biaya tenant", async () => {
+    const list = await j<{ id: string }[]>(await h.call("GET", "/topics?search=Banjir", { token: tok.adminA }));
+    const banjir = list.data[0]!.id;
+    const [q] = await h.sql`select id from topic_queries where topic_id = ${banjir} limit 1`;
+    const stream = Bun.randomUUIDv7();
+    const run = Bun.randomUUIDv7();
+    await h.sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`insert into collection_streams (id, platform_code, operation, stream_key, interval_class, terms, interval_sec, next_run_at)
+        values (${stream}, 'x', 'search_keyword', ${Buffer.from(stream)}, 900, '{banjir}', 900, now())`;
+      await tx`insert into stream_topic_links (stream_id, tenant_id, topic_query_id) values (${stream}, ${A}, ${q!.id})`;
+      await tx`insert into crawl_runs (id, collection_stream_id, scheduled_for, kind, status, tenant_matches, items_fetched)
+        values (${run}, ${stream}, date_trunc('milliseconds', now()), 'incremental', 'succeeded', ${tx.json({ [A]: 7, [B]: 3 })}, 12)`;
+      const [r] = await tx`select scheduled_for from crawl_runs where id = ${run}`;
+      await tx`insert into cost_allocations (run_id, run_scheduled_for, tenant_id, cost_units, matches, basis) values
+        (${run}, ${r!.scheduled_for}, ${A}, 0.07, 7, 'matches'), (${run}, ${r!.scheduled_for}, ${B}, 0.03, 3, 'matches')`;
+    });
+    const runs = await j<{ id: string; source: string; items_matched: number; cost_units: number | null }[]>(
+      await h.call("GET", `/topics/${banjir}/runs`, { token: tok.analystA }),
+    );
+    const sr = runs.data.find((r) => r.id === run)!;
+    expect(sr).toMatchObject({ source: "stream", items_matched: 7, cost_units: 0.07 }); // porsi tenant A saja, bukan total run
+    expect(runs.data.filter((r) => r.source === "plan").every((r) => r.cost_units === null)).toBe(true);
+  });
 });

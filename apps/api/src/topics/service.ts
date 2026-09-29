@@ -773,13 +773,13 @@ export class TopicService {
   }
 
   async runs(a: Actor, id: string, q: { platform?: string; status?: string; limit: number }) {
-    return this.tenant(a, async (tx) => {
+    const own = await this.tenant(a, async (tx) => {
       const [t] = await rows(tx, sql`select 1 from topics where id = ${id}`);
       if (!t) throw new ApiError("NOT_FOUND", "Topik tidak ditemukan");
-      const runs = await rows<Row>(
+      return rows<Row>(
         tx,
-        sql`select r.id, p.platform_code as platform, p.operation, r.kind, r.status, r.scheduled_for, r.started_at, r.finished_at,
-                   r.items_fetched, r.items_matched, r.items_new, r.error_code
+        sql`select r.id, 'plan' as source, p.platform_code as platform, p.operation, r.kind, r.status, r.scheduled_for, r.started_at, r.finished_at,
+                   r.items_fetched, r.items_matched, r.items_new, r.error_code, null::numeric as cost_units
             from crawl_runs r join crawl_plans p on p.id = r.crawl_plan_id
             where p.topic_id = ${id}
               ${q.platform ? sql`and p.platform_code = ${q.platform}` : sql``}
@@ -787,19 +787,42 @@ export class TopicService {
               and r.scheduled_for > now() - interval '90 days'
             order by r.scheduled_for desc, r.id desc limit ${q.limit}`,
       );
-      const ids = runs.map((r) => String(r.id));
-      const attempts = ids.length
-        ? await rows<Row>(
+    });
+    // run collection stream (I-22/I-25) yang melayani query topik ini: system-owned (tenant_id NULL → tak lolos RLS)
+    // → dibaca sebagai sistem SETELAH kepemilikan topik terverifikasi di atas; biaya = porsi tenant (cost_allocations)
+    const stream = await withSystem(this.db, (tx) =>
+      rows<Row>(
+        tx,
+        sql`select r.id, 'stream' as source, s.platform_code as platform, s.operation, r.kind, r.status, r.scheduled_for, r.started_at, r.finished_at,
+                   r.items_fetched, coalesce((r.tenant_matches->>${a.tenantId})::int, 0) as items_matched, r.items_new, r.error_code,
+                   (select ca.cost_units from cost_allocations ca where ca.run_id = r.id and ca.tenant_id = ${a.tenantId}) as cost_units
+            from crawl_runs r join collection_streams s on s.id = r.collection_stream_id
+            where r.collection_stream_id in (select l.stream_id from stream_topic_links l join topic_queries tq on tq.id = l.topic_query_id
+                                             where tq.topic_id = ${id} and tq.tenant_id = ${a.tenantId})
+              ${q.platform ? sql`and s.platform_code = ${q.platform}` : sql``}
+              ${q.status ? sql`and r.status = ${q.status}::e_run_status` : sql``}
+              and r.scheduled_for > now() - interval '90 days'
+            order by r.scheduled_for desc, r.id desc limit ${q.limit}`,
+      ),
+    );
+    const runs = [...own, ...stream]
+      .sort((x, y) => new Date(String(y.scheduled_for)).getTime() - new Date(String(x.scheduled_for)).getTime())
+      .slice(0, q.limit);
+    const ids = runs.map((r) => String(r.id));
+    const attempts = ids.length
+      ? await withSystem(this.db, (tx) =>
+          rows<Row>(
             tx,
             sql`select a.crawl_run_id, a.attempt_no as no, c.key as connector, a.outcome, a.error_code, a.duration_ms
                 from provider_attempts a join connectors c on c.id = a.connector_id
                 where a.crawl_run_id in ${inList(ids)} order by a.attempt_no`,
-          )
-        : [];
-      return runs.map((r) => ({
-        ...r,
-        attempts: attempts.filter((x) => x.crawl_run_id === r.id).map(({ crawl_run_id: _c, ...x }) => x),
-      }));
-    });
+          ),
+        )
+      : [];
+    return runs.map((r) => ({
+      ...r,
+      cost_units: r.cost_units === null || r.cost_units === undefined ? null : Number(r.cost_units),
+      attempts: attempts.filter((x) => x.crawl_run_id === r.id).map(({ crawl_run_id: _c, ...x }) => x),
+    }));
   }
 }
