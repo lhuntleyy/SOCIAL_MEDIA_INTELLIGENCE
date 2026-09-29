@@ -28,3 +28,5 @@ for (const sig of ["SIGTERM", "SIGINT"] as const) {
 
 for (const s of SERVICES) await import(s);
 console.log(JSON.stringify({ msg: "workers (1 proses) mulai", services: SERVICES.length }));
+
+export {}; // module ESM (top-level await)
