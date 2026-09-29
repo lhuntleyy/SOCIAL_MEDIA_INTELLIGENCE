@@ -43,6 +43,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - worker-fetch-py (I-16): SDK connector Python, kripto envelope interop, session lock, worker BullMQ `fetch.py`, contract suite pytest, interop TS↔Python; CI menjalankan pytest.
   - Connector unofficial `instagrapi.instagram` (I-19, standby/disabled) + review keamanan; opt-out provider berisiko tinggi per tenant di router (`TENANT_RISK_OPT_OUT`).
   - Fase 0: S-05 diputuskan (KEDA Prometheus scaler atas `smip_queue_depth`, scheduler `/metrics`; scaler Redis list ditolak — bukti test), S-12 cek Graph API/Content Library, S-14 YouTube streamers 5 sampel.
+  - Review 2026-09-30: health override per connector dipakai router, rate limit worker Python → `rl:dyn`, reaper melepas celah & mengalokasikan biaya stream, fingerprint credential seragam & tanpa oracle lintas tenant, refresh tidak mengulang post yang hilang, konsumen `health.probe`/`connector.verify` (+ `verify.ts` bersama). Legal S-15/S-23 dicatat disetujui pimpinan.
   - Collection stream (I-22): dedup planner, stream dijadwalkan & di-dispatch seperti plan, pipeline mode stream dgn `QueryIndex` (inverted index), migrasi 0017, flag `SCHEDULER_STREAMS_ENABLED`. P-14 e2e.
   - Partial success (I-24): sisi celah per `result_order`, maks 20 celah, `pruneGaps` + `smip_crawl_gap_abandoned_total`, P-18 e2e.
   - Fix: semua connector habis setelah sebagian item diterima → run `partial` (sebelumnya `failed`, celah hilang).

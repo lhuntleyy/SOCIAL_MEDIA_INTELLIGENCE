@@ -277,7 +277,12 @@ export class ProviderAdminService {
   }
 
   /** health-check / verify → job via outbox (API tidak memanggil provider langsung — Golden Rule 5). */
-  async enqueueConnectorJob(a: Actor, id: string, kind: "health.probe" | "connector.verify") {
+  async enqueueConnectorJob(
+    a: Actor,
+    id: string,
+    kind: "health.probe" | "connector.verify",
+    verify?: { query: string; operation?: Operation; samples: number; max_items: number; window_hours: number; apply: boolean },
+  ) {
     return this.sys(async (tx) => {
       const [c] = await rows(tx, sql`select id, key from connectors where id = ${id}`);
       if (!c) throw new ApiError("NOT_FOUND", "Connector tidak ditemukan");
@@ -287,14 +292,14 @@ export class ProviderAdminService {
         idempotencyKey: `${kind === "health.probe" ? "hp" : "cv"}.${id}.${jobId}`,
         type: kind,
         tenantId: null,
-        payload: { connector_id: id, requested_by: a.userId, job_id: jobId },
+        payload: { connector_id: id, requested_by: a.userId, job_id: jobId, ...(kind === "connector.verify" ? verify : {}) },
       });
       await this.audit(
         tx,
         a,
         kind === "health.probe" ? "connector.health_check" : "connector.verify",
         { type: "connector", id },
-        undefined,
+        verify,
         null,
       );
       return { job_id: jobId, status: "queued" };
@@ -325,7 +330,13 @@ export class ProviderAdminService {
     const id = Bun.randomUUIDv7();
     const s = await seal(this.o.kms, credentialAad(id, tenantId), secret);
     const fp = await fingerprint(secret, this.o.fingerprintPepper);
-    const [dup] = await rows(tx, sql`select 1 from credentials where fingerprint = ${Buffer.from(fp)} and wrapped_dek is not null limit 1`);
+    // duplikat hanya dicek dalam pemilik yang sama (shared pool / tenant yang sama) — lintas tenant akan jadi oracle
+    // "key ini dipakai tenant lain" (review 2026-09-30)
+    const [dup] = await rows(
+      tx,
+      sql`select 1 from credentials where fingerprint = ${Buffer.from(fp)} and wrapped_dek is not null
+        and tenant_id is not distinct from ${tenantId} limit 1`,
+    );
     if (dup) throw new ApiError("CONFLICT", "Credential yang sama sudah terdaftar");
     await tx.execute(sql`insert into credentials (id, tenant_id, kind, ciphertext, iv, wrapped_dek, kek_id, aad, fingerprint, created_by)
       values (${id}, ${tenantId}, ${kind}::e_cred_kind, ${Buffer.from(s.ciphertext)}, ${Buffer.from(s.iv)}, ${Buffer.from(s.wrapped_dek)},

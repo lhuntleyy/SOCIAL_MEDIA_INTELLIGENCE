@@ -56,6 +56,18 @@ describe.skipIf(!redisUp)("I-11 health & circuit breaker (Redis)", () => {
     expect(tr.map((t) => `${t.from}→${t.to}`)).toEqual(["closed→open", "half_open→closed"]);
   });
 
+  test("review I-21: override per connector (connectors.config.health) → circuit open setelah 2 failure, cooldown 5 menit", async () => {
+    const now = { t: 3_000_000 };
+    const m = monitor(now);
+    const o = { failures: 2, cooldownMs: 300_000, bogus: 9 } as never;
+    expect(await m.record("c2", "a", { ok: false, latencyMs: 100, failureWeight: 1 }, o)).toBeNull();
+    expect(await m.record("c2", "a", { ok: false, latencyMs: 100, failureWeight: 1 }, o)).toMatchObject({ to: "open" });
+    expect(await m.read("c2", "a")).toMatchObject({ circuit: "open", cooldownMs: 300_000 });
+    // connector lain tetap memakai default (N = 5)
+    for (let i = 0; i < 2; i++) await m.record("c3", "a", { ok: false, latencyMs: 100, failureWeight: 1 });
+    expect((await m.read("c3", "a")).circuit).toBe("closed");
+  });
+
   test("probe gagal di half_open → open lagi dengan cooldown ×2 (cap)", async () => {
     const now = { t: 5_000_000 };
     const m = monitor(now, [], { cooldownMs: 60_000, cooldownCapMs: 150_000 });

@@ -7,10 +7,9 @@
 //                                                             docs/evidence/verify/verify-<key>.json; --apply → capability verified + measured
 // Env: DATABASE_URL, KMS_* (lihat infra/compose/.env.dev). Config biaya connector (maxTotalChargeUsd, memoryMb) diambil dari connectors.config.
 
-import { type Connector, HttpClient } from "@smip/connector-sdk";
-import { CanonicalItem, type Operation } from "@smip/contracts";
-import { createKms, credentialAad, open, seal } from "@smip/crypto";
-import { connectorRegistry } from "@smip/worker-fetch-bun";
+import type { Connector } from "@smip/connector-sdk";
+import { createKms, credentialAad, fingerprint, open, seal } from "@smip/crypto";
+import { connectorRegistry, measuredOf, runVerify } from "@smip/worker-fetch-bun";
 import postgres from "postgres";
 
 const url = process.env.DATABASE_URL;
@@ -20,9 +19,6 @@ const kmsEnv = () => createKms({ NODE_ENV: process.env.NODE_ENV ?? "development"
 const registry = connectorRegistry(process.env.NODE_ENV ?? "development");
 const [cmd, ...args] = process.argv.slice(2);
 
-function pathValue(o: unknown, path: string): unknown {
-  return path.split(".").reduce<unknown>((a, k) => (a && typeof a === "object" ? (a as Record<string, unknown>)[k] : undefined), o);
-}
 
 /** Manifest connector runtime python (worker-fetch-py) — bentuk sama dgn ConnectorManifest TS. */
 async function pythonManifests(): Promise<Connector["manifest"][]> {
@@ -79,7 +75,13 @@ async function account(providerKey: string, label: string, envVar: string, field
     if (!p) throw new Error(`provider ${providerKey} belum terdaftar (jalankan register)`);
     const credId = Bun.randomUUIDv7();
     const s = await seal(kms, credentialAad(credId, null), { [field]: secret });
-    const fp = new Bun.CryptoHasher("sha256").update(`${providerKey}:${secret}`).digest();
+    // fingerprint = HMAC yang sama dengan Admin API (I-21) → duplikat terdeteksi lintas jalur
+    const pepperB64 = process.env.CREDENTIAL_PEPPER_B64;
+    if (!pepperB64) throw new Error("CREDENTIAL_PEPPER_B64 wajib (lihat infra/compose/.env.dev)");
+    const fp = await fingerprint({ [field]: secret }, new Uint8Array(Buffer.from(pepperB64, "base64")));
+    const [dup] =
+      await tx`select 1 from credentials where fingerprint = ${Buffer.from(fp)} and wrapped_dek is not null and tenant_id is null`;
+    if (dup) throw new Error("credential yang sama sudah terdaftar di shared pool");
     await tx`insert into credentials (id, kind, ciphertext, iv, wrapped_dek, kek_id, aad, fingerprint)
       values (${credId}, 'api_key', ${Buffer.from(s.ciphertext)}, ${Buffer.from(s.iv)}, ${Buffer.from(s.wrapped_dek)}, ${s.kek_id}, ${s.aad}, ${Buffer.from(fp)})`;
     await tx`insert into provider_accounts (id, provider_id, label, credential_id, display_hint) values (${Bun.randomUUIDv7()}, ${p.id}, ${label}, ${credId}, ${`…${secret.slice(-4)}`})`;
@@ -106,92 +108,19 @@ async function verify(key: string, query: string, samples: number, apply: boolea
     },
     credentialAad(row.cred_id, row.tenant_id),
   );
-  const op = (Object.keys(c.manifest.operations)[0] ?? "search_keyword") as Operation;
-  const sup = c.manifest.operations[op]!;
-  const until = new Date();
-  const since = new Date(until.getTime() - windowHours * 3600_000);
-  const lat: number[] = [];
-  const all: CanonicalItem[] = [];
-  let returned = 0;
-  let cost = 0;
-  let invalid = 0;
-  for (let i = 0; i < samples; i++) {
-    const ctx = {
-      credential: { kind: "api_key" as const, secret: cred },
-      config: (row.config ?? {}) as Record<string, unknown>,
-      http: new HttpClient({ allowedHosts: c.manifest.allowedHosts ?? [], timeoutMs: 90_000 }),
-      logger: {
-        debug() {},
-        info() {},
-        warn() {},
-        error() {},
-        child() {
-          return this;
-        },
-      } as never,
-      signal: AbortSignal.timeout(300_000),
-      reportRateLimit: () => {},
-      archiveRaw: async () => "verify://tidak-diarsip",
-    };
-    const req = {
-      requestId: Bun.randomUUIDv7(),
-      idempotencyKey: `verify.${Date.now()}.${i}`,
-      platform: c.manifest.platform,
-      operation: op,
-      query: { native: query, sourceNodeIds: [] },
-      window: { since: since.toISOString(), until: until.toISOString() },
-      cursor: null,
-      pageLimit: 1,
-      maxItems,
-    };
-    const t0 = performance.now();
-    let r = await c.fetch(req, ctx);
-    while (r.asyncHandle && c.resume) {
-      await Bun.sleep(r.asyncHandle.pollAfterMs);
-      r = await c.resume(r.asyncHandle, ctx, req);
-    }
-    lat.push(Math.round(performance.now() - t0));
-    returned += r.usage.results;
-    cost += r.usage.costUnits ?? 0;
-    for (const it of r.items) {
-      if (CanonicalItem.safeParse(it).success) all.push(it);
-      else invalid++;
-    }
-  }
-  const fieldRate = Object.fromEntries(
-    sup.returnsFields.map((f) => [
-      f,
-      all.length ? all.filter((it) => pathValue(it, f) !== null && pathValue(it, f) !== undefined).length / all.length : 0,
-    ]),
+  const report = await runVerify(
+    c,
+    { credential: { kind: "api_key", secret: cred }, config: (row.config ?? {}) as Record<string, unknown> },
+    { query, samples, maxItems, windowHours },
   );
-  const sinceOk = all.every((it) => it.published_at >= since.toISOString());
-  const sorted = [...lat].sort((a, b) => a - b);
-  const p = (q: number) => sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * q) - 1)] ?? null;
-  const pass = all.length > 0 && invalid === 0 && sinceOk && Object.values(fieldRate).every((v) => v >= 0.8);
-  const report = {
-    date: new Date().toISOString(),
-    connector: key,
-    version: c.manifest.version,
-    operation: op,
-    query,
-    window_hours: windowHours,
-    max_items: maxItems,
-    samples,
-    items_valid: all.length,
-    items_invalid: invalid,
-    usage_results_returned: returned,
-    cost_usd: Number(cost.toFixed(6)),
-    since_respected: sinceOk,
-    returns_fields_rate: fieldRate,
-    latency_ms: { samples: lat, p50: p(0.5), p95: p(0.95) },
-    status: pass ? "verified" : "failed",
-    note: samples < 5 ? "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)" : null,
-  };
+  const op = report.operation;
   const file = `docs/evidence/verify/verify-${key}.json`;
   await Bun.write(file, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ file, status: report.status, items: all.length, cost_usd: report.cost_usd, p50: report.latency_ms.p50 }));
+  console.log(
+    JSON.stringify({ file, status: report.status, items: report.items_valid, cost_usd: report.cost_usd, p50: report.latency_ms.p50 }),
+  );
   if (apply) {
-    const measured = { p50_latency_ms: p(0.5), p95_latency_ms: p(0.95), sample_size: samples, returns_fields_rate: fieldRate };
+    const measured = measuredOf(report);
     await sql.begin(async (tx) => {
       await tx`SET LOCAL ROLE smip_system`;
       await tx`update connector_capabilities set status = ${report.status}::e_verify_status, measured = measured || ${tx.json(measured as never)},

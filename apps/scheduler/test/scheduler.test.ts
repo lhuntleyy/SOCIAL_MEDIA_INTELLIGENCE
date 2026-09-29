@@ -239,6 +239,16 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     await sql`update crawl_plans set next_run_at = now() - interval '1 second' where id = ${p}`;
     expect((await schedulerTick(created.db)).scheduled).toBe(1);
     expect(await reapStuckRuns(created.db, { graceSec: 900 })).toEqual([]); // idempoten
+
+    // review: run celah (backfill) macet → run_id celah dilepas agar dicoba ulang
+    const gap = { since: "2026-09-20T01:00:00.000Z", until: "2026-09-20T02:00:00.000Z", created_at: new Date().toISOString() };
+    const gp = await plan({ dueInSec: 600 });
+    const gr = id(++qn + 0x30000);
+    await sql`insert into crawl_runs (id, tenant_id, crawl_plan_id, scheduled_for, kind, status) values (${gr}, ${T}, ${gp}, ${new Date(Date.now() - 2000_000)}, 'backfill', 'fetching')`;
+    await sql`update crawl_plans set gap_windows = ${sql.json([{ ...gap, run_id: gr }] as never)} where id = ${gp}`;
+    expect(await reapStuckRuns(created.db, { graceSec: 900 })).toEqual([gr]);
+    expect((await sql`select gap_windows from crawl_plans where id = ${gp}`)[0]!.gap_windows).toEqual([gap]);
+    await sql`update crawl_plans set status = 'paused' where id = ${gp}`;
   });
 
   test("leader lock: satu pemimpin; pemilik memperpanjang; lock kedaluwarsa diambil replika lain", async () => {

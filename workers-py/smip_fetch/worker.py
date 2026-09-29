@@ -16,7 +16,7 @@ from bullmq import Queue, Worker
 from .accounts import db_account_loader
 from .blobs import S3BlobStore
 from .crypto import create_kms
-from .execute import FetchDeps, SessionLock, envelope, execute_fetch, fetch_result_key
+from .execute import FetchDeps, SessionLock, dynamic_limit_setter, envelope, execute_fetch, fetch_result_key
 from .registry import connector_registry
 
 # kebijakan queue fetch.result = QUEUE_POLICIES TS (attempts 5, exponential 1 s)
@@ -61,6 +61,7 @@ async def main() -> None:
         ),
         logger=log,
         session_lock=SessionLock(cache),
+        on_rate_limit=dynamic_limit_setter(cache),
     )
     results = Queue("fetch.result", conn)
     worker = Worker(

@@ -141,8 +141,13 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
   test("health-check / verify → 202 + job via outbox (API tidak memanggil provider)", async () => {
     const r = await call("POST", `/admin/connectors/${CONN}/health-check`, opTok);
     expect(r.status).toBe(202);
-    const v = await call("POST", `/admin/connectors/${CONN}/verify`, opTok);
+    expect((await call("POST", `/admin/connectors/${CONN}/verify`, opTok)).status).toBe(400); // query wajib (panggilan berbayar)
+    expect((await call("POST", `/admin/connectors/${CONN}/verify`, opTok, { query: "kopdes", samples: 50 })).status).toBe(400);
+    const v = await call("POST", `/admin/connectors/${CONN}/verify`, opTok, { query: "kopdes", samples: 2 });
     expect(v.status).toBe(202);
+    const [vj] =
+      await h.sql`select payload->'payload' as p from outbox where event_type = 'enqueue.connector.verify' and aggregate_id = ${CONN}`;
+    expect(vj!.p).toMatchObject({ query: "kopdes", samples: 2, max_items: 10, window_hours: 24, apply: false });
     const jobs = await h.sql`select event_type from outbox where aggregate_id = ${CONN} and event_type like 'enqueue.%' order by id`;
     expect(jobs.map((j) => j.event_type)).toEqual(["enqueue.health.probe", "enqueue.connector.verify"]);
   });
@@ -187,6 +192,22 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     expect(r.status).toBe(201);
     expect(r.json.data.tenant_id).toBe(T1);
     byo = r.json.data.id;
+    // key yang sama di tenant lain BUKAN duplikat (tanpa oracle lintas tenant); di tenant sama → 409
+    const other = await call("POST", "/admin/accounts", adm2, {
+      provider_id: PROV,
+      label: "byo-t2",
+      credential: { kind: "api_key", secret: { token: `${SECRET}_t1` } },
+    });
+    expect(other.status).toBe(201);
+    expect(
+      (
+        await call("POST", "/admin/accounts", adm1, {
+          provider_id: PROV,
+          label: "byo-t1-dup",
+          credential: { kind: "api_key", secret: { token: `${SECRET}_t1` } },
+        })
+      ).status,
+    ).toBe(409);
     expect(
       (
         await call("POST", "/admin/accounts", adm1, {
@@ -209,7 +230,7 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     ).toBe(403);
     const l1 = await call("GET", "/admin/accounts", adm1);
     expect(l1.json.data.map((a: { id: string }) => a.id)).toEqual([byo]);
-    expect((await call("GET", "/admin/accounts", adm2)).json.data).toEqual([]);
+    expect((await call("GET", "/admin/accounts", adm2)).json.data.map((a: { label: string }) => a.label)).toEqual(["byo-t2"]);
     expect((await call("PATCH", `/admin/accounts/${shared}`, adm1, { status: "disabled" })).status).toBe(404);
     expect((await call("DELETE", `/admin/accounts/${byo}`, adm2)).status).toBe(404);
     expect((await call("PATCH", `/admin/accounts/${byo}`, adm1, { label: "byo-t1b" })).json.data.label).toBe("byo-t1b");

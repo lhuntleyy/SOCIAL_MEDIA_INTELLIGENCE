@@ -49,6 +49,16 @@ export async function planEngagementRefresh(db: Db, ch: ClickHouseClient, o: Ref
     return rows.filter((r) => !r.busy).map((r) => r.platform_code);
   });
   if (!platforms.length) return res;
+  // post yang SUDAH dicoba di jendela ini (termasuk yang tak dikembalikan provider: dihapus/privat → tanpa snapshot baru)
+  // tidak dijadwalkan ulang — tanpa ini post hilang dicoba setiap siklus selamanya (review 2026-09-30)
+  const freshSince = new Date(now.getTime() - (o.refreshEverySec ?? 7200) * 1000).toISOString();
+  const recent = await withSystem(db, async (tx) =>
+    (
+      (await tx.execute(sql`select distinct (refresh_target->>'platform') || '|' || p as k
+      from crawl_runs r, jsonb_array_elements_text(r.refresh_target->'post_ids') p
+      where r.kind = 'engagement_refresh' and r.scheduled_for >= ${freshSince}::timestamptz`)) as unknown as { k: string }[]
+    ).map((r) => r.k),
+  );
   const cand = await ch
     .query({
       query: `SELECT platform, post_id FROM topic_matches FINAL
@@ -56,6 +66,7 @@ export async function planEngagementRefresh(db: Db, ch: ClickHouseClient, o: Ref
                 AND (platform, post_id) NOT IN (
                   SELECT platform, post_id FROM engagement_snapshots
                   WHERE platform IN {pl:Array(String)} AND captured_at >= {fresh:DateTime64(3)})
+                AND concat(platform, '|', post_id) NOT IN {recent:Array(String)}
               GROUP BY platform, post_id
               ORDER BY platform, max(published_at) DESC
               LIMIT {lim:UInt32} BY platform`,
@@ -64,6 +75,7 @@ export async function planEngagementRefresh(db: Db, ch: ClickHouseClient, o: Ref
         since: chTime(new Date(now.getTime() - (o.maxAgeHours ?? 24) * 3600_000).toISOString()),
         fresh: chTime(new Date(now.getTime() - (o.refreshEverySec ?? 7200) * 1000).toISOString()),
         lim: o.maxPostsPerPlatform ?? 500,
+        recent,
       },
       format: "JSONEachRow",
     })

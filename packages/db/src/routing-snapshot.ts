@@ -12,7 +12,7 @@ const num = (v: unknown) => (v === null || v === undefined ? undefined : Number(
 export async function loadRoutingSnapshot(db: Db, version: number): Promise<RoutingSnapshot> {
   const [providers, connectors, caps, policies, rules, accounts, rls, quotas] = await Promise.all([
     q(db, sql`select id, enabled, risk_level = 'high' as high_risk from providers`),
-    q(db, sql`select id, key, provider_id, platform_code, runtime, version, enabled from connectors`),
+    q(db, sql`select id, key, provider_id, platform_code, runtime, version, enabled, config->'health' as health from connectors`),
     q(db, sql`select connector_id, operation, status, declared, measured from connector_capabilities`),
     q(
       db,
@@ -40,6 +40,7 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
       providerId: String(c.provider_id),
       providerEnabled: provEnabled.get(String(c.provider_id)) ?? false,
       providerHighRisk: provHighRisk.get(String(c.provider_id)) ?? false,
+      ...(c.health && typeof c.health === "object" ? { health: c.health as ConnectorInfo["health"] } : {}),
       platform: String(c.platform_code),
       runtime: c.runtime as "bun" | "python",
       version: String(c.version),

@@ -338,6 +338,24 @@ export const SinkAnalyticsPayload = z.strictObject({
 
 export type SinkAnalyticsPayload = z.infer<typeof SinkAnalyticsPayload>;
 
+/** Admin API (I-21) → worker-fetch-bun: probe kesehatan connector (semua akun aktif, maks 5). Hanya TS. */
+export const HealthProbePayload = z.strictObject({ connector_id: Uuid, requested_by: Uuid.nullable(), job_id: Uuid });
+export type HealthProbePayload = z.infer<typeof HealthProbePayload>;
+
+/** Admin API (I-21) → worker-fetch-bun: verify capability (panggilan provider SUNGGUHAN, bisa berbayar). Hanya TS. */
+export const ConnectorVerifyPayload = z.strictObject({
+  connector_id: Uuid,
+  requested_by: Uuid.nullable(),
+  job_id: Uuid,
+  query: z.string().min(1).max(500),
+  operation: Operation.optional(),
+  samples: z.number().int().min(1).max(5),
+  max_items: z.number().int().min(1).max(50),
+  window_hours: z.number().int().min(1).max(168),
+  apply: z.boolean(),
+});
+export type ConnectorVerifyPayload = z.infer<typeof ConnectorVerifyPayload>;
+
 /** QUEUE_SPEC §4.8 — scheduler/planner → worker-dispatch; run `engagement_refresh` sudah dibuat bersama job ini (outbox). */
 export const EngagementRefreshPayload = z.strictObject({
   crawl_run_id: Uuid,

@@ -304,5 +304,11 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
     const again = await handleSink(sinkDeps, { ...msg, batch_id: Bun.randomUUIDv7() });
     expect([again.events, again.skippedByGuard]).toEqual([0, 2]);
     expect(await aggEng()).toEqual({ n: "2", e: "16" });
+
+    // review: post yang sudah dicoba di jendela refresh (termasuk yang tidak dikembalikan provider) tidak dijadwalkan ulang
+    await sql`update crawl_runs set status = 'succeeded' where kind = 'engagement_refresh'`;
+    expect((await planEngagementRefresh(created.db, ch, { maxAgeHours: 24 * 3650, refreshEverySec: 3600 })).posts).toBe(0);
+    await sql`update crawl_runs set scheduled_for = scheduled_for - interval '2 hours' where kind = 'engagement_refresh'`;
+    expect((await planEngagementRefresh(created.db, ch, { maxAgeHours: 24 * 3650, refreshEverySec: 3600 })).posts).toBeGreaterThan(0);
   });
 });

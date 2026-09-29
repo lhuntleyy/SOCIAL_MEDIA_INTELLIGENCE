@@ -56,6 +56,21 @@ def envelope(type_: str, idempotency_key: str, tenant_id: str | None, payload: d
     return env
 
 
+# Lua sama dengan RedisReserver.setDynamicLimit (packages/router/src/reserve.ts DYN): hanya memperpanjang, tidak memendekkan.
+_DYN = "local cur = tonumber(redis.call('GET', KEYS[1]) or '0')\nif tonumber(ARGV[1]) > cur then redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2]) end\nreturn 1"
+
+
+def dynamic_limit_setter(redis: Any, prefix: str = "") -> Callable[[str, RateLimitInfo], Any]:
+    """Retry-After dari provider → `rl:dyn:{account}` (router menahan akun itu) — paritas dengan worker-fetch-bun."""
+
+    async def set_limit(account_id: str, info: RateLimitInfo) -> None:
+        ms = int(info.retry_after_ms or 0)
+        if ms > 0:
+            await redis.eval(_DYN, 1, f"{prefix}rl:dyn:{account_id}", int(time.time() * 1000) + ms, ms)
+
+    return set_limit
+
+
 class SessionLock:
     """Akun sesi login (cookie/session) dipakai SATU worker pada satu waktu — dua login paralel = pola bot (CONNECTOR_SPEC §8)."""
 

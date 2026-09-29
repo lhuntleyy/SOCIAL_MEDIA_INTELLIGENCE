@@ -83,11 +83,16 @@ export class Router implements ProviderRouter {
       alert: this.d.effects.alert,
     });
     // bobot 0 (RATE_LIMITED dll.) tidak masuk window, tapi tetap melepas slot probe half_open
-    const t = await this.d.monitor.record(o.connectorId, o.accountId, {
-      ok: o.ok,
-      latencyMs: o.latencyMs,
-      failureWeight: res.healthFailure,
-    });
+    const t = await this.d.monitor.record(
+      o.connectorId,
+      o.accountId,
+      {
+        ok: o.ok,
+        latencyMs: o.latencyMs,
+        failureWeight: res.healthFailure,
+      },
+      snap.connectors.get(o.connectorId)?.health,
+    );
     if (t) this.d.onTransition?.(t);
     if (!o.ok) this.d.logger?.info("attempt gagal", { code: o.errorCode, action: res.decision.action, attempt: ctx.attempt });
     return res.decision;

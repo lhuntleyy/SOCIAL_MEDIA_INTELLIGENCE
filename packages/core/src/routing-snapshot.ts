@@ -20,6 +20,8 @@ export interface ConnectorInfo {
   providerEnabled: boolean;
   /** providers.risk_level = high (unofficial) — tenant yang opt-out tidak pernah dilayani connector ini (I-19). */
   providerHighRisk?: boolean;
+  /** Override parameter circuit breaker per connector (`connectors.config.health`, diatur Admin API I-21). */
+  health?: Partial<{ failures: number; minSuccessRate: number; probeSuccesses: number; cooldownMs: number; cooldownCapMs: number }>;
   platform: string;
   runtime: "bun" | "python";
   version: string;

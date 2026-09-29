@@ -144,3 +144,19 @@ async def test_unknown_connector_resume_and_expired_deadline():
 def test_result_key_matches_ts():
     assert fetch_result_key("r1", 2, 0) == "run.r1.attempt.2.result"
     assert fetch_result_key("r1", 2, 3) == "run.r1.attempt.2.result.3"
+
+
+async def test_rate_limit_propagates_to_rl_dyn():
+    from smip_fetch.connector import RateLimitInfo
+    from smip_fetch.execute import dynamic_limit_setter
+
+    calls = []
+
+    class R:
+        async def eval(self, script, n, key, until, ms):
+            calls.append((key, ms, until > 0))
+
+    setter = dynamic_limit_setter(R())
+    await setter(ACC, RateLimitInfo(remaining=0, reset_at=None, retry_after_ms=30000))
+    await setter(ACC, RateLimitInfo(remaining=0, reset_at=None, retry_after_ms=None))
+    assert calls == [(f"rl:dyn:{ACC}", 30000, True)]

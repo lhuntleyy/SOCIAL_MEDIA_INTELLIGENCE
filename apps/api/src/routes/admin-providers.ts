@@ -103,10 +103,21 @@ export function providerAdminRoutes(svc: ProviderAdminService) {
   r.post("/admin/connectors/:id/health-check", op, async (c) =>
     c.json({ data: await svc.enqueueConnectorJob(actor(c), param(c, "id"), "health.probe") }, 202),
   );
-  r.post("/admin/connectors/:id/verify", op, async (c) =>
-    c.json({ data: await svc.enqueueConnectorJob(actor(c), param(c, "id"), "connector.verify") }, 202),
-  );
-
+  r.post("/admin/connectors/:id/verify", op, async (c) => {
+    // memanggil provider SUNGGUHAN (bisa berbayar) → query wajib, sampel kecil, apply eksplisit
+    const b = await parseJson(
+      c,
+      z.strictObject({
+        query: z.string().min(1).max(500),
+        operation: Operation.optional(),
+        samples: z.int().min(1).max(5).default(1),
+        max_items: z.int().min(1).max(50).default(10),
+        window_hours: z.int().min(1).max(168).default(24),
+        apply: z.boolean().default(false),
+      }),
+    );
+    return c.json({ data: await svc.enqueueConnectorJob(actor(c), param(c, "id"), "connector.verify", b) }, 202);
+  });
   // ----- accounts (admin tenant: BYO sendiri) -----
   const adm = requireRole("admin");
   r.get("/admin/accounts", adm, async (c) =>

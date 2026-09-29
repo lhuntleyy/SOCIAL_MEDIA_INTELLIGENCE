@@ -150,9 +150,13 @@ export class HealthMonitor {
     connectorId: string,
     accountId: string,
     o: { ok: boolean; latencyMs: number; failureWeight: 0 | 1 | 2 },
+    /** Override per connector (snapshot `ConnectorInfo.health`); nilai tak valid diabaikan. */
+    override?: Partial<HealthConfig>,
   ): Promise<Transition | null> {
     const k = this.keys(connectorId, accountId);
-    const c = this.cfg;
+    const c = { ...this.cfg };
+    for (const [key, v] of Object.entries(override ?? {}))
+      if (typeof v === "number" && Number.isFinite(v) && v > 0 && key in c) (c as Record<string, number>)[key] = v;
     // bobot 2 (PARSE_ERROR) = "circuit open cepat, threshold 2" (§7): 2 kejadian sudah ≥ N
     const weight = o.failureWeight === 2 ? Math.ceil(c.failures / 2) : o.failureWeight;
     const [from, to] = (await this.eval(

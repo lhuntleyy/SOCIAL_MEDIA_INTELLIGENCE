@@ -1,14 +1,16 @@
-// Service `worker-fetch-bun` (ARCHITECTURE §5): consume fetch.bun → executeFetch → fetch.result.
+// Service `worker-fetch-bun` (ARCHITECTURE §5): consume fetch.bun/fetch.resume → executeFetch → fetch.result;
+// + health.probe & connector.verify dari Admin API (profil MVP; pindah ke worker-health saat skala naik).
 import { loadConfig } from "@smip/config";
-import { FetchRequestPayload } from "@smip/contracts";
+import { ConnectorVerifyPayload, FetchRequestPayload, HealthProbePayload } from "@smip/contracts";
 import { createKms } from "@smip/crypto";
 import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
-import { RedisReserver } from "@smip/router";
+import { HealthMonitor, RedisReserver } from "@smip/router";
 import { S3BlobStore } from "@smip/storage";
 import { dbAccountLoader } from "./accounts";
 import { fetchAndReport } from "./execute";
+import { handleHealthProbe, handleVerify } from "./ops";
 import { connectorRegistry } from "./registry";
 
 const cfg = loadConfig("worker-fetch-bun");
@@ -33,11 +35,15 @@ const deps = {
   onRateLimit: (accountId: string, i: { retryAfterMs: number | null }) => reserver.setDynamicLimit(accountId, i.retryAfterMs ?? 0),
 };
 
+const ops = { db, connectors, accounts: deps.accounts, blobs, logger, monitor: new HealthMonitor(cache) };
+
 const handler = (m: { payload: FetchRequestPayload; tenant_id: string | null }, ctx: { signal: AbortSignal }) =>
   fetchAndReport(deps, queue, m.payload, m.tenant_id, ctx.signal).then(() => {});
 const subs = [
   await queue.consume("fetch.bun", handler, { parse: FetchRequestPayload.parse }),
   await queue.consume("fetch.resume", handler, { parse: FetchRequestPayload.parse }),
+  await queue.consume("health.probe", async (m) => void (await handleHealthProbe(ops, m.payload)), { parse: HealthProbePayload.parse }),
+  await queue.consume("connector.verify", async (m) => void (await handleVerify(ops, m.payload)), { parse: ConnectorVerifyPayload.parse }),
 ];
 logger.info("worker-fetch-bun mulai", { connectors: [...connectors.keys()] });
 
