@@ -45,6 +45,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Fase 0: S-05 diputuskan (KEDA Prometheus scaler atas `smip_queue_depth`, scheduler `/metrics`; scaler Redis list ditolak — bukti test), S-12 cek Graph API/Content Library, S-14 YouTube streamers 5 sampel.
   - Review 2026-09-30: health override per connector dipakai router, rate limit worker Python → `rl:dyn`, reaper melepas celah & mengalokasikan biaya stream, fingerprint credential seragam & tanpa oracle lintas tenant, refresh tidak mengulang post yang hilang, konsumen `health.probe`/`connector.verify` (+ `verify.ts` bersama). Legal S-15/S-23 dicatat disetujui pimpinan.
   - Sisa risiko review ditutup (Vault Python async, probe connector Python, quota YouTube dev, planner refresh terbatas). Profil VPS kecil: ClickHouse hemat memori + semua worker Bun 1 proses (454 → 92 MB), perintah swap.
+  - S-05 demo KEDA di kind (Prometheus scaler atas `smip_queue_depth`: 0 → 4 → 0 replika; scaler Redis list terbukti buta terhadap job ber-priority).
   - Collection stream (I-22): dedup planner, stream dijadwalkan & di-dispatch seperti plan, pipeline mode stream dgn `QueryIndex` (inverted index), migrasi 0017, flag `SCHEDULER_STREAMS_ENABLED`. P-14 e2e.
   - Partial success (I-24): sisi celah per `result_order`, maks 20 celah, `pruneGaps` + `smip_crawl_gap_abandoned_total`, P-18 e2e.
   - Fix: semua connector habis setelah sebagian item diterima → run `partial` (sebelumnya `failed`, celah hilang).
