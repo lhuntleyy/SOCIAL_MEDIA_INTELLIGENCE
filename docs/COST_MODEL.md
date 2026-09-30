@@ -2,6 +2,10 @@
 
 Model biaya operasi platform. **Semua angka di dokumen ini adalah estimasi** (per September 2026); hanya yang bertanda **DOCS** sudah dicek ke halaman resmi provider — tiap tarif punya `source_ref` di §10 dan **wajib diverifikasi ulang sebelum committing budget** (tarif scraping berubah sering). Angka final yang dipakai routing produksi tetap tinggal di [PROVIDER_MATRIX.md](PROVIDER_MATRIX.md) dengan status verifikasi.
 
+> **2026-10-01 — lihat §11 lebih dulu.** §11 menghitung ulang dari biaya Apify **terukur** (run final) dan menemukan asumsi overhead
+> 1,25× (§3) tidak berlaku untuk actor dengan filter waktu per-hari (Threads/TikTok/FB/IG): tiap poll menagih ulang post 24 jam
+> terakhir. Angka §5 di bawah = model v0.4 (belum memperhitungkan itu).
+
 Kurs asumsi: **Rp 16.500 / USD**.
 
 > Dokumen ini adalah sumber kebenaran untuk **angka biaya & asumsi ekonomi**. Kalau dokumen lain berbeda, dokumen ini yang benar (perbaiki yang lain). Untuk *kemampuan/rate limit provider* → PROVIDER_MATRIX. Untuk mekanisme quota/rate → CONNECTOR_SPEC §10–§11.
@@ -246,3 +250,85 @@ Dashboard biaya (Admin → Usage) harus menampilkan **nilai nyata berdampingan d
 - Best social media scrapers on Apify 2026 — https://use-apify.com/docs/best-apify-actors/best-social-media-scrapers
 - Apify Instagram Scraper (halaman actor, semi-primer) — https://apify.com/apidojo/instagram-scraper
 - Best social media scraping APIs 2026 — https://scrapecreators.com/blog/best-social-media-scraping-apis
+
+
+---
+
+## 11. Perhitungan dari data terukur (2026-10-01) & harga jual
+
+Sumber: run Apify final siklus 2026-09-14..10-01 (`GET /v2/actor-runs` + `chargedEventCounts` + jumlah item dataset; hanya actor SMIP),
+ledger `provider_attempts`, volume post `topic_match_events` (topik BPIP, JOKOWI, Demo KDMP, demo buruh). Skrip model: angka di bawah
+dihasilkan dari parameter tabel 11.1–11.3 (reproduksi: rumus §11.3). Kurs Rp 16.500/USD.
+
+### 11.1 Tarif terukur per actor (siklus ini)
+| Platform | Actor (connector) | Run | Item | Biaya final | Efektif / 1K item | Biaya tetap / run | Catatan |
+|---|---|---:|---:|---:|---:|---:|---|
+| X | xquik (`apify.x.xquik`) | 31 | 2.031 | $0,32 | **$0,16** | $0,0002 (run kosong) | `since_time` per detik → benar-benar inkremental |
+| Threads | scrapersdelight | 41 | 245 | $0,25 | **$1,00** | $0 | `postedWithinDays` ≥ 1 hari, `searchType: top`, tanpa cursor |
+| Facebook | scraper_one | 40 | 636 | $1,91 | **$3,00** | event `init`/run (≈ $0,0025, estimasi) | `startDate/endDate` per hari |
+| TikTok | clockworks | 23 | 351 | $1,41 | **$4,01** | ~$0,001 | event result + filter + sorting per item; filter tanggal per hari |
+| TikTok | xmolodtsov | 2 | 595 | $0,15 | **$0,25** | $0 | tanpa filter tanggal (saring lokal) |
+| Instagram | scraping_solutions boolean (keyword + `#hashtag`) | 41 | 849 | $8,65 | **$10,19** | **$0,02** (run kosong = 2 halaman) | **742 event `search-page` × $0,01** + $1,55/1K item → ±1,3 item/halaman |
+| Instagram | apify/instagram-hashtag-scraper | 1 | 8 | $0,02 | $2,30 (DOCS $2,60) | ~0 | hashtag saja (tanpa keyword caption) |
+| YouTube | Data API v3 resmi | — | — | $0 | $0 | $0 | **kuota 100 `search.list`/hari/project** (PROVIDER_MATRIX §6.7) |
+
+Total SMIP siklus ini ≈ **$13,05** (IG boolean 66%). Akun Apify yang sama juga menjalankan actor **di luar SMIP** ≈ $10,3 →
+disarankan akun/token Apify terpisah untuk SMIP agar anggaran & batas pemakaian jelas.
+
+### 11.2 Temuan penentu biaya: filter waktu per-hari = tagihan berulang
+Hanya X (`since_time`, detik) dan YouTube (`publishedAfter`) inkremental sungguhan. Threads/TikTok/FB/IG menerima filter **per hari** →
+setiap poll mengembalikan (dan menagih) ulang post 24 jam terakhir. **Terbukti** dari data: Threads Demo KDMP rata-rata 4,5 post/run ×
+24 run/hari ≈ 108 post ditagih/hari untuk ~4,6 post baru/hari (**~23×**). Pada interval 5 menit faktornya **288×**.
+Mitigasi (belum ada di kode → task berikutnya): **maxItems adaptif** — actor terurut terbaru (TikTok clockworks `LATEST`, FB `latest`,
+IG recent) cukup diminta ≈ 3× post baru yang diharapkan per interval (min. 5), dinaikkan otomatis bila semua hasil ternyata baru.
+
+### 11.3 Rumus per topik per bulan (30 hari)
+- `run/hari = 1440 / interval_menit`
+- X/YouTube: `hasil = post_baru × 1,1 (presisi matcher) × 1,2 (overlap window 5m; 1,1 untuk ≥15m)`
+- Actor filter-per-hari, **sekarang**: `hasil/run = min(300, post_baru_24j × 1,1)`; **adaptif**: `min(itu, max(5, ⌈3 × post_baru × interval/1440⌉))`
+- `biaya = 30 × (run/hari × biaya_tetap + hasil/hari × tarif_per_hasil)`; IG boolean: `tarif ≈ $0,00155 + $0,01/1,3` per hasil
+- AI (sentimen + emosi + isu, satu panggilan batch): ±100 token input + ±45 token output per post × Claude Haiku 4.5 ($1/$5 per MTok, §4)
+  ≈ **$0,33 / 1.000 post** (Gemini berbayar belum diverifikasi harganya; tier gratis **tidak boleh** untuk data klien).
+- Infra: profil MVP single-node ~$85/bln untuk ±30 topik (§5, DEPLOYMENT §3a) → ≈ $2,8/topik.
+
+Ukuran topik (post baru/hari): **kecil** 37 (≈ BPIP) · **sedang** 730 (X 450, Threads 120, TikTok 60, IG 50, FB 20, YT 30 ≈ JOKOWI /
+KDMP di produk referensi) · **ramai** 2.043 (baseline §1).
+
+### 11.4 Biaya per topik per bulan (USD)
+| Skenario | Kecil | Sedang | Ramai |
+|---|---:|---:|---:|
+| A. **Semua 5 menit, kode sekarang** | 882 | **8.068** | 5.088 |
+| B. Semua 5 menit, maxItems adaptif | 829 | 960 | 982 |
+| E. Semua 5 menit, adaptif + provider termurah (IG hashtag resmi, TikTok xmolodtsov) | 289 | 329 | 351 |
+| C. X 5m · TikTok/FB 30m · IG (keyword+hashtag)/Threads 1j · YT 3j, adaptif | 91 | 139 | 149 |
+| **F. X 5m · IG/TikTok 15m · FB/Threads 30m · YT 3j, adaptif + termurah** | **70** | **89** | **112** |
+| D. Semua 1 jam, kode sekarang (kondisi demo saat ini) | 74 | 681 | 452 |
+
+Porsi terbesar di 5 menit: IG boolean ($0,02/run tetap → ±$172/bln per topik hanya dari halaman kosong), TikTok clockworks & FB
+(tagihan berulang). X hampir gratis di interval berapa pun. **YouTube resmi tidak bisa 5 menit**: 288 search/hari/topik > kuota 100/hari
+→ maks. 3 jam untuk 10 topik (80 search/hari) atau ajukan perluasan kuota ke Google; cadangan Apify streamers ±$0,02/run (5m ≈ $170/bln/topik).
+
+### 11.5 Kantor 10 topik (3 kecil + 5 sedang + 2 ramai)
+| Skenario | Data + AI | Infra | **Total/bln** | Rupiah |
+|---|---:|---:|---:|---:|
+| A. Semua 5m, kode sekarang | $53.165 | $28 | $53.194 | Rp 877,7 jt |
+| B. Semua 5m, adaptif | $9.251 | $28 | $9.280 | Rp 153,1 jt |
+| E. Semua 5m, adaptif + termurah | $3.216 | $28 | $3.244 | Rp 53,5 jt |
+| C. Rekomendasi keyword IG | $1.265 | $28 | $1.293 | Rp 21,3 jt |
+| **F. Hemat (rekomendasi jual)** | $881 | $28 | **$909** | **Rp 15,0 jt** |
+| D. Semua 1j, kode sekarang | $4.532 | $28 | $4.560 | Rp 75,2 jt |
+
+### 11.6 Usulan harga jual (cost-plus — validasi dengan harga pesaing sebelum dipakai)
+Harga = `biaya × 1,2 (cadangan: failover ke provider lebih mahal, kenaikan tarif) ÷ (1 − 60% margin kotor)`; belum termasuk PPN,
+biaya support/sales, dan diskon kontrak tahunan.
+
+| Paket (10 topik/kantor) | Interval | Biaya/bln | **Harga/bln** | Per topik tambahan |
+|---|---|---:|---:|---:|
+| **Standar** (skenario F) | X 5m · IG/TikTok 15m · FB/Threads 30m · YT 3j | Rp 15,0 jt | **Rp 45 jt** | Rp 4,5 jt |
+| **Plus** (skenario C, IG keyword + hashtag) | X 5m · TikTok/FB 30m · IG/Threads 1j · YT 3j | Rp 21,3 jt | **Rp 64 jt** | Rp 6,4 jt |
+| **Real-time** (skenario E) | semua 5m (YT 3j) | Rp 53,5 jt | **Rp 160 jt** | Rp 16 jt |
+
+Syarat sebelum menjual: (1) **maxItems adaptif** terpasang (tanpa itu biaya = skenario A/D); (2) interval per platform dikunci per paket
+(`plans.limits`); (3) akun Apify khusus SMIP + plan di atas STARTER ($19 kredit/bln tidak cukup; batas pemakaian diatur di Billing);
+(4) AI berbayar (bukan tier gratis); (5) ukur ulang biaya 2 minggu pertama tiap klien (volume topik sangat bervariasi — ramai ≠ mahal:
+X murah, yang mahal IG/TikTok/FB); (6) kurs & tarif diverifikasi ulang (§10).
