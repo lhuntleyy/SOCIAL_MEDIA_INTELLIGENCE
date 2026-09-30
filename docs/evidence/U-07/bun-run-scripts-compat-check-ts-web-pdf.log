@@ -1,0 +1,7 @@
+# U-07 — 2026-09-30T20:11:43Z
+# bun 1.4.2 | node v22.23.2 | Linux x86_64
+$ bun run scripts/compat-check.ts web-pdf
+COMPATIBLE   U-07  web-pdf                    808 ms
+             - jspdf (runtime Bun): PDF 2 halaman + gambar PNG valid (3947 byte)
+             - html-to-image + jspdf ter-bundle vite build (bun --bun): 4 asset. DOM → PNG diuji di browser (halaman Laporan)
+# exit 0

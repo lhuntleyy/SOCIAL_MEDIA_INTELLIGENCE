@@ -13,6 +13,7 @@ import { otel } from "./compat/s06-otel";
 import { clickhouse } from "./compat/s07-clickhouse";
 import { drizzleKit, playwrightCheck, postgresCheck, s3Check, viteCheck } from "./compat/s08-data";
 import { cryptoInterop } from "./compat/s09-crypto";
+import { webPdfCheck } from "./compat/s10-web";
 import { type Check, type CheckResult, Untested } from "./compat/types";
 
 const keda: Check = {
@@ -43,6 +44,7 @@ const ALL: Check[] = [
   viteCheck,
   playwrightCheck,
   cryptoInterop,
+  webPdfCheck,
 ];
 
 const ROOT = `${import.meta.dir}/..`;

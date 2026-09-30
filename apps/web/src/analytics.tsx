@@ -2,7 +2,7 @@
 // diklik → popup berisi post di balik angka itu (+ "jadikan filter" untuk platform / rentang waktu).
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
-import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, apiFull } from "./api";
 import { useAuth } from "./auth";
@@ -736,6 +736,144 @@ export function WordCloud({
           }}
         >
           {it.key}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Word cloud 3D (bola kata berputar; drag untuk memutar, berhenti saat kursor di atasnya; klik kata → drill-down).
+ * Posisi di bola: distribusi Fibonacci; kedalaman → skala & transparansi. Animasi via ref (tanpa render ulang React per frame).
+ */
+export function WordCloud3D({
+  items,
+  onPick,
+  empty = "Belum ada data.",
+  error,
+  height = 300,
+}: {
+  items: { key: string; value: number }[] | undefined;
+  onPick?: (key: string) => void;
+  empty?: string;
+  error?: unknown;
+  height?: number;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const words = [...(items ?? [])].sort((a, b) => b.value - a.value).slice(0, 60);
+  const sig = words.map((w) => `${w.key}:${w.value}`).join("|");
+  useEffect(() => {
+    const el = box.current;
+    const n = sig ? sig.split("|").length : 0; // posisi dihitung ulang hanya saat isi kata berubah
+    if (!el || !n) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // titik Fibonacci di bola satuan
+    const pts = Array.from({ length: n }, (_, i) => {
+      const y = 1 - (2 * (i + 0.5)) / n;
+      const r = Math.sqrt(1 - y * y);
+      const t = i * Math.PI * (3 - Math.sqrt(5));
+      return [Math.cos(t) * r, y, Math.sin(t) * r] as [number, number, number];
+    });
+    let ax = 0.0035; // kecepatan putar (rad/frame) sumbu X & Y
+    let ay = 0.006;
+    let hover = false;
+    let drag: { x: number; y: number } | null = null;
+    let raf = 0;
+    const R = Math.min(el.clientWidth, height) * 0.4;
+    const draw = () => {
+      for (let i = 0; i < n; i++) {
+        const [x, y, z] = pts[i]!;
+        const b = refs.current[i];
+        if (!b) continue;
+        const k = (z + 2) / 3; // 0.33 (belakang) … 1 (depan)
+        b.style.transform = `translate(-50%, -50%) translate3d(${x * R}px, ${y * R}px, 0) scale(${0.55 + 0.6 * k})`;
+        b.style.opacity = String(0.25 + 0.75 * k);
+        b.style.zIndex = String(Math.round(k * 100));
+        b.style.filter = z < -0.3 ? "blur(0.6px)" : "none";
+      }
+    };
+    const rotate = (rx: number, ry: number) => {
+      const [cx, sx, cy, sy] = [Math.cos(rx), Math.sin(rx), Math.cos(ry), Math.sin(ry)];
+      for (const p of pts) {
+        const [x, y, z] = p;
+        const y1 = y * cx - z * sx;
+        const z1 = y * sx + z * cx;
+        p[0] = x * cy + z1 * sy;
+        p[1] = y1;
+        p[2] = -x * sy + z1 * cy;
+      }
+    };
+    const tick = () => {
+      if (!hover && !drag && !reduce) rotate(ax, ay);
+      draw();
+      raf = requestAnimationFrame(tick);
+    };
+    const down = (e: PointerEvent) => {
+      drag = { x: e.clientX, y: e.clientY };
+    };
+    const move = (e: PointerEvent) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      drag = { x: e.clientX, y: e.clientY };
+      rotate(-dy * 0.01, dx * 0.01);
+      ax = Math.sign(-dy || 1) * Math.min(0.01, Math.abs(dy) * 0.001) || ax;
+      ay = Math.sign(dx || 1) * Math.min(0.012, Math.abs(dx) * 0.001) || ay;
+    };
+    const up = () => {
+      drag = null;
+    };
+    const enter = () => {
+      hover = true;
+    };
+    const leave = () => {
+      hover = false;
+      drag = null;
+    };
+    el.addEventListener("pointerdown", down);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    el.addEventListener("pointerenter", enter);
+    el.addEventListener("pointerleave", leave);
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      el.removeEventListener("pointerenter", enter);
+      el.removeEventListener("pointerleave", leave);
+    };
+  }, [sig, height]);
+  if (error) return <Empty>Gagal memuat: {error instanceof Error ? error.message : String(error)}</Empty>;
+  if (!items) return <Empty>Memuat…</Empty>;
+  if (!words.length) return <Empty>{empty}</Empty>;
+  const max = Math.sqrt(Math.max(...words.map((w) => w.value), 1));
+  return (
+    <div
+      ref={box}
+      className="relative cursor-grab touch-none select-none overflow-hidden active:cursor-grabbing"
+      style={{ height }}
+      title="Drag untuk memutar · klik kata untuk melihat post"
+    >
+      {words.map((w, i) => (
+        <button
+          type="button"
+          key={w.key}
+          ref={(b) => {
+            refs.current[i] = b;
+          }}
+          onClick={() => onPick?.(w.key)}
+          title={`${w.key}: ${fmtN(w.value)}`}
+          className="absolute left-1/2 top-1/2 whitespace-nowrap font-semibold hover:underline"
+          style={{
+            fontSize: `${Math.round(12 + (Math.sqrt(w.value) / max) * 20)}px`,
+            color: CLOUD_COLORS[[...w.key].reduce((h, ch) => h + ch.charCodeAt(0), 0) % CLOUD_COLORS.length],
+            willChange: "transform, opacity",
+          }}
+        >
+          {w.key}
         </button>
       ))}
     </div>

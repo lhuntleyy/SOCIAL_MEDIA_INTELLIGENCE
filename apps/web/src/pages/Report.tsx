@@ -1,8 +1,8 @@
 // Laporan (Resume) topik untuk periode filter: ringkasan naratif otomatis (tanpa LLM — dari angka agregat), chart utama,
-// hashtag/akun/lokasi teratas, post paling ramai & sorotan negatif. "Cetak / Simpan PDF" = print browser (CSS print
-// menyembunyikan navigasi); "Unduh CSV" = daftar post periode ini (maks. 2.000).
+// isu/hashtag/akun/lokasi teratas, post paling ramai & sorotan per sentimen. "Unduh PDF" = preview di layar dirender ke PDF A4
+// langsung di browser (html-to-image + jspdf, tanpa dialog cetak); "Cetak" tetap tersedia; "Unduh CSV" = post periode ini (≤ 2.000).
 import ReactECharts from "echarts-for-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   EMO_COLOR,
   EMO_LABEL,
@@ -20,6 +20,7 @@ import {
 } from "../analytics";
 import { apiFull, getViewAs } from "../api";
 import { useAuth } from "../auth";
+import { exportPdf } from "../pdf";
 import { Button, fmtTime } from "../ui";
 import { type Accounts, AnalyticsPage, type Breakdown, type Geo, type Prop, perPlatform } from "./Dashboard";
 
@@ -38,7 +39,7 @@ const trend = (v: number | null | undefined) =>
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="break-inside-avoid">
+    <section className="break-inside-avoid" data-pdf-break>
       <h2 className="mb-2 border-b-2 border-brand-600 pb-1 text-sm font-bold uppercase tracking-wide text-zinc-700">{title}</h2>
       {children}
     </section>
@@ -68,7 +69,11 @@ function Body({ f }: { f: Filters }) {
   const geo = useA<Geo>(f, "/analytics/locations");
   const top = useA<Post[]>(f, "/posts?limit=10&sort=engagement");
   const neg = useA<Post[]>(f, "/posts?limit=5&sort=engagement&sentiment=negative");
+  const posi = useA<Post[]>(f, "/posts?limit=5&sort=engagement&sentiment=positive");
+  const neu = useA<Post[]>(f, "/posts?limit=5&sort=engagement&sentiment=neutral");
   const [csv, setCsv] = useState<"idle" | "busy">("idle");
+  const [pdf, setPdf] = useState<"idle" | "busy" | "error">("idle");
+  const reportRef = useRef<HTMLElement>(null);
 
   const topic = f.list?.find((t) => t.id === f.topic);
   const office = getViewAs()?.tenantName ?? me?.tenants.find((t) => t.id === me.current_tenant.id)?.name ?? "";
@@ -150,7 +155,7 @@ function Body({ f }: { f: Filters }) {
       const blob = new Blob([`﻿${[head.join(","), ...lines].join("\n")}`], { type: "text/csv;charset=utf-8" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `laporan-${(topic?.name ?? "topik").replace(/[^\w-]+/g, "_")}-${f.from.toISOString().slice(0, 10)}_${f.to.toISOString().slice(0, 10)}.csv`;
+      a.download = `${fileBase}.csv`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {
@@ -158,16 +163,40 @@ function Body({ f }: { f: Filters }) {
     }
   };
 
+  const fileBase = `laporan-${(topic?.name ?? "topik").replace(/[^\w-]+/g, "_")}-${f.from.toISOString().slice(0, 10)}_${f.to.toISOString().slice(0, 10)}`;
+  const downloadPdf = async () => {
+    if (!reportRef.current) return;
+    setPdf("busy");
+    try {
+      await exportPdf(reportRef.current, `${fileBase}.pdf`);
+      setPdf("idle");
+    } catch {
+      setPdf("error");
+    }
+  };
+
   return (
     <>
       <div className="flex flex-wrap gap-2 print:hidden">
-        <Button onClick={() => window.print()}>Cetak / Simpan PDF</Button>
+        <Button onClick={() => void downloadPdf()} disabled={pdf === "busy"}>
+          {pdf === "busy" ? "Membuat PDF…" : "Unduh PDF"}
+        </Button>
+        <Button variant="ghost" onClick={() => window.print()}>
+          Cetak
+        </Button>
         <Button variant="ghost" onClick={() => void downloadCsv()} disabled={csv === "busy"}>
           {csv === "busy" ? "Menyiapkan…" : "Unduh data post (CSV)"}
         </Button>
-        <span className="self-center text-xs text-zinc-500">Laporan mengikuti topik, rentang waktu & platform yang dipilih di atas.</span>
+        <span className="self-center text-xs text-zinc-500">
+          {pdf === "error"
+            ? "Gagal membuat PDF — coba lagi atau gunakan Cetak."
+            : "Pratinjau di bawah = isi PDF. Laporan mengikuti topik, rentang waktu & platform yang dipilih di atas."}
+        </span>
       </div>
-      <article className="report space-y-5 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
+      <article
+        ref={reportRef}
+        className="report space-y-5 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none"
+      >
         <header className="flex flex-wrap items-end justify-between gap-2 border-b border-zinc-200 pb-3">
           <div>
             <div className="text-xs uppercase tracking-widest text-brand-600">Laporan monitoring media sosial</div>
@@ -293,6 +322,8 @@ function Body({ f }: { f: Filters }) {
         {[
           { title: "Post paling ramai", rows: top.data },
           { title: "Sorotan sentimen negatif", rows: neg.data },
+          { title: "Sorotan sentimen positif", rows: posi.data },
+          { title: "Sorotan sentimen netral", rows: neu.data },
         ].map((sec) => (
           <Section key={sec.title} title={sec.title}>
             {sec.rows?.length ? (

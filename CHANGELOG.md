@@ -5,6 +5,12 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Laporan → Unduh PDF langsung** (tanpa dialog cetak; pratinjau tetap): `apps/web/src/pdf.ts` — html-to-image + jspdf (compat `web-pdf`
+  COMPATIBLE, ADR-001), A4 berhalaman dipotong di batas section/baris tabel, nomor halaman; diuji di Chromium headless (PDF valid
+  4 halaman). Laporan kini juga memuat **sorotan sentimen positif & netral**.
+- **Word cloud isu 3D** (bola kata berputar, drag untuk memutar, klik → post) di Dashboard & Percakapan; tanpa paket tambahan.
+- **Batas biaya bulanan per provider & per sumber** di Pengaturan (kosong = tanpa batas; pemakaian bulan ini ditampilkan) — memakai
+  `quota_policies` (hard, cost_units) lewat `/admin/quotas`; tercapai → sumber dilewati, router pindah ke cadangan.
 - **Koreksi sentimen manual (A-05, P-06):** analis/admin klik label sentimen di kartu post → pilih label baru → `PATCH
   /posts/{platform}/{post_id}/sentiment` → pasangan −1/+1 (`model_version=human`) + `sentiment_overrides` (dataset training) + audit;
   semua chart ikut berubah; label manual ditandai ✓ dan **tidak ditimpa** reprocess AI.

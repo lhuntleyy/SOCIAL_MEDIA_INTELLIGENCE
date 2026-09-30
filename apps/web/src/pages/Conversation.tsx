@@ -20,7 +20,7 @@ import {
   Treemap,
   useA,
   useDrill,
-  WordCloud,
+  WordCloud3D,
 } from "../analytics";
 import { api } from "../api";
 import { Badge, Empty, Tabs } from "../ui";
@@ -128,14 +128,14 @@ function Issues({ f }: { f: Filters }) {
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Isu sentimen positif">
-          <WordCloud
+          <WordCloud3D
             items={cloud(pos.data)}
             error={pos.error}
             onPick={(k) => drill({ title: `Isu: ${k} · positif`, params: { issue: k, sentiment: "positive" } })}
           />
         </Panel>
         <Panel title="Isu sentimen negatif">
-          <WordCloud
+          <WordCloud3D
             items={cloud(neg.data)}
             error={neg.error}
             onPick={(k) => drill({ title: `Isu: ${k} · negatif`, params: { issue: k, sentiment: "negative" } })}
@@ -155,7 +155,7 @@ function SentimentSide({ f, s }: { f: Filters; s: "positive" | "negative" }) {
   return (
     <>
       <Panel title={`Isu sentimen ${label}`}>
-        <WordCloud
+        <WordCloud3D
           items={iss.data?.items.map((i) => ({ key: i.issue, value: i.count }))}
           error={iss.error}
           onPick={(k) => drill({ title: `Isu: ${k} · ${label}`, params: { issue: k, sentiment: s } })}

@@ -36,6 +36,7 @@ Bun **1.4.2** (`.bun-version`), Linux x64. Evidence: [`docs/evidence/compat/resu
 | Playwright (library) + chromium-headless-shell | 1.x (bun.lock) | **COMPATIBLE** (2026-09-28, setelah `playwright install-deps`) | Library jalan di runtime Bun (launch/goto/click). Sebelumnya WORKAROUND (lib sistem diekstrak user-space); di CI tetap `playwright install-deps chromium`. Test runner `@playwright/test` tetap dijalankan dengan Node (TESTING §1) | S-08 |
 | drizzle-kit | 0.x (bun.lock) | COMPATIBLE | `generate` + `migrate` via `bun --bun` ke Postgres 16 | S-08 |
 | KEDA scaler BullMQ | — | **DECIDED: Prometheus scaler** (`smip_queue_depth`) | scaler Redis listLength melewatkan job `prioritized` (dibuktikan terhadap Redis nyata); demo kind menunggu H-05 | S-05 |
+| jspdf + html-to-image (web, Laporan → PDF) | 4.2.1 / 1.11.13 | COMPATIBLE | jspdf di runtime Bun menghasilkan PDF valid; keduanya ter-bundle `vite build` via `bun --bun`. html-to-image dipilih (bukan html2canvas) karena warna `oklch` Tailwind v4 dirender browser sendiri. Check `web-pdf` ([evidence](../evidence/U-07/)) | U-07 |
 
 ## Keputusan final stack (S-21, 2026-09-28) — status `review`
 

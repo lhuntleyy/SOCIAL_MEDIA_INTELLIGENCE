@@ -16,6 +16,7 @@ interface Connector {
 }
 interface Account {
   id: string;
+  provider_id: string;
   provider_key: string;
   label: string;
   status: string;
@@ -27,6 +28,16 @@ interface Account {
 interface PlatformSetting {
   code: string;
   max_items_per_run: number | null;
+}
+interface Quota {
+  id: string;
+  scope_type: string;
+  scope_id: string | null;
+  period: string;
+  unit: string;
+  limit_value: number;
+  enabled: boolean;
+  used: number | null;
 }
 interface Usage {
   connector: string;
@@ -70,6 +81,68 @@ function health(c: Connector, blocked: boolean) {
   if (!c.health.length) return { dot: "bg-zinc-300", text: "belum dicek" };
   if (c.health.some((h) => h.circuit !== "closed")) return { dot: "bg-red-500", text: "gangguan" };
   return { dot: "bg-emerald-500", text: "sehat" };
+}
+
+/**
+ * Batas biaya bulanan (USD, hard) untuk provider atau satu sumber — tercapai → sumber itu dilewati (router pindah ke cadangan)
+ * sampai bulan berikutnya. Kosong = tanpa batas (kuota dinonaktifkan, bukan dihapus).
+ */
+function Budget({
+  scope,
+  id,
+  quotas,
+  label = "Batas biaya/bulan",
+}: {
+  scope: "provider" | "connector";
+  id: string;
+  quotas: Quota[] | undefined;
+  label?: string;
+}) {
+  const qc = useQueryClient();
+  const q = quotas?.find((x) => x.scope_type === scope && x.scope_id === id && x.period === "month" && x.unit === "cost_units");
+  const [v, setV] = useState<string | null>(null);
+  const cur = v ?? (q?.enabled ? String(q.limit_value) : "");
+  const n = cur.trim() === "" ? null : Number(cur.replace(",", "."));
+  const valid = n === null || (Number.isFinite(n) && n >= 0 && n <= 100_000);
+  const save = useMutation({
+    mutationFn: async () => {
+      if (n === null) {
+        if (q) await api(`/admin/quotas/${q.id}`, { method: "PATCH", json: { enabled: false } });
+        return;
+      }
+      if (q) await api(`/admin/quotas/${q.id}`, { method: "PATCH", json: { limit_value: n, hard: true, enabled: true } });
+      else
+        await api("/admin/quotas", {
+          method: "POST",
+          json: { scope_type: scope, scope_id: id, period: "month", unit: "cost_units", limit_value: n, hard: true, enabled: true },
+        });
+    },
+    onSuccess: () => {
+      setV(null);
+      void qc.invalidateQueries({ queryKey: ["admin-quotas"] });
+    },
+  });
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 text-xs text-zinc-600">
+      <span title="Batas biaya bulanan (USD). Tercapai → sumber dilewati sampai bulan berikutnya. Kosong = tanpa batas.">{label}</span>
+      <span className="text-zinc-400">$</span>
+      <input
+        inputMode="decimal"
+        placeholder="tanpa batas"
+        value={cur}
+        onChange={(e) => setV(e.target.value.replace(/[^0-9.,]/g, ""))}
+        className="w-24 rounded-md border border-zinc-300 px-2 py-0.5"
+      />
+      {q?.enabled && q.used !== null && <span className="text-zinc-400">terpakai ${q.used.toFixed(2)}</span>}
+      {v !== null && (
+        <Button variant="ghost" onClick={() => save.mutate()} disabled={!valid || save.isPending}>
+          Simpan
+        </Button>
+      )}
+      {!valid && <span className="text-red-600">angka tidak valid</span>}
+      {save.error && <span className="text-red-600">{(save.error as Error).message}</span>}
+    </span>
+  );
 }
 
 /** Batas post per pengambilan (per run) untuk satu platform — kosong = bawaan sistem (300). */
@@ -127,6 +200,7 @@ function Sources() {
     queryKey: ["admin-platforms"],
     queryFn: () => api<PlatformSetting[]>("/admin/platforms"),
   });
+  const quotas = useQuery({ queryKey: ["admin-quotas"], queryFn: () => api<Quota[]>("/admin/quotas") });
   const accounts = useQuery({ queryKey: ["admin-accounts"], queryFn: () => api<Account[]>("/admin/accounts") });
   const reactivate = useMutation({
     mutationFn: (a: Account) => api(`/admin/accounts/${a.id}`, { method: "PATCH", json: { status: "active" } }),
@@ -209,6 +283,13 @@ function Sources() {
           })}
           {!accs.length && <li className="py-2 text-sm text-zinc-500">Belum ada akun.</li>}
         </ul>
+        <div className="mt-3 space-y-1 border-t border-zinc-100 pt-2">
+          {[...new Map(accs.map((a) => [a.provider_id, a.provider_key])).entries()].map(([pid, key]) => (
+            <div key={pid}>
+              <Budget scope="provider" id={pid} quotas={quotas.data} label={`Batas biaya ${PROVIDER_NAME[key] ?? key}/bulan`} />
+            </div>
+          ))}
+        </div>
         <ErrorText error={accounts.error ?? reactivate.error} />
       </Card>
       <div className="grid gap-4 md:grid-cols-2">
@@ -242,6 +323,7 @@ function Sources() {
                             ` · bulan ini ${us.attempts} run, ${Math.round((us.successes / us.attempts) * 100)}% sukses`}
                           {us && us.cost_units > 0 && `, $${us.cost_units.toFixed(3)}`}
                         </div>
+                        {c.enabled && c.provider.kind !== "official" && <Budget scope="connector" id={c.id} quotas={quotas.data} />}
                       </div>
                       <Switch on={c.enabled} onChange={() => toggle.mutate(c)} disabled={toggle.isPending} />
                     </li>
