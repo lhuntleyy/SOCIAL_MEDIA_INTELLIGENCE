@@ -60,6 +60,8 @@ export interface OperationSupport {
   returnsFields: string[];            // path CanonicalItem yang diisi, mis. "metrics.likes"
   asyncExecution: boolean;            // true = provider berbasis "run" (start → poll → result)
   resultOrder: "desc" | "asc" | null; // urutan hasil (terbaru dulu/terlama dulu) — untuk celah partial success (§7)
+  sinceGranularity?: "exact" | "day"; // "day" = filter waktu provider per tanggal/jam → poll mengulang post lama (ditagih lagi);
+                                      // + resultOrder "desc" → dispatch memakai maxItems adaptif (COST_MODEL §11.2)
 }
 
 export interface ConnectorManifest {

@@ -92,6 +92,7 @@ export const TIKTOK_CLOCKWORKS: ActorSpec = {
       returnsFields: ["metrics.likes", "metrics.views", "author.followers"],
       asyncExecution: true,
       resultOrder: "desc",
+      sinceGranularity: "day", // filter waktu provider per hari/jam (atau tidak ada) → poll mengembalikan ulang post lama
     },
   },
   buildInput(req) {

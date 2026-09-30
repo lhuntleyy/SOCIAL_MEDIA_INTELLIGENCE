@@ -279,13 +279,16 @@ disarankan akun/token Apify terpisah untuk SMIP agar anggaran & batas pemakaian 
 Hanya X (`since_time`, detik) dan YouTube (`publishedAfter`) inkremental sungguhan. Threads/TikTok/FB/IG menerima filter **per hari** →
 setiap poll mengembalikan (dan menagih) ulang post 24 jam terakhir. **Terbukti** dari data: Threads Demo KDMP rata-rata 4,5 post/run ×
 24 run/hari ≈ 108 post ditagih/hari untuk ~4,6 post baru/hari (**~23×**). Pada interval 5 menit faktornya **288×**.
-Mitigasi (belum ada di kode → task berikutnya): **maxItems adaptif** — actor terurut terbaru (TikTok clockworks `LATEST`, FB `latest`,
-IG recent) cukup diminta ≈ 3× post baru yang diharapkan per interval (min. 5), dinaikkan otomatis bila semua hasil ternyata baru.
+Mitigasi **terpasang 2026-10-01: maxItems adaptif** (`apps/worker-dispatch/src/adaptive.ts`) — hanya untuk actor filter-per-hari
+yang **terurut terbaru dulu** (`sinceGranularity: "day"` + `resultOrder: "desc"`: TikTok clockworks, FB scraper_one, X scraper_one,
+YouTube streamers): diminta ± 3× post baru yang diharapkan per interval (min. 5), naik 4× bila hasil hampir semua baru. Actor **tak
+terurut** (IG boolean/hashtag, Threads, TikTok xmolodtsov) tidak boleh dipotong (bisa membuang post baru) → penghematannya lewat
+**interval lebih longgar**.
 
 ### 11.3 Rumus per topik per bulan (30 hari)
 - `run/hari = 1440 / interval_menit`
 - X/YouTube: `hasil = post_baru × 1,1 (presisi matcher) × 1,2 (overlap window 5m; 1,1 untuk ≥15m)`
-- Actor filter-per-hari, **sekarang**: `hasil/run = min(300, post_baru_24j × 1,1)`; **adaptif**: `min(itu, max(5, ⌈3 × post_baru × interval/1440⌉))`
+- Actor filter-per-hari: `hasil/run = min(300, post_baru_24j × 1,1)`; **adaptif** (hanya TikTok clockworks & FB): `min(itu, max(5, ⌈3 × post_baru × interval/1440⌉))`
 - `biaya = 30 × (run/hari × biaya_tetap + hasil/hari × tarif_per_hasil)`; IG boolean: `tarif ≈ $0,00155 + $0,01/1,3` per hasil
 - AI (sentimen + emosi + isu, satu panggilan batch): ±100 token input + ±45 token output per post × Claude Haiku 4.5 ($1/$5 per MTok, §4)
   ≈ **$0,33 / 1.000 post** (Gemini berbayar belum diverifikasi harganya; tier gratis **tidak boleh** untuk data klien).
@@ -297,38 +300,42 @@ KDMP di produk referensi) · **ramai** 2.043 (baseline §1).
 ### 11.4 Biaya per topik per bulan (USD)
 | Skenario | Kecil | Sedang | Ramai |
 |---|---:|---:|---:|
-| A. **Semua 5 menit, kode sekarang** | 882 | **8.068** | 5.088 |
-| B. Semua 5 menit, maxItems adaptif | 829 | 960 | 982 |
-| E. Semua 5 menit, adaptif + provider termurah (IG hashtag resmi, TikTok xmolodtsov) | 289 | 329 | 351 |
-| C. X 5m · TikTok/FB 30m · IG (keyword+hashtag)/Threads 1j · YT 3j, adaptif | 91 | 139 | 149 |
-| **F. X 5m · IG/TikTok 15m · FB/Threads 30m · YT 3j, adaptif + termurah** | **70** | **89** | **112** |
-| D. Semua 1 jam, kode sekarang (kondisi demo saat ini) | 74 | 681 | 452 |
+| A. Semua 5 menit, kode sebelum perbaikan | 882 | **8.068** | 5.088 |
+| B. Semua 5 menit, maxItems adaptif (TikTok/FB) | 869 | 5.514 | 3.076 |
+| P. **Plus**: X/TikTok/FB 5m · IG (keyword+hashtag)/Threads 1j · YT 3j | 291 | 776 | 592 |
+| S. **Standar**: X 5m · TikTok/FB 15m · IG (keyword+hashtag)/Threads/YT 3j | 98 | 266 | 220 |
+| S'. **Standar hemat**: seperti S, IG via hashtag resmi saja ($2,60/1K, tanpa biaya halaman) | 85 | 174 | 176 |
+| D. Semua 1 jam, kode sebelum perbaikan (kondisi demo 30-09) | 74 | 681 | 452 |
 
-Porsi terbesar di 5 menit: IG boolean ($0,02/run tetap → ±$172/bln per topik hanya dari halaman kosong), TikTok clockworks & FB
-(tagihan berulang). X hampir gratis di interval berapa pun. **YouTube resmi tidak bisa 5 menit**: 288 search/hari/topik > kuota 100/hari
-→ maks. 3 jam untuk 10 topik (80 search/hari) atau ajukan perluasan kuota ke Google; cadangan Apify streamers ±$0,02/run (5m ≈ $170/bln/topik).
+Penyumbang terbesar: **IG keyword+hashtag** (boolean: $0,01/halaman, tak terurut → tidak bisa adaptif; 5m ≈ $4.565/bln untuk topik
+sedang), TikTok clockworks & FB di interval rapat (lantai 5 hasil/run × 288 run). X hampir gratis di interval berapa pun. **YouTube resmi
+tidak bisa 5 menit**: 288 search/hari/topik > kuota 100/hari → 3 jam untuk ≤ 12 topik (8 search/topik/hari) atau ajukan perluasan kuota
+ke Google; cadangan Apify streamers ±$0,02/run (5m ≈ $170/bln/topik).
 
-### 11.5 Kantor 10 topik (3 kecil + 5 sedang + 2 ramai)
-| Skenario | Data + AI | Infra | **Total/bln** | Rupiah |
-|---|---:|---:|---:|---:|
-| A. Semua 5m, kode sekarang | $53.165 | $28 | $53.194 | Rp 877,7 jt |
-| B. Semua 5m, adaptif | $9.251 | $28 | $9.280 | Rp 153,1 jt |
-| E. Semua 5m, adaptif + termurah | $3.216 | $28 | $3.244 | Rp 53,5 jt |
-| C. Rekomendasi keyword IG | $1.265 | $28 | $1.293 | Rp 21,3 jt |
-| **F. Hemat (rekomendasi jual)** | $881 | $28 | **$909** | **Rp 15,0 jt** |
-| D. Semua 1j, kode sekarang | $4.532 | $28 | $4.560 | Rp 75,2 jt |
+### 11.5 Kantor 10 topik (3 kecil + 5 sedang + 2 ramai), termasuk infra ±$28
+| Skenario | **Biaya/bln** | Rupiah |
+|---|---:|---:|
+| A. Semua 5m, kode sebelum perbaikan | $53.194 | Rp 877,7 jt |
+| B. Semua 5m, adaptif | $36.360 | Rp 599,9 jt |
+| P. Plus | $5.963 | Rp 98,4 jt |
+| S. Standar (IG keyword+hashtag) | $2.094 | Rp 34,6 jt |
+| **S'. Standar hemat (IG hashtag)** | **$1.504** | **Rp 24,8 jt** |
+| D. Semua 1j, kode sebelum perbaikan | $4.560 | Rp 75,2 jt |
 
 ### 11.6 Usulan harga jual (cost-plus — validasi dengan harga pesaing sebelum dipakai)
 Harga = `biaya × 1,2 (cadangan: failover ke provider lebih mahal, kenaikan tarif) ÷ (1 − 60% margin kotor)`; belum termasuk PPN,
 biaya support/sales, dan diskon kontrak tahunan.
 
-| Paket (10 topik/kantor) | Interval | Biaya/bln | **Harga/bln** | Per topik tambahan |
+| Paket (10 topik/kantor) | Interval | Biaya/bln | **Harga/bln** | Per topik |
 |---|---|---:|---:|---:|
-| **Standar** (skenario F) | X 5m · IG/TikTok 15m · FB/Threads 30m · YT 3j | Rp 15,0 jt | **Rp 45 jt** | Rp 4,5 jt |
-| **Plus** (skenario C, IG keyword + hashtag) | X 5m · TikTok/FB 30m · IG/Threads 1j · YT 3j | Rp 21,3 jt | **Rp 64 jt** | Rp 6,4 jt |
-| **Real-time** (skenario E) | semua 5m (YT 3j) | Rp 53,5 jt | **Rp 160 jt** | Rp 16 jt |
+| **Standar** (S', IG hashtag) | X 5m · TikTok/FB 15m · IG/Threads/YouTube 3j | Rp 24,8 jt | **Rp 74 jt** | Rp 7,4 jt |
+| **Standar+** (S, IG keyword + hashtag) | idem, IG keyword + hashtag | Rp 34,6 jt | **Rp 104 jt** | Rp 10,4 jt |
+| **Plus** (P) | X/TikTok/FB 5m · IG/Threads 1j · YouTube 3j | Rp 98,4 jt | **Rp 295 jt** | Rp 29,5 jt |
+| Semua 5 menit | — | ≥ Rp 600 jt | tidak disarankan dijual | — |
 
-Syarat sebelum menjual: (1) **maxItems adaptif** terpasang (tanpa itu biaya = skenario A/D); (2) interval per platform dikunci per paket
-(`plans.limits`); (3) akun Apify khusus SMIP + plan di atas STARTER ($19 kredit/bln tidak cukup; batas pemakaian diatur di Billing);
-(4) AI berbayar (bukan tier gratis); (5) ukur ulang biaya 2 minggu pertama tiap klien (volume topik sangat bervariasi — ramai ≠ mahal:
-X murah, yang mahal IG/TikTok/FB); (6) kurs & tarif diverifikasi ulang (§10).
+Syarat sebelum menjual: (1) **maxItems adaptif** aktif (terpasang 2026-10-01; efektif setelah ≥ 2 run per plan); (2) interval per
+platform dikunci per paket (`plans.limits` / `topic_platforms.interval_sec`); (3) akun Apify khusus SMIP + plan di atas STARTER
+($19 kredit/bln tidak cukup; batas pemakaian diatur di Billing & di Pengaturan → Sumber data); (4) AI berbayar (bukan tier gratis);
+(5) ukur ulang biaya 2 minggu pertama tiap klien — "ramai" tidak selalu mahal (X murah; yang mahal IG/TikTok/FB); (6) peluang
+turun biaya terbesar: provider IG keyword yang terurut waktu / tanpa biaya halaman, Threads API resmi (gratis, butuh App Review),
+kuota YouTube diperluas; (7) kurs & tarif diverifikasi ulang (§10).

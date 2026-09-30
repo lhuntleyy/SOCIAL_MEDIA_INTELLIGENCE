@@ -19,6 +19,11 @@ export interface OperationSupport {
   asyncExecution: boolean;
   /** Urutan hasil: desc (terbaru dulu) / asc / null (tak terurut) — dipakai celah partial success (§7). */
   resultOrder: "desc" | "asc" | null;
+  /**
+   * Ketelitian filter waktu provider (COST_MODEL §11.2). `day` = hanya per tanggal → tiap poll mengembalikan ulang post hari itu
+   * (ditagih lagi) → dispatch memakai maxItems adaptif. Tidak diisi = `exact` (mis. `since_time` per detik).
+   */
+  sinceGranularity?: "exact" | "day";
 }
 
 export interface ConnectorManifest {

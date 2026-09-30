@@ -5,6 +5,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **maxItems adaptif** (COST_MODEL §11.2): manifest `sinceGranularity: "day"` untuk actor yang filter waktunya per hari; untuk yang
+  terurut terbaru dulu (TikTok clockworks, FB/X scraper_one, YouTube streamers) run incremental meminta ± 3× post baru yang
+  diharapkan (min. 5, naik 4× saat saturasi) — memangkas tagihan berulang tiap poll. Actor tak terurut tidak dipotong.
+- COST_MODEL §11: biaya terukur per actor, skenario 10 topik (5m vs paket), usulan harga Standar/Standar+/Plus.
 - **Laporan → Unduh PDF langsung** (tanpa dialog cetak; pratinjau tetap): `apps/web/src/pdf.ts` — html-to-image + jspdf (compat `web-pdf`
   COMPATIBLE, ADR-001), A4 berhalaman dipotong di batas section/baris tabel, nomor halaman; diuji di Chromium headless (PDF valid
   4 halaman). Laporan kini juga memuat **sorotan sentimen positif & netral**.

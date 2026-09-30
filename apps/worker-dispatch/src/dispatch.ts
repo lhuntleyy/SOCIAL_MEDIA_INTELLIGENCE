@@ -31,6 +31,7 @@ import type { Logger } from "@smip/observability";
 import { compileGeneric, coverHashtags, type Node } from "@smip/query";
 import { failureBackoffSec, type Router, type Snapshot, shouldAlertConsecutive } from "@smip/router";
 import { sql } from "drizzle-orm";
+import { adaptiveMaxItems } from "./adaptive";
 
 export interface Routing {
   policy_id?: string;
@@ -395,7 +396,23 @@ export async function handleDispatch(
     const [pl] = (await tx.execute(sql`select max_items_per_run from platforms where code = ${plan.platform_code}`)) as unknown as {
       max_items_per_run: number | null;
     }[];
-    const maxItems = pl?.max_items_per_run ?? f.maxItems;
+    const platformMax = pl?.max_items_per_run ?? f.maxItems;
+    // maxItems adaptif hanya untuk actor filter-per-hari yang terurut terbaru dulu, pada run incremental (COST_MODEL §11.2)
+    const capInfo = snap.connectors.get(decision.connectorId)?.capabilities.get(plan.operation);
+    let maxItems = platformMax;
+    if (run.kind === "incremental" && capInfo?.sinceGranularity === "day" && capInfo.resultOrder === "desc") {
+      const col = plan.table === "crawl_plans" ? sql`crawl_plan_id` : sql`collection_stream_id`;
+      const hist = (await tx.execute(sql`select items_new, extract(epoch from (window_to - window_from)) / 60 as window_min,
+          (routing->'fetch'->'request'->>'maxItems')::int as max_items
+        from crawl_runs where ${col} = ${plan.owner_id} and kind = 'incremental' and status in ('succeeded', 'partial')
+          and scheduled_for > now() - interval '3 days'
+        order by scheduled_for desc limit 6`)) as unknown as { items_new: number; window_min: number; max_items: number | null }[];
+      maxItems = adaptiveMaxItems(
+        hist.map((r) => ({ itemsNew: Number(r.items_new), windowMin: Number(r.window_min), maxItems: r.max_items })),
+        plan.interval_sec,
+        platformMax,
+      );
+    }
     const queries = plan.operation.startsWith("search_")
       ? compileFor(snap, decision.connectorId, plan.operation, ast as Node, routing.recompiled)
       : undefined;

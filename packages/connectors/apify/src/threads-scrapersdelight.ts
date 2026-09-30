@@ -84,6 +84,7 @@ export const THREADS_SCRAPERSDELIGHT: ActorSpec = {
       returnsFields: ["metrics.likes", "metrics.comments"],
       asyncExecution: true,
       resultOrder: null,
+      sinceGranularity: "day", // filter waktu provider per hari/jam (atau tidak ada) → poll mengembalikan ulang post lama
     },
   },
   buildInput(req) {

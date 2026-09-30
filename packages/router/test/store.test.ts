@@ -92,6 +92,8 @@ describe.skipIf(!infraUp)("I-06 snapshot router + invalidasi outbox (integrasi)"
       status: "verified",
       queryFeatures: ["term", "phrase"],
       maxQueryLength: null,
+      sinceGranularity: "exact", // declared tanpa since_granularity → exact (COST_MODEL §11.2)
+      resultOrder: null,
       measured: { minIntervalSec: 60, p95LatencyMs: undefined, costPer1kResults: 0.25, fixedCostPerRun: undefined },
     });
     expect((s.accountsByProvider.get(PROV) ?? []).map((a) => [a.label, a.tenantId]).sort()).toEqual([

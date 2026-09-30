@@ -49,7 +49,12 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
     });
   }
   for (const cap of caps) {
-    const d = (cap.declared ?? {}) as { query_features?: string[]; max_query_length?: number };
+    const d = (cap.declared ?? {}) as {
+      query_features?: string[];
+      max_query_length?: number;
+      since_granularity?: string;
+      result_order?: string | null;
+    };
     const m = (cap.measured ?? {}) as {
       min_interval_sec?: number;
       p95_latency_ms?: number;
@@ -60,6 +65,8 @@ export async function loadRoutingSnapshot(db: Db, version: number): Promise<Rout
       status: cap.status as "declared",
       queryFeatures: (d.query_features ?? []) as never,
       maxQueryLength: num(d.max_query_length) ?? null,
+      sinceGranularity: d.since_granularity === "day" ? "day" : "exact",
+      resultOrder: d.result_order === "desc" || d.result_order === "asc" ? d.result_order : null,
       measured: {
         minIntervalSec: num(m.min_interval_sec),
         p95LatencyMs: num(m.p95_latency_ms),

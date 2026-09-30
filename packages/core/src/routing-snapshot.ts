@@ -9,6 +9,10 @@ export interface Capability {
   queryFeatures: QueryFeature[];
   /** declared.max_query_length (batas teknis compiler); null = tak diketahui. */
   maxQueryLength: number | null;
+  /** declared.since_granularity: `day` → maxItems adaptif di dispatch (COST_MODEL §11.2). */
+  sinceGranularity?: "exact" | "day";
+  /** declared.result_order: desc = terbaru dulu (syarat aman maxItems adaptif). */
+  resultOrder?: "desc" | "asc" | null;
   /** Diukur connector.verify: min_interval_sec, p95_latency_ms, fixed_cost_per_run, cost_per_1k_results. */
   measured: { minIntervalSec?: number; p95LatencyMs?: number; costPer1kResults?: number; fixedCostPerRun?: number };
 }

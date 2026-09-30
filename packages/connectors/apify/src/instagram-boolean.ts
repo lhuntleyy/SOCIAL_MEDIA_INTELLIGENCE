@@ -112,6 +112,7 @@ export const INSTAGRAM_BOOLEAN: ActorSpec = {
       returnsFields: ["metrics.likes", "metrics.comments"],
       asyncExecution: true,
       resultOrder: null, // tidak terurut waktu (uji kontrak 2026-09-28)
+      sinceGranularity: "day", // filter waktu provider per hari/jam (atau tidak ada) → poll mengembalikan ulang post lama
     },
   },
   buildInput(req) {

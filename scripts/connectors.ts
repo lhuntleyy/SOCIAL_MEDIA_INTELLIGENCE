@@ -56,6 +56,7 @@ async function register() {
           supports_cursor: sup!.supportsCursor,
           async_execution: sup!.asyncExecution,
           result_order: sup!.resultOrder,
+          since_granularity: sup!.sinceGranularity ?? "exact",
           returns_fields: sup!.returnsFields,
         };
         // declared diperbarui; status verified TIDAK diubah di sini (hanya lewat verify)

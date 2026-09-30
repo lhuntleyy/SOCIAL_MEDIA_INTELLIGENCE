@@ -81,6 +81,7 @@ export const X_SCRAPERONE: ActorSpec = {
       returnsFields: ["metrics.likes", "metrics.comments"],
       asyncExecution: true,
       resultOrder: "desc",
+      sinceGranularity: "day", // filter waktu provider per hari/jam (atau tidak ada) → poll mengembalikan ulang post lama
     },
   },
   buildInput(req) {
