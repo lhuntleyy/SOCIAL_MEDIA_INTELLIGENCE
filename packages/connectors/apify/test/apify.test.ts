@@ -7,7 +7,7 @@ import { ApifyActorConnector, normalizeXquik, X_XQUIK, xWindowOperators } from "
 import fixture from "./fixtures/xquik-items.json";
 
 const TOKEN = "apify_api_TEST_rahasia_1234567890";
-type Mode = "ok" | "running" | "failed" | "401" | "402" | "402mem" | "429" | "500";
+type Mode = "ok" | "running" | "failed" | "401" | "402" | "402mem" | "403" | "429" | "500";
 let mode: Mode = "ok";
 const setMode = (m: Mode) => () => {
   mode = m;
@@ -29,6 +29,7 @@ async function mockFetch(input: string | URL | Request, init?: RequestInit): Pro
     return json(402, {
       error: { type: "actor-memory-limit-exceeded", message: "By launching this job you will exceed the memory limit of 8192MB" },
     });
+  if (mode === "403") return json(403, { error: { type: "insufficient-permissions" } });
   if (mode === "429") return json(429, { error: { type: "rate-limit-exceeded" } }, { "retry-after": "20" });
   if (mode === "500") return json(503, { error: { type: "internal" } });
   if (u.pathname === "/v2/users/me/limits") return json(200, { data: { current: { monthlyUsageUsd: 1 } } });
@@ -82,6 +83,17 @@ runContractSuite("apify.x.xquik", () => ({
 }));
 
 describe("apify.x.xquik", () => {
+  test("403 → FORBIDDEN ber-scope connector (token sama tetap dipakai actor lain)", async () => {
+    mode = "403";
+    const e = await connector.fetch(req(), ctx()).then(
+      () => null,
+      (x: unknown) => x as { code: string; scope: string },
+    );
+    mode = "ok";
+    expect(e?.code).toBe("FORBIDDEN");
+    expect(e?.scope).toBe("connector");
+  });
+
   const ctx = () => contractContext({ credential, config: { maxTotalChargeUsd: 0.05, memoryMb: 1024 }, http });
 
   test("input actor: query + operator waktu Unix, Latest, maxItems; biaya/memori dari config ke query string", async () => {

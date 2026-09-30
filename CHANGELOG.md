@@ -104,6 +104,18 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Kode spike: `package.json`, `.bun-version` (1.4.2), `scripts/compat-check.ts` + `scripts/compat/*`, `scripts/spike-infra.sh`, bukti `docs/evidence/`.
 
 ### Fixed
+- **Satu HTTP 403 dari satu actor Apify mematikan SEMUA platform Apify** (akun `needs_attention` permanen, tanpa alert, UI tetap
+  "sehat" — topik baru mis. BPIP gagal `NO_CANDIDATE` terus). 403 Apify kini ber-scope `connector` → hanya actor itu dijeda 1 jam,
+  akun tetap dipakai actor lain; FORBIDDEN tingkat akun kini memicu alert. Pengaturan → Sumber data menampilkan **Akun provider**
+  (status + alasan + tombol *Aktifkan lagi*) dan connector ber-akun bermasalah tidak lagi tampil "sehat".
+- **Instagram keyword tidak pernah membawa post baru** (routing IG 70% hashtag / 30% keyword; run keyword hampir selalu 0 post).
+  Probe live 2026-10-01: pencarian keyword IG (scraping_solutions & crawlerbros) diurutkan relevansi — 0 post ≤ 7 hari — sedangkan
+  cabang `#hashtag` (feed recent) membawa post baru. Connector `apify.instagram.boolean` kini menambah hashtag turunan tiap term
+  dalam run yang sama (`withHashtags`, ≤ 32 cabang); routing IG = boolean 100%, actor hashtag resmi = cadangan prioritas 2.
+  Kuota biaya bulanan per connector disesuaikan ke plan Apify STARTER (Σ ≈ $8,1; `scripts/live-routing.ts`).
+- Skrip operator: `scripts/connectors.ts rotate <provider> <label> <ENV>` (ganti token akun, lama di-crypto-shred) dan
+  `scripts/backfill.ts "<topik>" [hari] [platform,…]`. Penyebab insiden: token Apify di DB masih milik akun lama (kredit habis).
+- **Auto-refresh dashboard kini per topik** (sebelumnya satu nilai global: "Off" di satu topik ikut ke semua topik).
 - **Keamanan:** port Postgres/Redis/ClickHouse/S3/Vault compose ter-publish ke `0.0.0.0` (Docker melewati ufw) → diikat `127.0.0.1`; secret tersegel dipindah ke Vault baru tanpa kehilangan (DEK dibungkus ulang).
 - **Deadlock dispatch:** router memuat snapshot/seed quota lewat pool DB yang sama dengan transaksi dispatch → semua koneksi habis → job mati "timeout 10000 ms" (45 run backfill hilang). Router kini punya pool sendiri.
 - **Reaper** menggagalkan run `queued` yang job-nya hilang tanpa pernah mencoba → kini diantrekan ulang (maks. 4×) sebelum STUCK_RUN.

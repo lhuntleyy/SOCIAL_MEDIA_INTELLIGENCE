@@ -92,13 +92,23 @@ export function decideFailover(o: AttemptOutcome, s: AttemptState, cfg: Failover
       next = { action: "failover", ...(o.errorScope === "connector" ? conn : acct) };
       break;
     }
+    case "FORBIDDEN":
+      // Izin per connector (mis. satu actor Apify menolak token yang sama dipakai actor lain): jeda connector itu saja —
+      // menandai akun `needs_attention` mematikan SEMUA connector provider tsb tanpa jalan pulih otomatis.
+      if (o.errorScope === "connector") {
+        effects.push({ kind: "throttle", scopeId: o.connectorId, ms: o.retryAfterMs ?? cfg.quotaFullMs });
+        next = { action: "failover", ...conn };
+        break;
+      }
+      effects.push({ kind: "account_attention", accountId: o.accountId, code });
+      effects.push({ kind: "alert", event: "account_needs_attention", connectorId: o.connectorId, accountId: o.accountId, code });
+      next = { action: "failover", ...acct };
+      break;
     case "AUTH_INVALID":
     case "CHALLENGE_REQUIRED":
-    case "FORBIDDEN":
       // CHALLENGE: manual, tidak ada retry otomatis pada akun ini
       effects.push({ kind: "account_attention", accountId: o.accountId, code });
-      if (code !== "FORBIDDEN")
-        effects.push({ kind: "alert", event: "account_needs_attention", connectorId: o.connectorId, accountId: o.accountId, code });
+      effects.push({ kind: "alert", event: "account_needs_attention", connectorId: o.connectorId, accountId: o.accountId, code });
       next = { action: "failover", ...acct };
       break;
     case "BLOCKED":

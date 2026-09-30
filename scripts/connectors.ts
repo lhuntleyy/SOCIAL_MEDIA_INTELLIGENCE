@@ -2,6 +2,9 @@
 //   bun scripts/connectors.ts register                      → upsert provider/connector/capability(declared) dari manifest registry (nonaktif)
 //   bun scripts/connectors.ts account <provider> <label> <ENV_VAR> [secretField]
 //                                                           → credential disegel KMS dari env (nilai tidak pernah dicetak) + akun shared pool
+//   bun scripts/connectors.ts rotate <provider> <label> <ENV_VAR> [secretField]
+//                                                           → ganti token akun yang ada (= PUT /admin/accounts/{id}/credential): credential
+//                                                             baru disegel, lama di-crypto-shred, akun kembali `active`, outbox + audit
 //   bun scripts/connectors.ts verify <connectorKey> "<query>" [--samples N] [--max-items N] [--window-hours H] [--apply]
 //                                                           → panggil provider SUNGGUHAN (berbayar!) dgn window 24 jam, validasi, laporan
 //                                                             docs/evidence/verify/verify-<key>.json; --apply → capability verified + measured
@@ -88,6 +91,37 @@ async function account(providerKey: string, label: string, envVar: string, field
   console.log(`akun ${label} untuk ${providerKey} dibuat (secret disegel, tidak dicetak)`);
 }
 
+async function rotate(providerKey: string, label: string, envVar: string, field = "api_token") {
+  const secret = process.env[envVar];
+  if (!secret) throw new Error(`env ${envVar} kosong`);
+  const kms = kmsEnv();
+  const pepperB64 = process.env.CREDENTIAL_PEPPER_B64;
+  if (!pepperB64) throw new Error("CREDENTIAL_PEPPER_B64 wajib (lihat infra/compose/.env.dev)");
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL ROLE smip_system`;
+    const [acc] =
+      await tx`select pa.id, pa.tenant_id, pa.credential_id, pa.status from provider_accounts pa join providers p on p.id = pa.provider_id
+      where p.key = ${providerKey} and pa.label = ${label} for update`;
+    if (!acc) throw new Error(`akun ${label} (${providerKey}) tidak ada — pakai perintah account`);
+    if (acc.status === "revoked") throw new Error("akun sudah dicabut");
+    const fp = await fingerprint({ [field]: secret }, new Uint8Array(Buffer.from(pepperB64, "base64")));
+    const [dup] = await tx`select 1 from credentials where fingerprint = ${Buffer.from(fp)} and wrapped_dek is not null
+      and tenant_id is not distinct from ${acc.tenant_id}`;
+    if (dup) throw new Error("credential yang sama sudah terdaftar");
+    const credId = Bun.randomUUIDv7();
+    const s = await seal(kms, credentialAad(credId, acc.tenant_id), { [field]: secret });
+    await tx`insert into credentials (id, tenant_id, kind, ciphertext, iv, wrapped_dek, kek_id, aad, fingerprint)
+      values (${credId}, ${acc.tenant_id}, 'api_key', ${Buffer.from(s.ciphertext)}, ${Buffer.from(s.iv)}, ${Buffer.from(s.wrapped_dek)}, ${s.kek_id}, ${s.aad}, ${Buffer.from(fp)})`;
+    await tx`update provider_accounts set credential_id = ${credId}, display_hint = ${`…${secret.slice(-4)}`}, status = 'active',
+      attention_reason = null, cooldown_until = null, updated_at = now() where id = ${acc.id}`;
+    await tx`update credentials set wrapped_dek = null, rotated_at = now() where id = ${acc.credential_id}`;
+    await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('provider_account', ${acc.id}, 'account.rotated', '{}')`;
+    await tx`insert into audit_logs (id, tenant_id, actor_type, action, target_type, target_id, after)
+      values (${Bun.randomUUIDv7()}, ${acc.tenant_id}, 'system', 'account.rotate_credential', 'provider_account', ${acc.id}, ${tx.json({ via: "scripts/connectors.ts rotate" })})`;
+  });
+  console.log(`token akun ${label} (${providerKey}) diganti (secret disegel, tidak dicetak; credential lama di-crypto-shred)`);
+}
+
 async function verify(key: string, query: string, samples: number, apply: boolean, maxItems = 10, windowHours = 24) {
   const c = registry.get(key) as Connector | undefined;
   if (!c) throw new Error(`connector ${key} tidak ada di registry`);
@@ -133,10 +167,11 @@ async function verify(key: string, query: string, samples: number, apply: boolea
 try {
   if (cmd === "register") await register();
   else if (cmd === "account") await account(args[0]!, args[1]!, args[2]!, args[3]);
+  else if (cmd === "rotate") await rotate(args[0]!, args[1]!, args[2]!, args[3]);
   else if (cmd === "verify") {
     const opt = (f: string, d: number) => (args.indexOf(f) >= 0 ? Number(args[args.indexOf(f) + 1]) : d);
     await verify(args[0]!, args[1]!, opt("--samples", 1), args.includes("--apply"), opt("--max-items", 10), opt("--window-hours", 24));
-  } else throw new Error("perintah: register | account | verify (lihat header skrip)");
+  } else throw new Error("perintah: register | account | rotate | verify (lihat header skrip)");
 } finally {
   await sql.end();
 }

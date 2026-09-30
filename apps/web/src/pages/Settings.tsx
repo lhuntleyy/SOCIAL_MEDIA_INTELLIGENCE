@@ -14,6 +14,16 @@ interface Connector {
   capabilities: { operation: string; status: string }[];
   health: { account_label: string | null; state: string; circuit: string }[];
 }
+interface Account {
+  id: string;
+  provider_key: string;
+  label: string;
+  status: string;
+  display_hint: string | null;
+  cooldown_until: string | null;
+  attention_reason: string | null;
+  tenant_id: string | null;
+}
 interface Usage {
   connector: string;
   attempts: number;
@@ -26,14 +36,33 @@ const KIND: Record<string, { label: string; tone: "blue" | "zinc" | "red" }> = {
   third_party: { label: "pihak ketiga", tone: "zinc" },
   unofficial: { label: "tidak resmi", tone: "red" },
 };
-const PROVIDER_NAME: Record<string, string> = { apify: "Apify", "youtube-data": "YouTube Data API", fake: "Uji (data palsu)" };
+const PROVIDER_NAME: Record<string, string> = {
+  apify: "Apify",
+  "youtube-data": "YouTube Data API",
+  youtube_data_api: "YouTube Data API",
+  fake: "Uji (data palsu)",
+};
+const ACCOUNT_STATUS: Record<string, { label: string; tone: "green" | "red" | "amber" | "zinc" }> = {
+  active: { label: "aktif", tone: "green" },
+  needs_attention: { label: "butuh perhatian", tone: "red" },
+  cooling_down: { label: "jeda sementara", tone: "amber" },
+  disabled: { label: "nonaktif", tone: "zinc" },
+  revoked: { label: "dicabut", tone: "zinc" },
+};
+const REASON: Record<string, string> = {
+  FORBIDDEN: "provider menolak akses (HTTP 403) — cek saldo/batas pemakaian & izin di dashboard provider",
+  AUTH_INVALID: "token/API key tidak valid atau kedaluwarsa — ganti credential",
+  CHALLENGE_REQUIRED: "platform meminta verifikasi akun — selesaikan manual",
+  BLOCKED: "akun diblokir provider",
+};
 /** "apify.x.kaito" → "Apify · kaito" */
 const sourceName = (c: Connector) => {
   const rest = c.key.split(".").slice(2).join(".");
   const p = PROVIDER_NAME[c.provider.key] ?? c.provider.key;
   return rest ? `${p} · ${rest}` : p;
 };
-function health(c: Connector) {
+function health(c: Connector, blocked: boolean) {
+  if (blocked) return { dot: "bg-red-500", text: "akun provider butuh perhatian" };
   if (!c.health.length) return { dot: "bg-zinc-300", text: "belum dicek" };
   if (c.health.some((h) => h.circuit !== "closed")) return { dot: "bg-red-500", text: "gangguan" };
   return { dot: "bg-emerald-500", text: "sehat" };
@@ -49,6 +78,14 @@ function Sources() {
     queryKey: ["admin-usage", from],
     queryFn: () => api<Usage[]>(`/admin/usage?group_by=connector&from=${from}&to=${new Date(Date.now() + 60_000).toISOString()}`),
   });
+  const accounts = useQuery({ queryKey: ["admin-accounts"], queryFn: () => api<Account[]>("/admin/accounts") });
+  const reactivate = useMutation({
+    mutationFn: (a: Account) => api(`/admin/accounts/${a.id}`, { method: "PATCH", json: { status: "active" } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin-accounts"] });
+      void qc.invalidateQueries({ queryKey: ["admin-connectors"] });
+    },
+  });
   const toggle = useMutation({
     mutationFn: (c: Connector) => api(`/admin/connectors/${c.id}`, { method: "PATCH", json: { enabled: !c.enabled } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-connectors"] }),
@@ -60,6 +97,12 @@ function Sources() {
   const list = (q.data ?? []).filter((c) => showTest || c.provider.key !== "fake");
   const u = new Map((usage.data ?? []).map((x) => [x.connector, x]));
   const spend = (usage.data ?? []).filter((x) => x.connector.startsWith("apify.")).reduce((a, x) => a + x.cost_units, 0);
+  const accs = (accounts.data ?? []).filter((a) => showTest || a.provider_key !== "fake");
+  // provider tanpa satu pun akun aktif → semua connector-nya tidak bisa dipakai router
+  const usable = (provider: string) => {
+    const mine = (accounts.data ?? []).filter((a) => a.provider_key === provider && a.status !== "revoked");
+    return !accounts.data || !mine.length || mine.some((a) => a.status === "active");
+  };
   const platforms = Object.keys(PLATFORM_LABEL).filter((p) => list.some((c) => c.platform === p));
   return (
     <div className="space-y-4">
@@ -82,6 +125,43 @@ function Sources() {
         </p>
         <ErrorText error={q.error ?? toggle.error ?? probe.error} />
       </Card>
+      <Card title="Akun provider">
+        <p className="mb-2 text-sm text-zinc-600">
+          Akun berstatus <b>butuh perhatian</b> tidak dipakai sama sekali — semua sumber dari provider itu berhenti mengambil data. Perbaiki
+          penyebabnya di dashboard provider, lalu aktifkan lagi.
+        </p>
+        <ul className="divide-y divide-zinc-100">
+          {accs.map((a) => {
+            const st = ACCOUNT_STATUS[a.status] ?? { label: a.status, tone: "zinc" as const };
+            const reason = a.attention_reason ? (REASON[a.attention_reason] ?? a.attention_reason) : null;
+            return (
+              <li key={a.id} className="flex items-center gap-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">{PROVIDER_NAME[a.provider_key] ?? a.provider_key}</span>
+                    <span className="text-zinc-500">{a.label}</span>
+                    {a.display_hint && <span className="text-xs text-zinc-400">{a.display_hint}</span>}
+                    <Badge tone={st.tone}>{st.label}</Badge>
+                  </div>
+                  {(reason || a.cooldown_until) && (
+                    <div className="text-xs text-zinc-500">
+                      {reason}
+                      {a.cooldown_until && ` · sampai ${new Date(a.cooldown_until).toLocaleString("id-ID")}`}
+                    </div>
+                  )}
+                </div>
+                {["needs_attention", "cooling_down"].includes(a.status) && (
+                  <Button onClick={() => reactivate.mutate(a)} disabled={reactivate.isPending}>
+                    Aktifkan lagi
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+          {!accs.length && <li className="py-2 text-sm text-zinc-500">Belum ada akun.</li>}
+        </ul>
+        <ErrorText error={accounts.error ?? reactivate.error} />
+      </Card>
       <div className="grid gap-4 md:grid-cols-2">
         {platforms.map((p) => {
           const rows = list.filter((c) => c.platform === p).sort((a, b) => Number(b.enabled) - Number(a.enabled));
@@ -94,7 +174,7 @@ function Sources() {
             >
               <ul className="divide-y divide-zinc-100">
                 {rows.map((c) => {
-                  const h = health(c);
+                  const h = health(c, !usable(c.provider.key));
                   const us = u.get(c.key);
                   const verified = c.capabilities.some((k) => k.status === "verified");
                   return (

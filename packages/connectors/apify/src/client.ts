@@ -56,9 +56,12 @@ async function call<T>(ctx: ConnectorContext, path: string, init: RequestInit & 
         retryAfterMs: MEMORY_LIMIT_RETRY_MS,
         scope: "account",
       });
+    // 403 = izin untuk actor/run tertentu; satu token dipakai semua actor → scope connector (akun tetap dipakai actor lain).
+    // Token tidak valid = 401 (AUTH_INVALID, scope akun).
     throw new ConnectorError(codeForStatus(res.status), `HTTP ${res.status}${type ? ` ${type}` : ""}`, {
       httpStatus: res.status,
       retryAfterMs: parseRetryAfter(res.headers.get("retry-after")),
+      ...(res.status === 403 ? { scope: "connector" as const } : {}),
     });
   }
   try {

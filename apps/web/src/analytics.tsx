@@ -60,7 +60,8 @@ const REFRESH = [
   { id: "30m", label: "30 menit", ms: 1_800_000 },
   { id: "1h", label: "1 jam", ms: 3_600_000 },
 ];
-const PARAM_KEYS = ["topic", "range", "from", "to", "platform", "refresh"];
+// `refresh` sengaja TIDAK di sini: auto-refresh disimpan per topik (lihat REFRESH_KEY), bukan satu nilai global.
+const PARAM_KEYS = ["topic", "range", "from", "to", "platform"];
 
 export interface Series {
   granularity: "1h" | "1d";
@@ -101,6 +102,24 @@ function saveStored(v: Record<string, string>) {
     /* storage tidak tersedia → hanya URL */
   }
 }
+// Auto-refresh per topik: { [topicId]: "off" | "5m" | … } — mematikan di satu topik tidak ikut mematikan topik lain.
+const REFRESH_KEY = "smip.refresh";
+const DEFAULT_REFRESH = "15m";
+function loadRefresh(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(REFRESH_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+function saveRefresh(topic: string, id: string) {
+  try {
+    localStorage.setItem(REFRESH_KEY, JSON.stringify({ ...loadRefresh(), [topic]: id }));
+  } catch {
+    /* storage tidak tersedia → hanya berlaku di sesi ini */
+  }
+}
+
 function effectiveParams(sp: URLSearchParams) {
   const stored = loadStored();
   const out: Record<string, string> = {};
@@ -126,7 +145,13 @@ export function useFilters() {
   // topik tersimpan bisa milik kantor lain (mis. setelah "lihat data") → hanya dipakai bila ada di daftar
   const topic = (p.topic && (!list || list.some((t) => t.id === p.topic)) ? p.topic : list?.[0]?.id) ?? "";
   const platform = p.platform ?? "";
-  const refresh = REFRESH.find((r) => r.id === p.refresh) ?? REFRESH[2]!;
+  const [refreshMap, setRefreshMap] = useState(loadRefresh);
+  const refresh = REFRESH.find((r) => r.id === (refreshMap[topic] ?? DEFAULT_REFRESH)) ?? REFRESH[2]!;
+  const setRefresh = (id: string) => {
+    if (!topic) return;
+    saveRefresh(topic, id);
+    setRefreshMap((m) => ({ ...m, [topic]: id }));
+  };
   const custom = p.range === "custom" && p.from && p.to;
   const range = custom ? null : (RANGES.find((r) => r.id === p.range) ?? RANGES[1]!);
   // jangkar waktu dibulatkan ke 5 menit → query key stabil antar render, bergeser sendiri tiap 5 menit
@@ -134,6 +159,7 @@ export function useFilters() {
   const from = custom ? new Date(p.from!) : new Date(to.getTime() - range!.ms);
   const set = (kv: Record<string, string | null>) => {
     const n = new URLSearchParams(sp);
+    n.delete("refresh"); // parameter lama (global) — kini per topik
     const stored: Record<string, string> = { ...p, topic };
     for (const [k, v] of Object.entries(kv)) {
       if (v === null || v === "") {
@@ -154,7 +180,7 @@ export function useFilters() {
     if (snapshot !== JSON.stringify(loadStored())) saveStored(JSON.parse(snapshot) as Record<string, string>);
   }, [snapshot]);
   const qs = `topic_id=${topic}&from=${from.toISOString()}&to=${to.toISOString()}${platform ? `&platforms=${platform}` : ""}`;
-  return { topics, list, topic, platform, range, custom: !!custom, from, to, refresh, set, qs };
+  return { topics, list, topic, platform, range, custom: !!custom, from, to, refresh, setRefresh, set, qs };
 }
 export type Filters = ReturnType<typeof useFilters>;
 
@@ -214,10 +240,10 @@ export function FilterBar({ f, title }: { f: Filters; title: string }) {
       </Select>
       <div
         className="ml-auto flex items-center gap-2 text-sm text-zinc-600"
-        title="Seberapa sering tampilan memuat data terbaru. Pengambilan data dari media sosial berjalan otomatis di server."
+        title="Seberapa sering tampilan topik ini memuat data terbaru (diingat per topik). Pengambilan data dari media sosial tetap berjalan otomatis di server."
       >
         <label htmlFor="smip-refresh">⏱ Auto-refresh</label>
-        <Select id="smip-refresh" value={f.refresh.id} onChange={(e) => f.set({ refresh: e.target.value })} className="py-1">
+        <Select id="smip-refresh" value={f.refresh.id} onChange={(e) => f.setRefresh(e.target.value)} className="py-1">
           {REFRESH.map((r) => (
             <option key={r.id} value={r.id}>
               {r.label}

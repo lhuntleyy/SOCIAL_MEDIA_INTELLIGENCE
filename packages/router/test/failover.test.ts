@@ -38,7 +38,9 @@ describe("I-10 decideFailover", () => {
       ["QUOTA_EXHAUSTED", { errorScope: "connector" }, { action: "failover", excludeConnectorId: "c1", delayMs: 0 }, ["throttle"], 0],
       ["AUTH_INVALID", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["account_attention", "alert"], 1],
       ["CHALLENGE_REQUIRED", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["account_attention", "alert"], 1],
-      ["FORBIDDEN", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["account_attention"], 0],
+      ["FORBIDDEN", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["account_attention", "alert"], 0],
+      // izin per connector (token Apify dipakai banyak actor): hanya connector yang dijeda, akun tetap aktif
+      ["FORBIDDEN", { errorScope: "connector" }, { action: "failover", excludeConnectorId: "c1", delayMs: 0 }, ["throttle"], 0],
       ["BLOCKED", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["account_cooldown", "alert"], 1],
       ["NOT_SUPPORTED", {}, { action: "failover", excludeConnectorId: "c1", delayMs: 0 }, ["capability_failed"], 0],
       ["INVALID_QUERY", {}, { action: "recompile" }, [], 0],
@@ -60,6 +62,11 @@ describe("I-10 decideFailover", () => {
     const rl = decideFailover(fail("RATE_LIMITED", { retryAfterMs: 30_000 }), st()).effects[0];
     expect(rl).toEqual({ kind: "throttle", scopeId: "a1", ms: 30_000 });
     expect(decideFailover(fail("RATE_LIMITED"), st()).effects[0]).toMatchObject({ ms: 60_000 }); // default tanpa Retry-After
+    expect(decideFailover(fail("FORBIDDEN", { errorScope: "connector" }), st()).effects[0]).toEqual({
+      kind: "throttle",
+      scopeId: "c1",
+      ms: 3_600_000,
+    });
   });
 
   test("5xx: retry sekali di connector sama, lalu failover; INVALID_QUERY setelah recompile → fail", () => {

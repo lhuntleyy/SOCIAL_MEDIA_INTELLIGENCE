@@ -4,7 +4,12 @@
 >
 > Pengisian dilakukan di TASK fase 0 (S-10..S-13, S-16, S-17). Setiap verifikasi mencatat: tanggal, URL dokumen, versi API/actor, dan (jika dites) link evidence contract test.
 
-> **Temuan live 2026-09-30 (routing):** IG = hashtag (70%) + boolean (30%) berbobot pada prioritas sama; TikTok = clockworks → xmolodtsov
+> **Temuan live 2026-10-01 (IG keyword):** pencarian keyword Instagram (boolean scraping_solutions **dan** crawlerbros) diurutkan
+> **relevansi, bukan waktu** — "BPIP": post terbaru 2026-08-25; 0 post dalam 7 hari bahkan untuk "koperasi merah putih". Cabang
+> `#hashtag` (feed `recent`) di actor boolean membawa post baru ("bpip OR #bpip OR …" → 13/13 ≤ 7 hari, $0,029). Maka IG =
+> **boolean 100% dengan hashtag turunan otomatis** (`withHashtags`), actor hashtag resmi = cadangan prioritas 2.
+>
+> **Temuan live 2026-09-30 (routing, digantikan di atas untuk IG):** IG = hashtag (70%) + boolean (30%) berbobot pada prioritas sama; TikTok = clockworks → xmolodtsov
 > (xmolodtsov 0 hasil pada window incremental karena tanpa filter tanggal). Volume data platform non-X dibatasi terutama oleh
 > anggaran Apify (FREE $5/bln) — lihat `docs/INSTALL.md` §8.
 

@@ -1,6 +1,6 @@
 // Operator (dev/demo): alihkan routing dari connector `fake` ke connector NYATA yang sudah verified + pagar biaya.
 //   bun --env-file=infra/compose/.env.dev scripts/live-routing.ts [--dry]
-// Pagar biaya (Apify FREE $5/bln): maxTotalChargeUsd per run + quota biaya bulanan HARD per connector (cost guard,
+// Pagar biaya (Apify STARTER $19/siklus): maxTotalChargeUsd per run + quota biaya bulanan HARD per connector (cost guard,
 // run dilewati bila habis). Angka = kebijakan operator (internal_safety), bukan angka provider → disimpan di DB, bukan kode.
 import postgres from "postgres";
 
@@ -25,27 +25,29 @@ const PLAN: Record<string, { rules: [string, number, number][] }> = {
       ["apify.tiktok.xmolodtsov", 2, 100],
     ],
   },
-  // prioritas sama → dibagi berbobot: hashtag (recall jauh lebih tinggi, probe 2026-09-29) + boolean keyword (caption)
+  // keyword + hashtag dalam SATU run connector boolean (100%): keyword IG diurutkan relevansi (post lama), cabang #hashtag
+  // turunan memakai feed recent → post baru (probe live 2026-10-01). Actor hashtag resmi = cadangan bila boolean gagal/kuota habis.
   instagram: {
     rules: [
-      ["apify.instagram.hashtag", 1, 70],
-      ["apify.instagram.boolean", 1, 30],
+      ["apify.instagram.boolean", 1, 100],
+      ["apify.instagram.hashtag", 2, 100],
     ],
   },
   facebook: { rules: [["apify.facebook.scraperone", 1, 100]] },
   threads: { rules: [["apify.threads.scrapersdelight", 1, 100]] },
 };
-/** USD per bulan per connector (hard). Σ ≈ $4,3 < kuota FREE Apify $5 — naikkan bila plan Apify berbayar. */
+/** USD per bulan per connector (hard). Σ ≈ $8,1 < plan Apify STARTER $19/siklus (2026-10-01) — sisakan ruang untuk probe/verify;
+ * naikkan bila anggaran bertambah. Habis → connector dilewati, router memakai cadangan (atau run `skipped`). */
 const MONTHLY_USD: Record<string, number> = {
-  "apify.x.xquik": 0.5,
-  "apify.x.kaito": 0.2,
-  "apify.x.scraperone": 0.2,
-  "apify.tiktok.clockworks": 0.8,
-  "apify.tiktok.xmolodtsov": 0.2,
+  "apify.x.xquik": 1.5,
+  "apify.x.kaito": 0.3,
+  "apify.x.scraperone": 0.3,
+  "apify.tiktok.clockworks": 1.2,
+  "apify.tiktok.xmolodtsov": 0.3,
+  "apify.instagram.boolean": 2.0,
   "apify.instagram.hashtag": 0.8,
-  "apify.instagram.boolean": 0.3,
-  "apify.facebook.scraperone": 0.6,
-  "apify.threads.scrapersdelight": 0.6,
+  "apify.facebook.scraperone": 0.8,
+  "apify.threads.scrapersdelight": 0.8,
   "apify.youtube.streamers": 0.1,
 };
 const dry = process.argv.includes("--dry");

@@ -180,17 +180,17 @@ bun $E scripts/live-routing.ts --dry     # pratinjau
 bun $E scripts/live-routing.ts
 ```
 Skrip ini: mengaktifkan connector nyata, menetapkan urutan/bobot per platform, batas biaya per run (`maxTotalChargeUsd` $0,02),
-**kuota biaya bulanan HARD per connector** (total ≈ $4,3 < plan FREE Apify $5 — run dilewati bila habis), dan maks. 4 run Apify
-bersamaan (plan FREE menolak run paralel berlebih). Angka ada di `scripts/live-routing.ts` — **naikkan bila Apify berbayar**.
+**kuota biaya bulanan HARD per connector** (total ≈ $8,1 < plan STARTER Apify $19 — connector yang kuotanya habis dilewati, router
+memakai cadangan), dan maks. 4 run Apify bersamaan. Angka ada di `scripts/live-routing.ts` — **naikkan bila anggaran bertambah**.
 Setelah itu, di menu **Pengaturan → Sumber data** Anda bisa menyalakan/mematikan sumber, melihat status sehat, jumlah run, dan biaya
 bulan ini.
 
-Urutan saat ini (2026-09-30):
+Urutan saat ini (2026-10-01):
 
 | Platform | Sumber (urutan) | Catatan |
 |---|---|---|
 | X | xquik → kaito → scraper_one | xquik murah & paling banyak hasil |
-| Instagram | hashtag resmi Apify (70%) + boolean keyword (30%) | hashtag jauh lebih banyak hasil; keyword menangkap caption |
+| Instagram | boolean: keyword **+ hashtag turunan** dalam satu run (100%) → hashtag resmi Apify (cadangan) | keyword IG diurutkan relevansi (post lama); cabang `#hashtag` (feed recent) membawa post baru |
 | TikTok | clockworks → xmolodtsov | clockworks punya filter tanggal |
 | Facebook | scraper_one | |
 | Threads | scrapersdelight | |
@@ -266,6 +266,8 @@ Mode demo **bukan produksi**: Vault dev mode, role DB owner, tanpa backup otomat
 |---|---|
 | Dashboard kosong setelah buat topik | scrape awal masih antre (maks. 4 run Apify bersamaan) — tunggu 5–15 menit; cek Pengaturan → Sumber data |
 | Satu platform selalu 0 | sumbernya kena kuota bulanan / gangguan → lihat status di Sumber data; aktifkan sumber cadangan; cek saldo Apify |
+| Semua sumber Apify gagal `FORBIDDEN` / `platform-feature-disabled` | token Apify **di database** milik akun yang kreditnya habis. Mengganti `secrets.env` saja tidak cukup — worker memakai token di DB: `bun $E scripts/connectors.ts rotate apify <label> APIFY_TOKEN` |
+| Akun provider "butuh perhatian" | Pengaturan → Sumber data → Akun provider → perbaiki penyebab → **Aktifkan lagi** |
 | `NO_ELIGIBLE_ACCOUNT` / run dilewati | kuota biaya bulanan connector habis (disengaja) — naikkan di `live-routing.ts` bila anggaran cukup |
 | Login gagal "Kode OTP salah" | jam server/HP tidak sinkron (`timedatectl`), atau reset: `scripts/set-password.ts <email>` |
 | Sertifikat HTTPS gagal | port 80/443 tertutup, atau `SITE_HOST` tidak menunjuk ke IP server |

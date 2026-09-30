@@ -18,6 +18,7 @@ import {
   TIKTOK_CLOCKWORKS,
   TIKTOK_XMOLODTSOV,
   windowAgeDays,
+  withHashtags,
   X_KAITO,
   X_SCRAPERONE,
   YOUTUBE_STREAMERS,
@@ -494,7 +495,14 @@ describe("detail normalizer & input", () => {
     expect(bodies["scraping_solutions~instagram-boolean-search-scraper-posts-reels"]).toMatchObject({
       oldestPostDate: "2026-09-28",
       newestPostDate: "2026-09-29",
+      hashtagFeedType: "recent",
     });
+    // keyword IG diurutkan relevansi (post lama) → cabang #hashtag (feed recent) ikut dalam run yang sama
+    expect(withHashtags('"koperasi merah putih" OR kopdes OR #KDMP')).toBe(
+      '"koperasi merah putih" OR kopdes OR #KDMP OR #koperasimerahputih OR #kopdes',
+    );
+    const thirty = Array.from({ length: 30 }, (_, i) => `term${i}`).join(" OR ");
+    expect(withHashtags(thirty).split(" OR ")).toHaveLength(32); // tidak melewati batas cabang actor
     const tooMany = Array.from({ length: 33 }, (_, i) => `t${i}`).join(" OR ");
     await expect(
       new ApifyActorConnector(INSTAGRAM_BOOLEAN).fetch(req(INSTAGRAM_BOOLEAN, { query: { native: tooMany, sourceNodeIds: [] } }), ctx()),

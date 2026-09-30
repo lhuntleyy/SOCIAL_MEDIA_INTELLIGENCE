@@ -7,10 +7,34 @@
 import { ConnectorError, count, toUtcIso } from "@smip/connector-sdk";
 import type { CanonicalItem } from "@smip/contracts";
 import type { ActorSpec } from "./actor";
+import { queryToHashtags } from "./instagram-hashtag";
 import { arr, type NormMeta, type Obj, provenance, str, url, ymd } from "./util";
 
 /** Batas actor: 32 cabang boolean — compiler hanya memakai OR, jadi cabang = jumlah operand OR. */
 export const IG_MAX_BRANCHES = 32;
+
+/**
+ * Keyword IG + hashtag turunannya dalam SATU run: pencarian keyword Instagram mengurutkan menurut relevansi (post terbaru
+ * yang ditemukan untuk "BPIP" berumur > 1 bulan; 0 post dalam 7 hari bahkan untuk "koperasi merah putih"), sedangkan cabang
+ * `#tag` memakai feed hashtag `recent` → post baru (probe live 2026-10-01: "bpip OR #bpip OR …" → 13/13 post ≤ 7 hari).
+ * `"koperasi merah putih"` → `#koperasimerahputih`. Hashtag hanya ditambah selama total cabang ≤ batas actor.
+ */
+export function withHashtags(native: string): string {
+  const branches = native
+    .split(/\s+OR\s+/i)
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const out = [...branches];
+  const have = new Set(branches.map((b) => b.toLowerCase()));
+  for (const tag of queryToHashtags(native)) {
+    if (out.length >= IG_MAX_BRANCHES) break;
+    if (!have.has(`#${tag}`)) {
+      have.add(`#${tag}`);
+      out.push(`#${tag}`);
+    }
+  }
+  return out.join(" OR ");
+}
 
 export function normalizeInstagramBoolean(r: Obj, meta: NormMeta): CanonicalItem | null {
   const code = str(r.shortCode);
@@ -97,7 +121,7 @@ export const INSTAGRAM_BOOLEAN: ActorSpec = {
       throw new ConnectorError("INVALID_QUERY", `query ${branches} cabang > batas actor ${IG_MAX_BRANCHES}`, { scope: "request" });
     }
     return {
-      searchQuery: q,
+      searchQuery: withHashtags(q),
       resultsLimit: req.maxItems,
       contentType: "posts_and_reels",
       hashtagFeedType: "recent",
