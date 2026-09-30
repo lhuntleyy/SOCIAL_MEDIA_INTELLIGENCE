@@ -5,6 +5,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Percakapan → tab *Isu*** (U-04, meniru Issues/Issue Comparison produk referensi): donut isu teratas, perbandingan isu periode
+  terpilih vs periode sebelumnya (perubahan % + penanda *baru*), word cloud isu sentimen positif/negatif; tab *Sentimen* kini juga
+  menampilkan word cloud isu per sentimen. Semua bisa diklik → post.
 - **Batas post per pengambilan per platform** (Pengaturan → Sumber data; migrasi 0023 `platforms.max_items_per_run`,
   `GET/PATCH /admin/platforms`, dipakai worker-dispatch; kosong = bawaan 300) — mis. membatasi YouTube yang terlalu banyak.
 - **Isu (kata/kalimat) seperti panel ISSUES produk referensi** (A-04 jalur LLM): LLM mengekstrak 0–3 frasa isu per post dalam panggilan

@@ -95,6 +95,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | U-07 | in_progress | claude | `apps/web/src/pages/Report.tsx` | **Laporan**: ringkasan naratif otomatis dari agregat (tanpa LLM), chart sentimen/emosi/platform, hashtag/akun/lokasi teratas, post teramai + sorotan negatif, Cetak/Simpan PDF (CSS print A4), unduh CSV post (≤ 2.000). Belum: ringkasan LLM (task `summary`), jadwal kirim email |
 | F-10 owner | done | claude | [owners.test](../apps/api/test/owners.test.ts) | Owner platform di luar kantor (migrasi 0022), tambah/cabut owner, semua user, set/reset password oleh admin kantor (aturan lintas kantor), link reset sekali pakai |
 | A-04 | in_progress | claude | [analytics.test](../apps/api/test/analytics.test.ts) · enrich.test | Jalur LLM: isu 0–3 frasa/post di batch sentimen (`sent-emo-iss-v2`) → `agg_issue_1h` → `/analytics/issues` (count/engagement) → word cloud Dashboard & Laporan. Belum: skor c-TF-IDF, merge sinonim, precision@5 |
+| U-04 | in_progress | claude | `apps/web/src/pages/Conversation.tsx` | Percakapan: Kronologi, **Isu** (donut teratas, perbandingan vs periode sebelumnya, cloud positif/negatif), Sentimen (+cloud isu per sentimen), Emosi, Engagement. Belum: override sentimen (A-05), Galeri, Kontributor terpisah |
 | A-01, A-02, A-05, A-07 … A-09, D-03, D-04, U-02 … U-06 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
 
 ## Fase 4 — Provider Ops & Alert

@@ -1,3 +1,4 @@
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import {
   BarList,
@@ -19,13 +20,16 @@ import {
   Treemap,
   useA,
   useDrill,
+  WordCloud,
 } from "../analytics";
-import { Tabs } from "../ui";
+import { api } from "../api";
+import { Badge, Empty, Tabs } from "../ui";
 import { type Accounts, AnalyticsPage, type Breakdown, type Prop, perPlatform } from "./Dashboard";
 
-type Tab = "chronology" | "sentiment" | "emotion" | "engagement";
+type Tab = "chronology" | "issues" | "sentiment" | "emotion" | "engagement";
 const TABS: { id: Tab; label: string }[] = [
   { id: "chronology", label: "Kronologi" },
+  { id: "issues", label: "Isu" },
   { id: "sentiment", label: "Sentimen" },
   { id: "emotion", label: "Emosi" },
   { id: "engagement", label: "Engagement" },
@@ -41,13 +45,122 @@ function Chronology({ f }: { f: Filters }) {
   );
 }
 
+interface IssueItems {
+  items: { issue: string; count: number; engagement: number }[];
+}
+
+/** Isu periode lain (perbandingan): jendela [from, to] eksplisit, filter topik/platform sama. */
+function useIssuesAt(f: Filters, from: Date, to: Date) {
+  const qs = `topic_id=${f.topic}&from=${from.toISOString()}&to=${to.toISOString()}${f.platform ? `&platforms=${f.platform}` : ""}`;
+  return useQuery({
+    queryKey: ["/analytics/issues", "cmp", qs],
+    queryFn: () => api<IssueItems>(`/analytics/issues?limit=100&${qs}`),
+    enabled: !!f.topic,
+    refetchInterval: f.refresh.ms || false,
+    placeholderData: keepPreviousData,
+  });
+}
+
+function Issues({ f }: { f: Filters }) {
+  const drill = useDrill();
+  const top = useA<IssueItems>(f, "/analytics/issues?limit=10");
+  const pos = useA<IssueItems>(f, "/analytics/issues?limit=40&sentiment=positive");
+  const neg = useA<IssueItems>(f, "/analytics/issues?limit=40&sentiment=negative");
+  const span = f.to.getTime() - f.from.getTime();
+  const now = useIssuesAt(f, f.from, f.to);
+  const before = useIssuesAt(f, new Date(f.from.getTime() - span), f.from);
+  const prev = new Map((before.data?.items ?? []).map((i) => [i.issue, i.count]));
+  const rows = (now.data?.items ?? []).slice(0, 20).map((i) => ({ ...i, prev: prev.get(i.issue) ?? 0 }));
+  const days = Math.max(1, Math.round(span / 86_400_000));
+  const cloud = (d: IssueItems | undefined) => d?.items.map((i) => ({ key: i.issue, value: i.count }));
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Isu teratas" info="10 isu yang paling banyak dibicarakan. Klik untuk melihat post-nya.">
+          <PieChart
+            donut
+            items={top.data?.items.map((i) => ({ key: i.issue, name: i.issue, value: i.count }))}
+            onPick={(k) => drill({ title: `Isu: ${k}`, params: { issue: k } })}
+          />
+        </Panel>
+        <Panel title="Perbandingan isu" info={`Periode terpilih vs ${days} hari sebelumnya (panjang sama).`}>
+          {rows.length ? (
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="py-1">Isu</th>
+                  <th className="py-1 text-right">Sekarang</th>
+                  <th className="py-1 text-right">Sebelumnya</th>
+                  <th className="py-1 text-right">Perubahan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {rows.map((r) => (
+                  <tr key={r.issue}>
+                    <td className="py-1">
+                      <button
+                        type="button"
+                        className="hover:underline"
+                        onClick={() => drill({ title: `Isu: ${r.issue}`, params: { issue: r.issue } })}
+                      >
+                        {r.issue}
+                      </button>
+                    </td>
+                    <td className="py-1 text-right tabular-nums">{fmtN(r.count)}</td>
+                    <td className="py-1 text-right tabular-nums text-zinc-500">{fmtN(r.prev)}</td>
+                    <td className="py-1 text-right">
+                      {r.prev === 0 ? (
+                        <Badge tone="blue">baru</Badge>
+                      ) : (
+                        <span className={r.count >= r.prev ? "text-red-700" : "text-emerald-700"}>
+                          {r.count >= r.prev ? "▲" : "▼"} {Math.round(Math.abs((r.count - r.prev) / r.prev) * 100)}%
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <Empty>{now.isLoading ? "Memuat…" : "Belum ada isu pada periode ini."}</Empty>
+          )}
+        </Panel>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Isu sentimen positif">
+          <WordCloud
+            items={cloud(pos.data)}
+            error={pos.error}
+            onPick={(k) => drill({ title: `Isu: ${k} · positif`, params: { issue: k, sentiment: "positive" } })}
+          />
+        </Panel>
+        <Panel title="Isu sentimen negatif">
+          <WordCloud
+            items={cloud(neg.data)}
+            error={neg.error}
+            onPick={(k) => drill({ title: `Isu: ${k} · negatif`, params: { issue: k, sentiment: "negative" } })}
+          />
+        </Panel>
+      </div>
+    </>
+  );
+}
+
 function SentimentSide({ f, s }: { f: Filters; s: "positive" | "negative" }) {
   const drill = useDrill();
+  const iss = useA<IssueItems>(f, `/analytics/issues?limit=30&sentiment=${s}`);
   const tags = useA<{ items: { hashtag: string; count: number }[] }>(f, `/analytics/hashtags?limit=20&sentiment=${s}`);
   const acc = useA<Accounts>(f, `/analytics/accounts/top?limit=8&sentiment=${s}`);
   const label = SENT_LABEL[s]!.toLowerCase();
   return (
     <>
+      <Panel title={`Isu sentimen ${label}`}>
+        <WordCloud
+          items={iss.data?.items.map((i) => ({ key: i.issue, value: i.count }))}
+          error={iss.error}
+          onPick={(k) => drill({ title: `Isu: ${k} · ${label}`, params: { issue: k, sentiment: s } })}
+        />
+      </Panel>
       <Panel title={`Hashtag sentimen ${label}`}>
         <Treemap
           height={240}
@@ -240,6 +353,7 @@ export default function Conversation() {
             }}
           />
           {tab === "chronology" && <Chronology f={f} />}
+          {tab === "issues" && <Issues f={f} />}
           {tab === "sentiment" && <Sentiment f={f} />}
           {tab === "emotion" && <Emotion f={f} />}
           {tab === "engagement" && <Engagement f={f} />}
