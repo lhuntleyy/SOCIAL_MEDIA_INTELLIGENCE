@@ -221,6 +221,18 @@ export async function hashtags(ch: ClickHouseClient, f: AnalyticsFilter, limit =
   return { items: rows.map((r) => ({ hashtag: r.hashtag, count: Number(r.n), engagement: Number(r.e) })) };
 }
 
+/** Isu/keyphrase (AI_SPEC §5) dari `agg_issue_1h` — word cloud "Isu" & "Isu (engagement)"; `mode=engagement` = urut bobot engagement. */
+export async function issues(ch: ClickHouseClient, f: AnalyticsFilter, limit = 40, mode: "count" | "engagement" = "count", sentiment?: string) {
+  const w = base(f);
+  const rows = await q<{ issue: string; n: string; e: string }>(
+    ch,
+    `SELECT issue, sum(mentions) AS n, sum(engagement) AS e FROM agg_issue_1h WHERE ${w.where}${sentiment ? " AND sentiment = {s:String}" : ""}
+     GROUP BY issue HAVING n > 0 ORDER BY ${mode === "engagement" ? "e" : "n"} DESC, n DESC LIMIT {lim:UInt32}`,
+    { ...w.params, lim: limit, s: sentiment ?? "" },
+  );
+  return { items: rows.map((r) => ({ issue: r.issue, count: Number(r.n), engagement: Number(r.e) })) };
+}
+
 export async function topAccounts(
   ch: ClickHouseClient,
   f: AnalyticsFilter,

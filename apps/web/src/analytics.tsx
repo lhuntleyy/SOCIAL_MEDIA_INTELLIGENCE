@@ -146,9 +146,11 @@ export function useFilters() {
   const topic = (p.topic && (!list || list.some((t) => t.id === p.topic)) ? p.topic : list?.[0]?.id) ?? "";
   const platform = p.platform ?? "";
   const [refreshMap, setRefreshMap] = useState(loadRefresh);
-  const refresh = REFRESH.find((r) => r.id === (refreshMap[topic] ?? DEFAULT_REFRESH)) ?? REFRESH[2]!;
+  // topik dijeda di menu Topik → tidak ada data baru → auto-refresh ikut mati (pilihan per topik kembali saat dilanjutkan)
+  const paused = list?.find((t) => t.id === topic)?.status === "paused";
+  const refresh = paused ? REFRESH[0]! : (REFRESH.find((r) => r.id === (refreshMap[topic] ?? DEFAULT_REFRESH)) ?? REFRESH[2]!);
   const setRefresh = (id: string) => {
-    if (!topic) return;
+    if (!topic || paused) return;
     saveRefresh(topic, id);
     setRefreshMap((m) => ({ ...m, [topic]: id }));
   };
@@ -180,7 +182,7 @@ export function useFilters() {
     if (snapshot !== JSON.stringify(loadStored())) saveStored(JSON.parse(snapshot) as Record<string, string>);
   }, [snapshot]);
   const qs = `topic_id=${topic}&from=${from.toISOString()}&to=${to.toISOString()}${platform ? `&platforms=${platform}` : ""}`;
-  return { topics, list, topic, platform, range, custom: !!custom, from, to, refresh, setRefresh, set, qs };
+  return { topics, list, topic, platform, range, custom: !!custom, from, to, refresh, paused, setRefresh, set, qs };
 }
 export type Filters = ReturnType<typeof useFilters>;
 
@@ -240,10 +242,15 @@ export function FilterBar({ f, title }: { f: Filters; title: string }) {
       </Select>
       <div
         className="ml-auto flex items-center gap-2 text-sm text-zinc-600"
-        title="Seberapa sering tampilan topik ini memuat data terbaru (diingat per topik). Pengambilan data dari media sosial tetap berjalan otomatis di server."
+        title={
+          f.paused
+            ? "Topik ini sedang dijeda di menu Topik — tidak ada data baru, auto-refresh dimatikan. Lanjutkan topik untuk mengaktifkannya lagi."
+            : "Seberapa sering tampilan topik ini memuat data terbaru (diingat per topik). Pengambilan data dari media sosial tetap berjalan otomatis di server."
+        }
       >
         <label htmlFor="smip-refresh">⏱ Auto-refresh</label>
-        <Select id="smip-refresh" value={f.refresh.id} onChange={(e) => f.setRefresh(e.target.value)} className="py-1">
+        {f.paused && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">topik dijeda</span>}
+        <Select id="smip-refresh" value={f.refresh.id} onChange={(e) => f.setRefresh(e.target.value)} disabled={f.paused} className="py-1">
           {REFRESH.map((r) => (
             <option key={r.id} value={r.id}>
               {r.label}
@@ -631,6 +638,48 @@ export function Treemap({ items, height = 300, onPick }: { items: Slice[] | unde
       }}
       onEvents={onPick ? { click: (p: ClickP) => p.data?.key && onPick(p.data.key) } : undefined}
     />
+  );
+}
+
+const CLOUD_COLORS = ["#2563eb", "#0d9488", "#16a34a", "#b91c1c", "#c2410c", "#7c3aed", "#0369a1", "#4d7c0f", "#be185d", "#52525b"];
+/** Word cloud ringan (CSS, tanpa paket tambahan): ukuran huruf ∝ √nilai; klik → drill-down. */
+export function WordCloud({
+  items,
+  onPick,
+  empty = "Belum ada data.",
+}: {
+  items: { key: string; value: number }[] | undefined;
+  onPick?: (key: string) => void;
+  empty?: string;
+}) {
+  if (!items) return <div className="h-48" />;
+  if (!items.length) return <Empty>{empty}</Empty>;
+  const max = Math.sqrt(Math.max(...items.map((i) => i.value), 1));
+  // kata terbesar di tengah: urutan zig-zag
+  const sorted = [...items].sort((a, b) => b.value - a.value);
+  const arranged: typeof sorted = [];
+  for (const [i, it] of sorted.entries()) {
+    if (i % 2) arranged.push(it);
+    else arranged.unshift(it);
+  }
+  return (
+    <div className="flex min-h-48 flex-wrap items-center justify-center gap-x-3 gap-y-1 px-2 py-4 text-center leading-tight">
+      {arranged.map((it) => (
+        <button
+          type="button"
+          key={it.key}
+          title={`${it.key}: ${fmtN(it.value)}`}
+          onClick={() => onPick?.(it.key)}
+          className="font-semibold hover:underline"
+          style={{
+            fontSize: `${Math.round(12 + (Math.sqrt(it.value) / max) * 22)}px`,
+            color: CLOUD_COLORS[[...it.key].reduce((h, ch) => h + ch.charCodeAt(0), 0) % CLOUD_COLORS.length],
+          }}
+        >
+          {it.key}
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 // Parser query boolean topik (FR-T02, CONNECTOR_SPEC §5). Grammar:
 //   query   := or EOF
-//   or      := and ("OR" and)*
+//   or      := and ("OR" and)*                ← operator tidak peka huruf (or/Or/OR)
 //   and     := unary (["AND"] unary)*          ← kata berdampingan = AND implisit
 //   unary   := ("NOT" | "-") unary | primary
 //   primary := PHRASE | WORD | "(" or ")"
@@ -42,9 +42,11 @@ function lex(src: string): Tok[] {
       let j = i;
       while (j < src.length && !/[\s()"“”]/.test(src[j]!)) j++;
       const w = src.slice(i, j);
-      if (w === "OR") out.push({ k: "or", pos });
-      else if (w === "AND") out.push({ k: "and", pos });
-      else if (w === "NOT") out.push({ k: "not", pos });
+      // operator tidak peka huruf (ADR-008 amandemen 2026-10-01): pengguna menulis "jokowi or jkw"; kata "or" harfiah → kutip
+      const op = w.toUpperCase();
+      if (op === "OR") out.push({ k: "or", pos });
+      else if (op === "AND") out.push({ k: "and", pos });
+      else if (op === "NOT") out.push({ k: "not", pos });
       else out.push({ k: "word", v: w, pos });
       i = j;
     }

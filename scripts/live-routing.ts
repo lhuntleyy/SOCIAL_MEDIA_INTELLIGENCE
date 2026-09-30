@@ -1,6 +1,6 @@
 // Operator (dev/demo): alihkan routing dari connector `fake` ke connector NYATA yang sudah verified + pagar biaya.
 //   bun --env-file=infra/compose/.env.dev scripts/live-routing.ts [--dry]
-// Pagar biaya (Apify STARTER $19/siklus): maxTotalChargeUsd per run + quota biaya bulanan HARD per connector (cost guard,
+// Pagar biaya: maxTotalChargeUsd per run + quota biaya bulanan HARD per connector (saat ini NONAKTIF — MONTHLY_CAP; cost guard,
 // run dilewati bila habis). Angka = kebijakan operator (internal_safety), bukan angka provider → disimpan di DB, bukan kode.
 import postgres from "postgres";
 
@@ -36,8 +36,14 @@ const PLAN: Record<string, { rules: [string, number, number][] }> = {
   facebook: { rules: [["apify.facebook.scraperone", 1, 100]] },
   threads: { rules: [["apify.threads.scrapersdelight", 1, 100]] },
 };
-/** USD per bulan per connector (hard). Σ ≈ $8,1 < plan Apify STARTER $19/siklus (2026-10-01) — sisakan ruang untuk probe/verify;
- * naikkan bila anggaran bertambah. Habis → connector dilewati, router memakai cadangan (atau run `skipped`). */
+/** Pagar biaya internal. Keputusan pemilik 2026-10-01: **tanpa batas bulanan dulu** (`MONTHLY_CAP=false` → kuota bulanan per
+ * connector dinonaktifkan, bukan dihapus; batas nyata = batas pemakaian akun Apify sendiri). Nyalakan lagi: `MONTHLY_CAP = true`.
+ * Angka di bawah = batas yang dipakai saat pagar aktif (USD/bulan per connector, hard). */
+const MONTHLY_CAP = false;
+/** Batas biaya per run actor (`maxTotalChargeUsd`) — pengaman run liar, bukan pembatas volume (maxItems 300/run tetap berlaku). */
+const PER_RUN_USD = 1;
+/** Run Apify bersamaan per akun (plan STARTER; FREE dulu 4 karena batas memori 8 GB). */
+const APIFY_CONCURRENCY = 8;
 const MONTHLY_USD: Record<string, number> = {
   "apify.x.xquik": 1.5,
   "apify.x.kaito": 0.3,
@@ -62,28 +68,30 @@ try {
     await tx`update providers set enabled = true, updated_at = now() where id in ${tx([...new Set(conns.map((c) => c.provider_id as string))])}`;
     for (const c of conns) {
       const cfg = { ...(c.config as Record<string, unknown>) };
-      if (c.key.startsWith("apify.")) cfg.maxTotalChargeUsd = Math.min(Number(cfg.maxTotalChargeUsd ?? 0.02), 0.02);
+      if (c.key.startsWith("apify.")) cfg.maxTotalChargeUsd = PER_RUN_USD;
       await tx`update connectors set enabled = true, config = ${tx.json(cfg as never)}, updated_at = now() where id = ${c.id}`;
       const usd = MONTHLY_USD[c.key];
       if (usd !== undefined) {
         const [q] =
           await tx`select id from quota_policies where scope_type = 'connector' and scope_id = ${c.id} and period = 'month' and unit = 'cost_units'`;
-        if (q) await tx`update quota_policies set limit_value = ${usd}, hard = true, enabled = true where id = ${q.id}`;
-        else
+        if (q) await tx`update quota_policies set limit_value = ${usd}, hard = true, enabled = ${MONTHLY_CAP} where id = ${q.id}`;
+        else if (MONTHLY_CAP)
           await tx`insert into quota_policies (id, scope_type, scope_id, period, unit, limit_value, hard, alert_thresholds, reset_tz)
             values (${Bun.randomUUIDv7()}, 'connector', ${c.id}, 'month', 'cost_units', ${usd}, true, '{50,80,95}', 'UTC')`;
+        await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('quota_policy', ${c.id}, 'quota.updated', '{}')`;
       }
     }
-    // run Apify bersamaan dibatasi per akun: plan FREE menolak run baru bila total memori run aktif melebihi batas plan
-    // (HTTP 402 actor-memory-limit-exceeded, teramati live 2026-09-30 saat 8 run paralel × 1 GB)
+    // run Apify bersamaan dibatasi per akun: plan menolak run baru bila total memori run aktif melebihi batas plan
+    // (HTTP 402 actor-memory-limit-exceeded, teramati live 2026-09-30 di plan FREE saat 8 run paralel × 1 GB)
     for (const acc of await tx`select pa.id from provider_accounts pa join providers p on p.id = pa.provider_id where p.key = 'apify' and pa.status = 'active'`) {
       const [rl] =
         await tx`select id from rate_limit_policies where scope_type = 'provider_account' and scope_id = ${acc.id} and algorithm = 'concurrency'`;
-      const ref = "internal_safety: 4 run × 1 GB < batas memori plan FREE Apify; 402 actor-memory-limit-exceeded teramati 2026-09-30";
-      if (rl) await tx`update rate_limit_policies set capacity = 4, source_ref = ${ref}, enabled = true where id = ${rl.id}`;
+      const ref = `internal_safety: ${APIFY_CONCURRENCY} run × 1 GB < batas memori plan STARTER Apify (2026-10-01); 402 actor-memory-limit-exceeded teramati di FREE 2026-09-30`;
+      if (rl)
+        await tx`update rate_limit_policies set capacity = ${APIFY_CONCURRENCY}, source_ref = ${ref}, enabled = true where id = ${rl.id}`;
       else
         await tx`insert into rate_limit_policies (id, scope_type, scope_id, algorithm, capacity, refill_tokens, refill_interval_ms, source, source_ref, enabled)
-          values (${Bun.randomUUIDv7()}, 'provider_account', ${acc.id}, 'concurrency', 4, 0, 1000, 'internal_safety', ${ref}, true)`;
+          values (${Bun.randomUUIDv7()}, 'provider_account', ${acc.id}, 'concurrency', ${APIFY_CONCURRENCY}, 0, 1000, 'internal_safety', ${ref}, true)`;
       await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('rate_limit_policy', ${acc.id}, 'rate_limit.updated', '{}')`;
     }
     for (const [platform, p] of Object.entries(PLAN)) {
@@ -98,7 +106,7 @@ try {
       await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('routing_policy', ${pol.id}, 'policy.replaced', ${tx.json({ by: "live-routing" })})`;
       console.log(`${platform}: ${p.rules.map((r) => `${r[0]}(p${r[1]}/w${r[2]})`).join(" → ")}`);
     }
-    await tx`insert into audit_logs (id, actor_type, action, target_type, after) values (${Bun.randomUUIDv7()}, 'system', 'routing.live_switch', 'routing_policy', ${tx.json({ plan: PLAN, monthly_usd: MONTHLY_USD } as never)})`;
+    await tx`insert into audit_logs (id, actor_type, action, target_type, after) values (${Bun.randomUUIDv7()}, 'system', 'routing.live_switch', 'routing_policy', ${tx.json({ plan: PLAN, monthly_cap: MONTHLY_CAP, monthly_usd: MONTHLY_USD, per_run_usd: PER_RUN_USD, apify_concurrency: APIFY_CONCURRENCY } as never)})`;
     if (dry) throw new Error("--dry: rollback");
   });
 } finally {

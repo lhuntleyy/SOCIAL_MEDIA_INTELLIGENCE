@@ -22,7 +22,7 @@ Makna persis "Media Tags"/"Not Media Tags" di produk belum 100% pasti (tag/label
 - Cost estimate (FR-T05) memperhitungkan sub-query dari keyword tambahan.
 
 ## Semantik final (I-01, 2026-09-28) — `packages/query`
-- **Operator hanya HURUF BESAR** (`OR`, `AND`, `NOT`); `and/or/not` huruf kecil = kata biasa. Kata berdampingan = **AND implisit**. `-kata`, `-"frasa"`, `-(grup)` = NOT. Presedensi NOT > AND > OR. `NOT NOT x = x`.
+- ~~Operator hanya HURUF BESAR~~ → **Amandemen 2026-10-01: operator tidak peka huruf** (`OR`/`or`/`Or`, sama untuk `AND`, `NOT`). Alasan: pengguna menulis `jokowi or jkw` / `bpip or "…"`; aturan lama membacanya sebagai `jokowi AND or AND jkw` → 0 post cocok walau data terambil (topik BPIP & JOKOWI). Mencari kata `or/and/not` harfiah → pakai kutip (`"or"`). Topik lama di-parse ulang lewat `scripts/reparse-queries.ts`. Kata berdampingan = **AND implisit**. `-kata`, `-"frasa"`, `-(grup)` = NOT. Presedensi NOT > AND > OR. `NOT NOT x = x`.
 - **Normalisasi** query & item identik: NFKC → hapus zero-width → lowercase → hapus diakritik. Term = token utuh (bukan substring: `demo` tidak cocok `demokrasi`). Kata dengan pemisah (`covid-19`) = frasa `covid 19`. Frasa = token berurutan kontigu.
 - **Hashtag**: `kopdes` cocok token teks ATAU hashtag `#kopdes`; `#kopdes` hanya cocok hashtag (dari teks atau metadata provider). Underscore di hashtag diabaikan.
 - **Keywords** di-OR-kan ke **inti positif** (bukan root) → `NOT` tetap berlaku untuk keyword.

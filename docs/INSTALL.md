@@ -180,8 +180,8 @@ bun $E scripts/live-routing.ts --dry     # pratinjau
 bun $E scripts/live-routing.ts
 ```
 Skrip ini: mengaktifkan connector nyata, menetapkan urutan/bobot per platform, batas biaya per run (`maxTotalChargeUsd` $0,02),
-**kuota biaya bulanan HARD per connector** (total ≈ $8,1 < plan STARTER Apify $19 — connector yang kuotanya habis dilewati, router
-memakai cadangan), dan maks. 4 run Apify bersamaan. Angka ada di `scripts/live-routing.ts` — **naikkan bila anggaran bertambah**.
+kuota biaya bulanan per connector (**saat ini nonaktif** atas keputusan pemilik 2026-10-01 — `MONTHLY_CAP` di skrip; batas nyata =
+batas pemakaian akun Apify), batas $1/run (pengaman run liar), dan maks. 8 run Apify bersamaan. Semua angka di `scripts/live-routing.ts`.
 Setelah itu, di menu **Pengaturan → Sumber data** Anda bisa menyalakan/mematikan sumber, melihat status sehat, jumlah run, dan biaya
 bulan ini.
 

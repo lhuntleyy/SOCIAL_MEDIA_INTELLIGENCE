@@ -80,6 +80,7 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
   route("/analytics/sentiment/timeline", ({ f, q }) => A.sentimentTimeline(d.ch, f, q.mode, q.granularity ?? A.autoGranularity(f)));
   route("/analytics/sentiment/proportion", ({ f, q }) => A.sentimentProportion(d.ch, f, q.mode));
   route("/analytics/emotion/proportion", ({ f, q }) => A.emotionProportion(d.ch, f, q.mode));
+  route("/analytics/issues", ({ f, q }) => A.issues(d.ch, f, q.limit ?? 40, q.mode, q.sentiment));
   route("/analytics/hashtags", ({ f, q }) => A.hashtags(d.ch, f, q.limit ?? 30, q.sentiment));
   route("/analytics/accounts/top", ({ f, q }) => A.topAccounts(d.ch, f, q.by, q.limit ?? 10, q.sentiment));
   let regions: { at: number; names: Map<string, string> } | null = null;

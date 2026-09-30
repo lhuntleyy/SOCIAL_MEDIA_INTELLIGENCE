@@ -72,8 +72,10 @@ describe("parser", () => {
     expect(P("covid-19")).toEqual({ type: "phrase", value: "covid 19" }); // '-' di tengah kata bukan NOT
   });
 
-  test("operator hanya huruf besar: 'and'/'or' huruf kecil = kata biasa", () => {
-    expect(P("rock and roll")).toEqual({ type: "and", children: ["rock", "and", "roll"].map((v) => ({ type: "term", value: v })) });
+  test("operator tidak peka huruf; kata operator harfiah lewat kutip", () => {
+    expect(P("jokowi or jkw")).toEqual({ type: "or", children: ["jokowi", "jkw"].map((v) => ({ type: "term", value: v })) });
+    expect(P("demo and not rusuh")).toEqual(P("demo AND NOT rusuh"));
+    expect(P('rock "and" roll')).toEqual({ type: "and", children: ["rock", "and", "roll"].map((v) => ({ type: "term", value: v })) });
   });
 
   test("normalisasi: huruf besar/kecil, diakritik, kutip miring, hashtag", () => {

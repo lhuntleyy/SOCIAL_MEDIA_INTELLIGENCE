@@ -94,6 +94,7 @@ export async function handleEnrich(d: EnrichDeps, ai: AiEnrichPayload, opts: { l
         for (const [task, label, conf] of [
           ["sentiment", l.sentiment, l.sentiment_confidence],
           ["emotion", l.emotion, l.emotion_confidence],
+          ...(l.issues.length ? ([["keyphrase", l.issues.join(" | "), l.sentiment_confidence]] as const) : []),
         ] as const) {
           await tx.execute(sql`insert into nlp_labels (id, platform, post_id, task, text_ref, label, confidence, source, model_version)
             values (${Bun.randomUUIDv7()}, ${it.platform}, ${it.post_id}, ${task}::e_model_task, ${refs.get(k)!}, ${label}, ${conf}, 'llm', ${modelVersion})`);
@@ -112,7 +113,7 @@ export async function handleEnrich(d: EnrichDeps, ai: AiEnrichPayload, opts: { l
     ...(relabel ? { mode: "relabel" as const } : {}),
     // relabel: hanya item yang BENAR-BENAR dilabel model (jangan menimpa label lama dengan "unlabeled")
     matches: ai.items
-      .flatMap((i, k) => (relabel && !labels[k] ? [] : [k]))
+      .flatMap((_i, k) => (relabel && !labels[k] ? [] : [k]))
       .map((k) => {
         const i = ai.items[k]!;
         const p = byId.get(`${i.platform}|${i.post_id}`);
@@ -133,7 +134,7 @@ export async function handleEnrich(d: EnrichDeps, ai: AiEnrichPayload, opts: { l
           author_age_conf: 0,
           author_followers: p?.author?.followers ?? null,
           model_version: l && modelVersion ? modelVersion : short ? "rule:short-text" : UNLABELED_VERSION,
-          issues: [],
+          issues: l?.issues ?? [],
           hashtags: p?.hashtags ?? [],
           parent_author_id: p?.parent?.author?.platform_user_id ?? null,
           geo_region_code: p?.geo_region_code ?? null,

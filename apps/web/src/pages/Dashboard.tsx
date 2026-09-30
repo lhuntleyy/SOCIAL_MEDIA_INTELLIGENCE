@@ -23,6 +23,7 @@ import {
   useDrill,
   useFilterSearch,
   useFilters,
+  WordCloud,
 } from "../analytics";
 import { OfficePicker, useNeedsOffice } from "../office";
 import { Empty, ErrorText } from "../ui";
@@ -40,6 +41,9 @@ export interface Breakdown {
 }
 export interface Accounts {
   items: { platform: string; author_id: string; handle: string; value: number; followers: number | null }[];
+}
+interface Issues {
+  items: { issue: string; count: number; engagement: number }[];
 }
 export interface Geo {
   coverage_pct: number;
@@ -99,6 +103,8 @@ function Body({ f }: { f: Filters }) {
   const emo = useA<Prop<"emotion">>(f, "/analytics/emotion/proportion");
   const emoTl = useA<Series>(f, "/analytics/emotion/timeline");
   const tags = useA<{ items: { hashtag: string; count: number }[] }>(f, "/analytics/hashtags?limit=25");
+  const iss = useA<Issues>(f, "/analytics/issues?limit=40");
+  const issEng = useA<Issues>(f, "/analytics/issues?limit=40&mode=engagement");
   const acc = useA<Accounts>(f, "/analytics/accounts/top?limit=10");
   const geo = useA<Geo>(f, "/analytics/locations");
   const br = useA<Breakdown>(f, "/analytics/platforms");
@@ -160,6 +166,23 @@ function Body({ f }: { f: Filters }) {
               color: SENT_COLOR[i.sentiment],
             }))}
             onPick={(k, n) => drill({ title: `Sentimen ${n.toLowerCase()}`, params: { sentiment: k } })}
+          />
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Isu" info="Frasa isu yang paling banyak dibicarakan (diekstrak otomatis per post). Klik untuk melihat post-nya.">
+          <WordCloud
+            items={iss.data?.items.map((i) => ({ key: i.issue, value: i.count }))}
+            onPick={(k) => drill({ title: `Isu: ${k}`, params: { issue: k } })}
+            empty="Belum ada isu — isu diekstrak untuk post yang masuk setelah fitur ini aktif."
+          />
+        </Panel>
+        <Panel title="Isu berdasarkan engagement" info="Isu yang post-nya paling banyak mendapat like/komentar/share.">
+          <WordCloud
+            items={issEng.data?.items.map((i) => ({ key: i.issue, value: i.engagement })).filter((i) => i.value > 0)}
+            onPick={(k) => drill({ title: `Isu: ${k}`, params: { issue: k }, sort: "engagement" })}
+            empty="Belum ada isu dengan engagement."
           />
         </Panel>
       </div>

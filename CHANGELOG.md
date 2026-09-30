@@ -5,6 +5,10 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Isu (kata/kalimat) seperti panel ISSUES produk referensi** (A-04 jalur LLM): LLM mengekstrak 0–3 frasa isu per post dalam panggilan
+  batch yang sama → `GET /analytics/issues` → word cloud *Isu* & *Isu berdasarkan engagement* di Dashboard (klik → post), daftar isu
+  di Laporan. Footer Laporan tanpa penyebutan model AI. Auto-refresh otomatis Off & terkunci bila topik dijeda di menu Topik.
+- Pagar biaya bulanan Apify **dinonaktifkan** (keputusan pemilik; `MONTHLY_CAP` di `scripts/live-routing.ts`), batas $1/run, 8 run bersamaan.
 - **Sesi 2026-09-30 (lanjutan) — owner platform, password, laporan, scrape awal, sumber data IG/TikTok, perbaikan antrean:**
   - **Owner platform** di luar kantor (migrasi 0022: tenant internal `kind='platform'`; login owner masuk ke sana; halaman data meminta *pilih kantor*); `GET/POST/DELETE /admin/owners`, `GET /admin/users` (semua user + kantor), halaman *Kantor & pengguna* bertab Kantor / Semua pengguna / Owner.
   - **Password oleh admin:** isi password saat membuat user (langsung aktif) atau link undangan; **reset password** (`POST /users/{id}/password`, `POST /admin/users/{id}/password`) langsung / link reset sekali pakai; ditolak untuk user yang juga anggota kantor lain; sesi lama dicabut; diaudit.
@@ -104,6 +108,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Kode spike: `package.json`, `.bun-version` (1.4.2), `scripts/compat-check.ts` + `scripts/compat/*`, `scripts/spike-infra.sh`, bukti `docs/evidence/`.
 
 ### Fixed
+- **Query `or/and/not` huruf kecil dibaca sebagai kata biasa** → `jokowi or jkw` = `jokowi AND or AND jkw` → data terambil tapi 0 post
+  cocok (topik BPIP & JOKOWI). Operator kini tidak peka huruf (ADR-008 amandemen); `scripts/reparse-queries.ts` mem-parse ulang query lama.
 - **Satu HTTP 403 dari satu actor Apify mematikan SEMUA platform Apify** (akun `needs_attention` permanen, tanpa alert, UI tetap
   "sehat" — topik baru mis. BPIP gagal `NO_CANDIDATE` terus). 403 Apify kini ber-scope `connector` → hanya actor itu dijeda 1 jam,
   akun tetap dipakai actor lain; FORBIDDEN tingkat akun kini memicu alert. Pengaturan → Sumber data menampilkan **Akun provider**

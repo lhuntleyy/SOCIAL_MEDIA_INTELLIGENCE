@@ -38,14 +38,31 @@ test("parseBatch: indeks 1-based, label tak dikenal / duplikat / di luar rentang
   const r = parseBatch(
     {
       results: [
-        { i: 2, sentiment: "negative", sentiment_confidence: 1.4, emotion: "anger", emotion_confidence: 0.8 },
+        {
+          i: 2,
+          sentiment: "negative",
+          sentiment_confidence: 1.4,
+          emotion: "anger",
+          emotion_confidence: 0.8,
+          issues: ["Kampus Negeri!", "#UtangKopdes", "kampus negeri", "a", "satu dua tiga empat lima", "pegawai bumn", "gaji"],
+        },
         { i: 1, sentiment: "angry", emotion: "joy" },
         { i: 9, sentiment: "neutral", emotion: "unknown" },
       ],
     },
     2,
   );
-  expect(r).toEqual([null, { sentiment: "negative", sentiment_confidence: 1, emotion: "anger", emotion_confidence: 0.8 }]);
+  // isu dibersihkan: huruf kecil, tanpa tanda baca/#, unik, 1–4 kata, maks 3
+  expect(r).toEqual([
+    null,
+    {
+      sentiment: "negative",
+      sentiment_confidence: 1,
+      emotion: "anger",
+      emotion_confidence: 0.8,
+      issues: ["kampus negeri", "utangkopdes", "pegawai bumn"],
+    },
+  ]);
   expect(pseudonymize("@budi cek https://x.co/a 08123456789 2026")).toBe("<user> cek <url> <num> 2026");
 });
 
@@ -180,7 +197,7 @@ describe.skipIf(!pgUp)("worker-ai jalur LLM (integrasi)", () => {
 
   test("label nyata ke sink + korpus nlp_labels (teks terpseudonim di bucket training); teks pendek → aturan, tanpa LLM", async () => {
     const r = await handleEnrich(deps(), await payload(), { lastAttempt: false });
-    expect([r.labeled, r.llmCalls, r.modelVersion]).toEqual([2, 1, "llm:gemini:gemini-3.5-flash-lite:sent-emo-v1"]);
+    expect([r.labeled, r.llmCalls, r.modelVersion]).toEqual([2, 1, "llm:gemini:gemini-3.5-flash-lite:sent-emo-iss-v2"]);
     expect(r.payload.matches.map((m) => [m.post_id, m.sentiment, m.emotion, m.model_version])).toEqual([
       ["p1", "negative", "anger", r.modelVersion!],
       ["p2", "positive", "joy", r.modelVersion!],

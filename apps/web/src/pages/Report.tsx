@@ -63,6 +63,7 @@ function Body({ f }: { f: Filters }) {
   const emo = useA<Prop<"emotion">>(f, "/analytics/emotion/proportion");
   const br = useA<Breakdown>(f, "/analytics/platforms");
   const tags = useA<{ items: { hashtag: string; count: number }[] }>(f, "/analytics/hashtags?limit=10");
+  const iss = useA<{ items: { issue: string; count: number }[] }>(f, "/analytics/issues?limit=10");
   const acc = useA<Accounts>(f, "/analytics/accounts/top?limit=10&by=engagement");
   const geo = useA<Geo>(f, "/analytics/locations");
   const top = useA<Post[]>(f, "/posts?limit=10&sort=engagement");
@@ -93,6 +94,12 @@ function Body({ f }: { f: Filters }) {
           ? `Percakapan paling banyak di ${platforms
               .slice(0, 3)
               .map(([p, n]) => `${platformName(p)} (${pct(n, total)}%)`)
+              .join(", ")}.`
+          : "",
+        iss.data?.items.length
+          ? `Isu yang paling banyak dibicarakan: ${iss.data.items
+              .slice(0, 5)
+              .map((i) => `"${i.issue}"`)
               .join(", ")}.`
           : "",
         tags.data?.items.length
@@ -246,8 +253,15 @@ function Body({ f }: { f: Filters }) {
               }}
             />
           </Section>
-          <Section title="Hashtag, akun & lokasi teratas">
-            <div className="grid grid-cols-3 gap-3 text-xs">
+          <Section title="Isu, hashtag, akun & lokasi teratas">
+            <div className="grid grid-cols-4 gap-3 text-xs">
+              <ol className="list-decimal space-y-0.5 pl-4">
+                {iss.data?.items.map((i) => (
+                  <li key={i.issue}>
+                    {i.issue} <span className="text-zinc-400">{fmtN(i.count)}</span>
+                  </li>
+                ))}
+              </ol>
               <ol className="list-decimal space-y-0.5 pl-4">
                 {tags.data?.items.map((t) => (
                   <li key={t.hashtag}>
@@ -270,7 +284,9 @@ function Body({ f }: { f: Filters }) {
                 ))}
               </ol>
             </div>
-            <p className="mt-1 text-[10px] text-zinc-400">Hashtag (jumlah post) · akun (engagement) · provinsi (jumlah post)</p>
+            <p className="mt-1 text-[10px] text-zinc-400">
+              Isu (jumlah post) · hashtag (jumlah post) · akun (engagement) · provinsi (jumlah post)
+            </p>
           </Section>
         </div>
 
@@ -309,8 +325,7 @@ function Body({ f }: { f: Filters }) {
           </Section>
         ))}
         <footer className="border-t border-zinc-200 pt-2 text-[10px] text-zinc-400">
-          Sentimen & emosi diklasifikasikan otomatis oleh model AI dan dapat keliru pada teks sarkastik. Lokasi hanya dari post yang
-          lokasinya terdeteksi. Engagement = like + komentar + share (+ view bila tersedia).
+          Lokasi hanya dari post yang lokasinya terdeteksi. Engagement = like + komentar + share (+ view bila tersedia).
         </footer>
       </article>
     </>

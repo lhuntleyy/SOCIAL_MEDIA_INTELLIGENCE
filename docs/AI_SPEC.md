@@ -112,7 +112,12 @@ Fitur "Perception" di produk referensi (Perception Stream/Radar, Emotion by Enga
 
 Tujuan: menghasilkan frasa seperti "gedung dpr", "elemen mahasiswa", "penanganan bencana".
 
-Per post (worker-ai):
+> **Implementasi jalur LLM (2026-10-01, ADR-011):** isu diekstrak oleh panggilan batch LLM yang sama dengan sentimen/emosi
+> (`@smip/llm` `sent-emo-iss-v2`: 0–3 frasa 1–4 kata per post, dibersihkan `cleanIssues`) → `topic_match_events.issues` →
+> `agg_issue_1h` → `GET /analytics/issues?mode=count|engagement` → word cloud Dashboard & daftar di Laporan; label ke `nlp_labels`
+> task `keyphrase`. Skor c-TF-IDF & sinonim (di bawah) belum — peringkat masih frekuensi/engagement. Post lama tanpa isu → reprocess.
+
+Per post (worker-ai, rencana encoder):
 1. Tokenisasi + stopword Indonesia & Inggris (daftar versioned) + stopword per tenant.
 2. Kandidat n-gram 1–3 yang tidak diawali/diakhiri stopword; pola POS (NOUN/PROPN/ADJ) jika POS tagger tersedia & lolos evaluasi.
 3. Buang kandidat yang merupakan kata query topik itu sendiri (config `exclude_query_terms=true`).

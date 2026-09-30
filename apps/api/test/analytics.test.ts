@@ -56,7 +56,7 @@ describe.skipIf(!up)("D-01 analytics", () => {
       author_age_range: "unknown",
       author_age_conf: 0,
       model_version: mv,
-      issues: [],
+      issues: k <= 1 ? ["gaji kopdes"] : [],
       hashtags: k === 0 ? ["kopdes"] : [],
       parent_author_id: null,
       parent_author_handle: null,
@@ -124,6 +124,10 @@ describe.skipIf(!up)("D-01 analytics", () => {
     expect((e.json.data as { items: { emotion: string }[] }).items.map((i) => i.emotion).sort()).toEqual(["anger", "disgust", "joy"]);
     expect(((await get(`/analytics/hashtags?topic_id=${TA}`, ta)).json.data as { items: unknown[] }).items).toEqual([
       { hashtag: "kopdes", count: 1, engagement: 10 },
+    ]);
+    // isu: pasangan relabel −1/+1 saling meniadakan → 2 post (p0 label baru + p1)
+    expect(((await get(`/analytics/issues?topic_id=${TA}`, ta)).json.data as { items: unknown[] }).items).toEqual([
+      { issue: "gaji kopdes", count: 2, engagement: 20 },
     ]);
     const tl = (await get(`/analytics/sentiment/timeline?topic_id=${TA}&granularity=1h`, ta)).json.data as {
       series: { key: string; values: number[] }[];
