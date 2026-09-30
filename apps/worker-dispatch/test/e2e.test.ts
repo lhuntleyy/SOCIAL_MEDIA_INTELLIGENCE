@@ -248,8 +248,11 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
     expect(p!.next_run_at.getTime() - Date.now()).toBeGreaterThan(800_000); // backoff ≥ interval
   });
 
-  test("hasil kosong → run succeeded langsung, plan dibebaskan & consecutive_failures direset", async () => {
+  test("hasil kosong → run succeeded langsung, plan dibebaskan & consecutive_failures direset; batas post platform dipakai", async () => {
+    await sql`update platforms set max_items_per_run = 40 where code = 'x'`; // Pengaturan → Sumber data (migrasi 0023)
     await pump(async () => (await runRow()).status === "succeeded");
+    await sql`update platforms set max_items_per_run = null where code = 'x'`;
+    expect([...fakes.a.calls, ...fakes.b.calls].map((c) => c.maxItems)).toContain(40);
     expect(await runRow()).toMatchObject({ status: "succeeded", items_fetched: 0 });
     expect((await sql`select consecutive_failures, inflight_run_id from crawl_plans`)[0]).toEqual({
       consecutive_failures: 0,

@@ -5,6 +5,8 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Batas post per pengambilan per platform** (Pengaturan → Sumber data; migrasi 0023 `platforms.max_items_per_run`,
+  `GET/PATCH /admin/platforms`, dipakai worker-dispatch; kosong = bawaan 300) — mis. membatasi YouTube yang terlalu banyak.
 - **Isu (kata/kalimat) seperti panel ISSUES produk referensi** (A-04 jalur LLM): LLM mengekstrak 0–3 frasa isu per post dalam panggilan
   batch yang sama → `GET /analytics/issues` → word cloud *Isu* & *Isu berdasarkan engagement* di Dashboard (klik → post), daftar isu
   di Laporan. Footer Laporan tanpa penyebutan model AI. Auto-refresh otomatis Off & terkunci bila topik dijeda di menu Topik.
@@ -108,6 +110,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Kode spike: `package.json`, `.bun-version` (1.4.2), `scripts/compat-check.ts` + `scripts/compat/*`, `scripts/spike-infra.sh`, bukti `docs/evidence/`.
 
 ### Fixed
+- Panel *Isu* kosong di demo: container API belum di-restart setelah endpoint baru; word cloud kini menampilkan error/memuat, bukan kotak kosong.
 - **Query `or/and/not` huruf kecil dibaca sebagai kata biasa** → `jokowi or jkw` = `jokowi AND or AND jkw` → data terambil tapi 0 post
   cocok (topik BPIP & JOKOWI). Operator kini tidak peka huruf (ADR-008 amandemen); `scripts/reparse-queries.ts` mem-parse ulang query lama.
 - **Satu HTTP 403 dari satu actor Apify mematikan SEMUA platform Apify** (akun `needs_attention` permanen, tanpa alert, UI tetap

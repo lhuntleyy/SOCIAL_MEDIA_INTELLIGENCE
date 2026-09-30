@@ -157,6 +157,24 @@ export class ProviderAdminService {
     );
   }
 
+  /** Pengaturan per platform (migrasi 0023): batas post per pengambilan. */
+  listPlatforms() {
+    return this.sys((tx) => rows(tx, sql`select code, name, enabled, max_items_per_run from platforms order by sort_order, code`));
+  }
+
+  async patchPlatform(a: Actor, code: string, b: { max_items_per_run?: number | null }) {
+    return this.sys(async (tx) => {
+      const r = await rows(
+        tx,
+        sql`update platforms set max_items_per_run = ${b.max_items_per_run === undefined ? sql`max_items_per_run` : b.max_items_per_run}
+            where code = ${code} returning code, name, enabled, max_items_per_run`,
+      );
+      if (!r.length) throw new ApiError("NOT_FOUND", "Platform tidak ditemukan");
+      await this.audit(tx, a, "platform.update", { type: "platform", id: code }, b, null);
+      return r[0]!;
+    });
+  }
+
   async patchProvider(a: Actor, id: string, b: { enabled?: boolean; risk_level?: "low" | "medium" | "high"; notes?: string | null }) {
     return this.sys(async (tx) => {
       let r: Row[];

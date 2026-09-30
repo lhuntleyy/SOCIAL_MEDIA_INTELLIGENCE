@@ -24,6 +24,10 @@ interface Account {
   attention_reason: string | null;
   tenant_id: string | null;
 }
+interface PlatformSetting {
+  code: string;
+  max_items_per_run: number | null;
+}
 interface Usage {
   connector: string;
   attempts: number;
@@ -68,6 +72,47 @@ function health(c: Connector, blocked: boolean) {
   return { dot: "bg-emerald-500", text: "sehat" };
 }
 
+/** Batas post per pengambilan (per run) untuk satu platform — kosong = bawaan sistem (300). */
+function MaxItems({ code, value }: { code: string; value: number | null | undefined }) {
+  const qc = useQueryClient();
+  const [v, setV] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: (n: number | null) => api(`/admin/platforms/${code}`, { method: "PATCH", json: { max_items_per_run: n } }),
+    onSuccess: () => {
+      setV(null);
+      void qc.invalidateQueries({ queryKey: ["admin-platforms"] });
+    },
+  });
+  const cur = v ?? (value ? String(value) : "");
+  const n = cur.trim() === "" ? null : Number(cur);
+  const valid = n === null || (Number.isInteger(n) && n >= 1 && n <= 1000);
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-600">
+      <label
+        htmlFor={`max-${code}`}
+        title="Batas jumlah post yang diambil setiap kali sistem menarik data platform ini (per topik per jadwal)."
+      >
+        Maks. post per pengambilan
+      </label>
+      <input
+        id={`max-${code}`}
+        inputMode="numeric"
+        placeholder="300 (bawaan)"
+        value={cur}
+        onChange={(e) => setV(e.target.value.replace(/[^0-9]/g, ""))}
+        className="w-28 rounded-md border border-zinc-300 px-2 py-1"
+      />
+      {v !== null && (
+        <Button variant="ghost" onClick={() => save.mutate(n)} disabled={!valid || save.isPending}>
+          Simpan
+        </Button>
+      )}
+      {!valid && <span className="text-red-600">1–1000</span>}
+      <ErrorText error={save.error} />
+    </div>
+  );
+}
+
 function Sources() {
   const qc = useQueryClient();
   const [showTest, setShowTest] = useState(false);
@@ -77,6 +122,10 @@ function Sources() {
   const usage = useQuery({
     queryKey: ["admin-usage", from],
     queryFn: () => api<Usage[]>(`/admin/usage?group_by=connector&from=${from}&to=${new Date(Date.now() + 60_000).toISOString()}`),
+  });
+  const platformSettings = useQuery({
+    queryKey: ["admin-platforms"],
+    queryFn: () => api<PlatformSetting[]>("/admin/platforms"),
   });
   const accounts = useQuery({ queryKey: ["admin-accounts"], queryFn: () => api<Account[]>("/admin/accounts") });
   const reactivate = useMutation({
@@ -199,6 +248,7 @@ function Sources() {
                   );
                 })}
               </ul>
+              <MaxItems code={p} value={platformSettings.data?.find((x) => x.code === p)?.max_items_per_run} />
             </Card>
           );
         })}

@@ -391,6 +391,11 @@ export async function handleDispatch(
       return "failed";
     }
     const snap = await d.snapshots.get();
+    // batas post per run per platform (Pengaturan → Sumber data; migrasi 0023) — NULL = bawaan
+    const [pl] = (await tx.execute(sql`select max_items_per_run from platforms where code = ${plan.platform_code}`)) as unknown as {
+      max_items_per_run: number | null;
+    }[];
+    const maxItems = pl?.max_items_per_run ?? f.maxItems;
     const queries = plan.operation.startsWith("search_")
       ? compileFor(snap, decision.connectorId, plan.operation, ast as Node, routing.recompiled)
       : undefined;
@@ -426,7 +431,7 @@ export async function handleDispatch(
         window: { since: run.window_from ? iso(run.window_from) : undefined, until: run.window_to ? iso(run.window_to) : undefined },
         cursor: null,
         pageLimit: f.pageLimit,
-        maxItems: plan.target_ids ? plan.target_ids.length : f.maxItems,
+        maxItems: plan.target_ids ? plan.target_ids.length : maxItems,
       },
       deadline_at: iso(new Date(now.getTime() + f.timeoutMs)),
     };

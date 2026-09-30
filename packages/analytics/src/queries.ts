@@ -222,7 +222,13 @@ export async function hashtags(ch: ClickHouseClient, f: AnalyticsFilter, limit =
 }
 
 /** Isu/keyphrase (AI_SPEC §5) dari `agg_issue_1h` — word cloud "Isu" & "Isu (engagement)"; `mode=engagement` = urut bobot engagement. */
-export async function issues(ch: ClickHouseClient, f: AnalyticsFilter, limit = 40, mode: "count" | "engagement" = "count", sentiment?: string) {
+export async function issues(
+  ch: ClickHouseClient,
+  f: AnalyticsFilter,
+  limit = 40,
+  mode: "count" | "engagement" = "count",
+  sentiment?: string,
+) {
   const w = base(f);
   const rows = await q<{ issue: string; n: string; e: string }>(
     ch,

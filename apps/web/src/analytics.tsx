@@ -647,12 +647,15 @@ export function WordCloud({
   items,
   onPick,
   empty = "Belum ada data.",
+  error,
 }: {
   items: { key: string; value: number }[] | undefined;
   onPick?: (key: string) => void;
   empty?: string;
+  error?: unknown;
 }) {
-  if (!items) return <div className="h-48" />;
+  if (error) return <Empty>Gagal memuat: {error instanceof Error ? error.message : String(error)}</Empty>;
+  if (!items) return <Empty>Memuat…</Empty>;
   if (!items.length) return <Empty>{empty}</Empty>;
   const max = Math.sqrt(Math.max(...items.map((i) => i.value), 1));
   // kata terbesar di tengah: urutan zig-zag

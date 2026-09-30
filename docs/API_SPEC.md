@@ -407,6 +407,7 @@ Contoh alert rule:
 
 | Method | Path | Keterangan |
 |---|---|---|
+| GET | `/admin/platforms` · PATCH `/admin/platforms/{code}` | pengaturan per platform: `max_items_per_run` (1–1000, `null` = bawaan) — migrasi 0023 |
 | GET | `/admin/providers` | list + agregat health |
 | PATCH | `/admin/providers/{id}` | `enabled`, `risk_level`, `notes` |
 | GET | `/admin/connectors?platform=&provider=` | list + capabilities + health |

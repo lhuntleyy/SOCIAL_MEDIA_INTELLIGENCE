@@ -61,6 +61,13 @@ export function providerAdminRoutes(svc: ProviderAdminService) {
   });
 
   // ----- providers & connectors -----
+  r.get("/admin/platforms", op, async (c) => c.json({ data: await svc.listPlatforms() }));
+  r.patch("/admin/platforms/:code", op, async (c) => {
+    const code = c.req.param("code");
+    if (!/^[a-z][a-z0-9_]{0,31}$/.test(code)) throw new ApiError("NOT_FOUND", "Platform tidak ditemukan");
+    const b = await parseJson(c, z.strictObject({ max_items_per_run: z.int().min(1).max(1000).nullable().optional() }));
+    return c.json({ data: await svc.patchPlatform(actor(c), code, b) });
+  });
   r.get("/admin/providers", op, async (c) => c.json({ data: await svc.listProviders() }));
   r.patch("/admin/providers/:id", op, async (c) => {
     const b = await parseJson(

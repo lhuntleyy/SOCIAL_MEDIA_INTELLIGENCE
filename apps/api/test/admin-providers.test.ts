@@ -98,6 +98,8 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
       ["GET", "/admin/usage?group_by=connector&from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z"],
       ["GET", "/admin/dlq/fetch.bun"],
       ["GET", "/admin/audit-logs"],
+      ["GET", "/admin/platforms"],
+      ["PATCH", "/admin/platforms/x"],
     ] as const)
       expect((await call(m, p, adm1)).status).toBe(403);
   });
@@ -112,6 +114,18 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     expect(ok.json.data.notes).toBe("catatan ops");
     const [o] = await h.sql`select count(*)::int as n from outbox where aggregate = 'provider' and aggregate_id = ${PROV}`;
     expect(o!.n).toBe(1);
+  });
+
+  test("platforms: batas post per run (migrasi 0023) — set, validasi 1–1000, kosongkan = bawaan, diaudit", async () => {
+    const set = await call("PATCH", "/admin/platforms/x", opTok, { max_items_per_run: 50 });
+    expect(set.json.data).toMatchObject({ code: "x", max_items_per_run: 50 });
+    expect((await call("PATCH", "/admin/platforms/x", opTok, { max_items_per_run: 0 })).status).toBe(400);
+    expect((await call("PATCH", "/admin/platforms/tidakada", opTok, { max_items_per_run: 5 })).status).toBe(404);
+    const l = await call("GET", "/admin/platforms", opTok);
+    expect(l.json.data.find((p: { code: string }) => p.code === "x").max_items_per_run).toBe(50);
+    expect((await call("PATCH", "/admin/platforms/x", opTok, { max_items_per_run: null })).json.data.max_items_per_run).toBeNull();
+    const [a] = await h.sql`select count(*)::int as n from audit_logs where action = 'platform.update' and target_id = 'x'`;
+    expect(a!.n).toBe(2);
   });
 
   test("connectors: list berisi capabilities/health/rate_limits/quota tanpa config_schema", async () => {
