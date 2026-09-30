@@ -3,7 +3,7 @@
 // penutupan run baru setelah batch TERAKHIR, metrik null → engagement tidak diketahui (P-05).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type ClickHouseClient, createClient } from "@clickhouse/client";
-import { chUp } from "@smip/analytics";
+import { chUp, overrideSentiment } from "@smip/analytics";
 import { fakeItem } from "@smip/connector-fake";
 import { AiEnrichPayload, type CanonicalItem, type PostRecord, SinkAnalyticsPayload } from "@smip/contracts";
 import { createDb, loadGeoRegions, up } from "@smip/db";
@@ -357,5 +357,28 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
       t: ids.topic,
     });
     expect(tm.v).toBe("llm:test:v1");
+
+    // A-05: koreksi manusia pada post pertama → reprocess model berikutnya TIDAK menimpanya (AI_SPEC §8)
+    const [first] = relabel.matches;
+    const ov = await overrideSentiment(ch, {
+      tenantId: base.tenant_id!,
+      topicId: ids.topic,
+      platform: first!.platform,
+      postId: first!.post_id,
+      label: "neutral",
+      batchId: Bun.randomUUIDv7(),
+    });
+    expect(ov).toMatchObject({ previous: "negative", changed: true });
+    const model2 = {
+      ...relabel,
+      batch_id: Bun.randomUUIDv7(),
+      matches: relabel.matches.map((x) => ({ ...x, sentiment: "negative" as const, model_version: "llm:test:v2" })),
+    };
+    const r2 = await handleSink(sinkDeps, model2);
+    expect([r2.events, r2.skippedByGuard]).toEqual([1, 1]); // hanya post kedua dilabel ulang
+    expect(await dist()).toEqual([
+      ["negative", 1],
+      ["neutral", 1],
+    ]);
   });
 });

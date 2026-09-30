@@ -1,7 +1,7 @@
 // A-06 reprocess/relabel (AI_SPEC §9): match yang sudah tercatat diberi label model baru TANPA dobel hitung —
 // salinan persis baris +1 terakhir dengan sign −1, lalu +1 berisi sentimen/emosi/model_version baru (pola override/refresh).
 // Match yang model_version-nya sudah sama dilewati (idempoten); pesan diulang → ledger processed_messages.
-import { sinkInsertSettings } from "@smip/analytics";
+import { HUMAN_MODEL_VERSION, sinkInsertSettings } from "@smip/analytics";
 import type { SinkAnalyticsPayload } from "@smip/contracts";
 import { claimMessage, withSystem } from "@smip/db";
 import { chTime, type SinkDeps, type SinkResult } from "./sink";
@@ -26,7 +26,8 @@ export async function handleRelabelSink(d: SinkDeps, m: SinkAnalyticsPayload): P
   const rows: Record<string, unknown>[] = [];
   for (const x of m.matches) {
     const cur = byKey.get(`${x.platform}|${x.post_id}`);
-    if (!cur || cur.model_version === x.model_version) {
+    // label manusia (A-05) selalu menang: reprocess model tidak menimpanya
+    if (!cur || cur.model_version === x.model_version || cur.model_version === HUMAN_MODEL_VERSION) {
       res.skippedByGuard++;
       continue;
     }

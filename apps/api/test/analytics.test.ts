@@ -202,4 +202,36 @@ describe.skipIf(!up)("D-01 analytics", () => {
     expect((await get(`/analytics/summary?topic_id=bukan-uuid`, ta)).status).toBe(400);
     expect((await get(`/analytics/summary?topic_id=${TA}&from=2026-09-10T00:00:00Z&to=2026-09-01T00:00:00Z`, ta)).status).toBe(400);
   });
+  test("A-05 / P-06: koreksi sentimen manual → proporsi berubah (−1/+1), idempoten, diaudit; viewer & tenant lain ditolak", async () => {
+    await h.sql`insert into users (id, email, name) values (${UA}, 'ua@contoh.id', 'Analis A') on conflict do nothing`;
+    const patch = (t: string, body: unknown, post = "p1") =>
+      h
+        .call("PATCH", `/posts/x/${post}/sentiment`, { token: t, body })
+        .then(async (r) => ({ status: r.status, json: (await r.json()) as { data: never } }));
+    const viewer = await h.token({ sub: UA, tid: A, role: "viewer" });
+    expect((await patch(viewer, { topic_id: TA, label: "positive" })).status).toBe(403);
+    expect((await patch(tb, { topic_id: TA, label: "positive" })).status).toBe(404); // topik tenant lain
+    expect((await patch(ta, { topic_id: TA, label: "positive" }, "tidakada")).status).toBe(404);
+    expect((await patch(ta, { topic_id: TA, label: "senang" })).status).toBe(400);
+    const ok = await patch(ta, { topic_id: TA, label: "positive", reason: "sarkasme salah baca" });
+    expect(ok.json.data).toMatchObject({ label: "positive", source: "human", previous: "negative" });
+    const again = await patch(ta, { topic_id: TA, label: "positive" }); // sudah human+positive → tidak menulis apa pun
+    expect(again.json.data).toMatchObject({ override_id: null });
+    const p = (await get(`/analytics/sentiment/proportion?topic_id=${TA}`, ta)).json.data as {
+      items: { sentiment: string; count: number }[];
+    };
+    expect(p.items.map((i) => [i.sentiment, i.count])).toEqual([
+      ["positive", 2],
+      ["negative", 1],
+    ]);
+    const [o] = await h.sql`select previous_label, new_label, previous_model_version, reason from sentiment_overrides where post_id = 'p1'`;
+    expect(o).toEqual({
+      previous_label: "negative",
+      new_label: "positive",
+      previous_model_version: "llm:v1",
+      reason: "sarkasme salah baca",
+    });
+    const [a] = await h.sql`select before, after from audit_logs where action = 'post.sentiment_override'`;
+    expect(a!.before).toEqual({ label: "negative", model_version: "llm:v1" }); // objek JSON, bukan string ter-encode ganda
+  });
 });

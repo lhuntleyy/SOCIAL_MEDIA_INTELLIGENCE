@@ -5,6 +5,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Koreksi sentimen manual (A-05, P-06):** analis/admin klik label sentimen di kartu post → pilih label baru → `PATCH
+  /posts/{platform}/{post_id}/sentiment` → pasangan −1/+1 (`model_version=human`) + `sentiment_overrides` (dataset training) + audit;
+  semua chart ikut berubah; label manual ditandai ✓ dan **tidak ditimpa** reprocess AI.
 - **Percakapan → tab *Isu*** (U-04, meniru Issues/Issue Comparison produk referensi): donut isu teratas, perbandingan isu periode
   terpilih vs periode sebelumnya (perubahan % + penanda *baru*), word cloud isu sentimen positif/negatif; tab *Sentimen* kini juga
   menampilkan word cloud isu per sentimen. Semua bisa diklik → post.

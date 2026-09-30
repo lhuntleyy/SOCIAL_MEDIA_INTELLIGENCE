@@ -1,10 +1,11 @@
 // Kerangka halaman analitik: filter global di URL (UI_SPEC §2, shareable), hook data, dan DRILL-DOWN — setiap chart bisa
 // diklik → popup berisi post di balik angka itu (+ "jadikan filter" untuk platform / rentang waktu).
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, apiFull } from "./api";
+import { useAuth } from "./auth";
 import type { TopicSummary } from "./types";
 import { Badge, Button, Card, Empty, fmtTime, Modal, PLATFORM_LABEL, Select } from "./ui";
 
@@ -83,6 +84,7 @@ export interface Post {
   author_followers: number | null;
   text: string | null;
   url: string | null;
+  model_version?: string;
 }
 
 // Filter terakhir diingat (localStorage) → pindah halaman / buka ulang tetap di topik & rentang yang sama.
@@ -368,7 +370,7 @@ function PostsModal({ f, d, onClose }: { f: Filters; d: Drill; onClose: () => vo
       {!q.isLoading && !posts.length && <Empty>Tidak ada post.</Empty>}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {posts.map((p) => (
-          <PostCard key={`${p.platform}${p.post_id}`} p={p} />
+          <PostCard key={`${p.platform}${p.post_id}`} p={p} topicId={f.topic} />
         ))}
       </div>
     </Modal>
@@ -377,7 +379,63 @@ function PostsModal({ f, d, onClose }: { f: Filters; d: Drill; onClose: () => vo
 
 const fmtN = (n: number) => n.toLocaleString("id-ID");
 
-export function PostCard({ p, compact }: { p: Post; compact?: boolean }) {
+/** Label sentimen; analis ke atas bisa mengoreksinya (A-05) → agregat & chart ikut berubah. */
+function SentimentLabel({ p, topicId }: { p: Post; topicId?: string }) {
+  const { me } = useAuth();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const role = me?.current_tenant.role;
+  const canEdit = !!topicId && (me?.user.is_platform_operator || ["owner", "admin", "analyst"].includes(role ?? ""));
+  const human = p.model_version === "human";
+  const save = useMutation({
+    mutationFn: (label: string) =>
+      api(`/posts/${p.platform}/${encodeURIComponent(p.post_id)}/sentiment`, { method: "PATCH", json: { topic_id: topicId, label } }),
+    onSuccess: () => {
+      setOpen(false);
+      void qc.invalidateQueries(); // semua chart & feed memuat ulang angka terbaru
+    },
+  });
+  const badge = (
+    <span
+      className="rounded px-1.5 py-0.5 font-medium text-white"
+      style={{ background: SENT_COLOR[p.sentiment] }}
+      title={human ? "Dikoreksi manual oleh analis" : canEdit ? "Klik untuk mengoreksi sentimen" : undefined}
+    >
+      {SENT_LABEL[p.sentiment]}
+      {human && " ✓"}
+    </span>
+  );
+  if (!canEdit) return badge;
+  return (
+    <span className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)}>
+        {badge}
+      </button>
+      {open && (
+        <span className="absolute left-0 top-6 z-20 flex flex-col gap-1 rounded-lg border border-zinc-200 bg-white p-2 shadow-lg">
+          <span className="text-[10px] text-zinc-500">Ubah sentimen jadi:</span>
+          {(["positive", "neutral", "negative"] as const)
+            .filter((k) => k !== p.sentiment || !human)
+            .map((k) => (
+              <button
+                type="button"
+                key={k}
+                disabled={save.isPending}
+                onClick={() => save.mutate(k)}
+                className="rounded px-2 py-1 text-left font-medium text-white"
+                style={{ background: SENT_COLOR[k] }}
+              >
+                {SENT_LABEL[k]}
+              </button>
+            ))}
+          {save.error && <span className="max-w-40 text-[10px] text-red-600">{(save.error as Error).message}</span>}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function PostCard({ p, compact, topicId }: { p: Post; compact?: boolean; topicId?: string }) {
   return (
     <article className="flex flex-col rounded-lg border border-zinc-200 bg-white p-3">
       <div className="flex items-start gap-2">
@@ -398,9 +456,7 @@ export function PostCard({ p, compact }: { p: Post; compact?: boolean }) {
       </div>
       <p className={`mt-2 flex-1 whitespace-pre-line break-words text-sm ${compact ? "line-clamp-3" : "line-clamp-5"}`}>{p.text}</p>
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="rounded px-1.5 py-0.5 font-medium text-white" style={{ background: SENT_COLOR[p.sentiment] }}>
-          {SENT_LABEL[p.sentiment]}
-        </span>
+        <SentimentLabel p={p} topicId={topicId} />
         {p.emotion !== "unknown" && (
           <span className="rounded px-1.5 py-0.5 font-medium text-white" style={{ background: EMO_COLOR[p.emotion] }}>
             {EMO_LABEL[p.emotion]}
@@ -461,7 +517,7 @@ export function FeedColumn({
       </button>
       <div className="max-h-[560px] space-y-2 overflow-y-auto p-2">
         {q.data?.data.map((p) => (
-          <PostCard key={`${p.platform}${p.post_id}`} p={p} compact />
+          <PostCard key={`${p.platform}${p.post_id}`} p={p} compact topicId={f.topic} />
         ))}
         {q.data && !q.data.data.length && <Empty>Belum ada post.</Empty>}
       </div>

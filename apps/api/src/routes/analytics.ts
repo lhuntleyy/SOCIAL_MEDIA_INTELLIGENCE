@@ -3,12 +3,14 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import * as A from "@smip/analytics";
 import type { TenantId } from "@smip/core";
-import { type Db, withSystem, withTenant } from "@smip/db";
+import { type Db, jsonbValue, withSystem, withTenant } from "@smip/db";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { ApiError } from "../errors";
+import { requireRole } from "../middleware/auth";
+import { parseJson } from "../validate";
 import { requireScope } from "./topics";
 
 const Common = z.object({
@@ -111,6 +113,47 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
     };
     const [items, total] = await Promise.all([A.feed(d.ch, f, o), q.count === "1" ? A.feedCount(d.ch, f, o) : undefined]);
     return c.json({ data: items, meta: { ...meta(c), ...(total !== undefined ? { total } : {}) } });
+  });
+  // A-05 (API_SPEC §6): koreksi sentimen manual → −1/+1 di ClickHouse + sentiment_overrides (dataset training) + audit
+  r.patch("/posts/:platform/:post_id/sentiment", requireRole("analyst"), requireScope("posts:write"), async (c) => {
+    const platform = c.req.param("platform");
+    const postId = c.req.param("post_id");
+    if (!/^[a-z][a-z0-9_]{0,31}$/.test(platform) || postId.length > 200) throw new ApiError("NOT_FOUND", "Post tidak ditemukan");
+    const b = await parseJson(
+      c,
+      z.strictObject({
+        topic_id: z.uuid(),
+        label: z.enum(["negative", "neutral", "positive"]),
+        reason: z.string().trim().max(500).optional(),
+      }),
+    );
+    const auth = c.get("auth") as { tid: string; sub: string };
+    const tid = auth.tid as TenantId;
+    const ok = await withTenant(d.db, tid, (tx) => tx.execute(sql`select 1 from topics where id = ${b.topic_id} and deleted_at is null`));
+    if (!(ok as unknown as unknown[]).length) throw new ApiError("NOT_FOUND", "Topik tidak ditemukan");
+    const overrideId = Bun.randomUUIDv7();
+    const r = await A.overrideSentiment(d.ch, {
+      tenantId: tid,
+      topicId: b.topic_id,
+      platform,
+      postId,
+      label: b.label,
+      batchId: overrideId,
+    });
+    if (!r) throw new ApiError("NOT_FOUND", "Post tidak ditemukan pada topik ini");
+    if (r.changed)
+      await withTenant(d.db, tid, async (tx) => {
+        await tx.execute(sql`insert into sentiment_overrides (id, tenant_id, topic_id, platform, post_id, previous_label, new_label, previous_model_version, user_id, reason)
+          values (${overrideId}, ${tid}, ${b.topic_id}, ${platform}, ${postId}, ${r.previous}, ${b.label}, ${r.previousModelVersion}, ${auth.sub}, ${b.reason ?? null})`);
+        await tx.execute(sql`insert into audit_logs (id, tenant_id, actor_type, actor_id, action, target_type, target_id, before, after, request_id)
+          values (${Bun.randomUUIDv7()}, ${tid}, 'user', ${auth.sub}, 'post.sentiment_override', 'post', ${`${platform}:${postId}`},
+            ${jsonbValue({ label: r.previous, model_version: r.previousModelVersion })},
+            ${jsonbValue({ label: b.label, topic_id: b.topic_id, reason: b.reason ?? null })}, ${c.get("requestId")})`);
+      });
+    return c.json({
+      data: { label: b.label, source: "human", previous: r.previous, override_id: r.changed ? overrideId : null },
+      meta: meta(c),
+    });
   });
   return r;
 }
