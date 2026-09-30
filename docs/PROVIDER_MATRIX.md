@@ -4,6 +4,12 @@
 >
 > Pengisian dilakukan di TASK fase 0 (S-10..S-13, S-16, S-17). Setiap verifikasi mencatat: tanggal, URL dokumen, versi API/actor, dan (jika dites) link evidence contract test.
 
+> **Biaya terukur 2026-10-01 (backfill 7 hari BPIP+JOKOWI, tanpa pagar bulanan):** `apify.instagram.boolean` dengan hashtag turunan
+> **$7,73 / 817 hasil ≈ $9,5 per 1.000** (beberapa run menyentuh `maxTotalChargeUsd` $1) — tiap cabang keyword/`#tag` = event halaman
+> pencarian berbayar; jauh di atas tarif DOCS ($1,55/1K + $0,01/halaman) dan actor hashtag resmi ($2,60/1K). FB scraper_one $1,12/487
+> (≈ $2,3/1K), TikTok clockworks $0,59/226, X xquik $0,004/2.028. Total SMIP ≈ $9,5 dalam 2 jam → akun Apify melewati batas siklus
+> ($23,4/$19) → `actor-disabled` / "maximum usage for your current billing cycle" (dipetakan FORBIDDEN/UPSTREAM_5XX).
+>
 > **Temuan live 2026-10-01 (IG keyword):** pencarian keyword Instagram (boolean scraping_solutions **dan** crawlerbros) diurutkan
 > **relevansi, bukan waktu** — "BPIP": post terbaru 2026-08-25; 0 post dalam 7 hari bahkan untuk "koperasi merah putih". Cabang
 > `#hashtag` (feed `recent`) di actor boolean membawa post baru ("bpip OR #bpip OR …" → 13/13 ≤ 7 hari, $0,029). Maka IG =
