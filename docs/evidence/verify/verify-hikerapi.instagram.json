@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-01T07:53:28.418Z",
+  "connector": "hikerapi.instagram",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "jokowi",
+  "window_hours": 1,
+  "max_items": 30,
+  "samples": 2,
+  "items_valid": 64,
+  "items_invalid": 0,
+  "usage_results_returned": 70,
+  "cost_usd": 0,
+  "since_respected": true,
+  "returns_fields_rate": {},
+  "latency_ms": {
+    "samples": [
+      8225,
+      13199
+    ],
+    "p50": 8225,
+    "p95": 13199
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

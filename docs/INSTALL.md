@@ -92,6 +92,7 @@ Isi `secrets.env` (satu baris per kunci):
 APIFY_TOKEN=…            # https://console.apify.com/settings/integrations
 YOUTUBE_API_KEY=…        # Google Cloud Console → APIs & Services → YouTube Data API v3 → Credentials
 GEMINI_API_KEY=…         # https://aistudio.google.com/apikey
+HIKERAPI_KEY=…           # https://hikerapi.com (Instagram)
 ```
 File ini hanya dibaca oleh skrip operator saat mendaftarkan akun (nilai disegel ke database terenkripsi, tidak pernah dicetak).
 Setelah didaftarkan, kunci bisa dihapus dari file ini.
@@ -190,7 +191,7 @@ Urutan saat ini (2026-10-01):
 | Platform | Sumber (urutan) | Catatan |
 |---|---|---|
 | X | xquik → kaito → scraper_one | xquik murah & paling banyak hasil |
-| Instagram | boolean: keyword **+ hashtag turunan** dalam satu run (100%) → hashtag resmi Apify (cadangan) | keyword IG diurutkan relevansi (post lama); cabang `#hashtag` (feed recent) membawa post baru |
+| Instagram | **HikerAPI** (100%) — hashtag terbaru + keyword topsearch; Apify IG nonaktif | daftar akun: `bun $E scripts/connectors.ts account hikerapi hiker-1 HIKERAPI_KEY api_key`; isi saldo di hikerapi.com ($1/1.000 request) |
 | TikTok | clockworks → xmolodtsov | clockworks punya filter tanggal |
 | Facebook | scraper_one | |
 | Threads | scrapersdelight | |

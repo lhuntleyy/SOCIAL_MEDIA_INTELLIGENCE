@@ -90,7 +90,8 @@ export async function runVerify(c: Connector, acc: AccountMaterial, o: VerifyOpt
       all.length ? all.filter((it) => pathValue(it, f) !== null && pathValue(it, f) !== undefined).length / all.length : 0,
     ]),
   );
-  const sinceOk = all.every((it) => it.published_at >= since.toISOString());
+  // CONNECTOR_SPEC §9 langkah 4: hanya connector yang MENGKLAIM supportsSince wajib menghormati window (sama dgn contract suite)
+  const sinceOk = !sup.supportsSince || all.every((it) => it.published_at >= since.toISOString());
   const sorted = [...lat].sort((a, b) => a - b);
   const p = (q: number) => sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * q) - 1)] ?? null;
   const pass = all.length > 0 && invalid === 0 && sinceOk && Object.values(fieldRate).every((v) => v >= 0.8);

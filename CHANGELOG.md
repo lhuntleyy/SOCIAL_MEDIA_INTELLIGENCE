@@ -5,6 +5,11 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Instagram via HikerAPI** (`packages/connectors/hikerapi`, `hikerapi.instagram`, VERIFIED live 2026-10-01: 64 post, p50 8,2 s) —
+  hashtag terbaru (halaman berhenti di window → tanpa tagihan berulang) + keyword `/gql/topsearch`; jadi **satu-satunya** sumber Instagram
+  (Apify IG dinonaktifkan, keputusan pemilik). Backfill JOKOWI 1 hari: 102 post / 6 request = $0,006. Risk `high` (API privat IG).
+  verify: cek window hanya untuk connector yang mengklaim `supportsSince` (CONNECTOR_SPEC §9).
+- Word cloud isu 3D diganti **tag cloud pill** sederhana (4 ukuran menurut peringkat, angka di pill, klik → post).
 - **maxItems adaptif** (COST_MODEL §11.2): manifest `sinceGranularity: "day"` untuk actor yang filter waktunya per hari; untuk yang
   terurut terbaru dulu (TikTok clockworks, FB/X scraper_one, YouTube streamers) run incremental meminta ± 3× post baru yang
   diharapkan (min. 5, naik 4× saat saturasi) — memangkas tagihan berulang tiap poll. Actor tak terurut tidak dipotong.

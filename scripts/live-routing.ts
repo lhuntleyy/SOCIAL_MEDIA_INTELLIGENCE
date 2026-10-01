@@ -25,14 +25,9 @@ const PLAN: Record<string, { rules: [string, number, number][] }> = {
       ["apify.tiktok.xmolodtsov", 2, 100],
     ],
   },
-  // keyword + hashtag dalam SATU run connector boolean (100%): keyword IG diurutkan relevansi (post lama), cabang #hashtag
-  // turunan memakai feed recent → post baru (probe live 2026-10-01). Actor hashtag resmi = cadangan bila boolean gagal/kuota habis.
-  instagram: {
-    rules: [
-      ["apify.instagram.boolean", 1, 100],
-      ["apify.instagram.hashtag", 2, 100],
-    ],
-  },
+  // 2026-10-01 (keputusan pemilik): Instagram via HikerAPI saja — hashtag terbaru (berhenti di window, tanpa tagihan berulang) +
+  // keyword /gql/topsearch; ±$0,03/1K post vs Apify IG $2,3–10,2/1K (PROVIDER_MATRIX "Uji HikerAPI"). Actor Apify IG dinonaktifkan.
+  instagram: { rules: [["hikerapi.instagram", 1, 100]] },
   facebook: { rules: [["apify.facebook.scraperone", 1, 100]] },
   threads: { rules: [["apify.threads.scrapersdelight", 1, 100]] },
 };
@@ -56,6 +51,10 @@ const MONTHLY_USD: Record<string, number> = {
   "apify.threads.scrapersdelight": 0.8,
   "apify.youtube.streamers": 0.1,
 };
+/** Connector yang dimatikan (tidak dipakai routing). */
+const DISABLED = ["apify.instagram.boolean", "apify.instagram.hashtag"];
+/** Tarif HikerAPI (DOCS hikerapi.com/pricing 2026-10-01: $1 / 1.000 request paket populer; $0,60 di volume) → usage.costUnits. */
+const HIKER_USD_PER_REQUEST = 0.001;
 const dry = process.argv.includes("--dry");
 const sql = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
 try {
@@ -69,6 +68,7 @@ try {
     for (const c of conns) {
       const cfg = { ...(c.config as Record<string, unknown>) };
       if (c.key.startsWith("apify.")) cfg.maxTotalChargeUsd = PER_RUN_USD;
+      if (c.key.startsWith("hikerapi.")) cfg.usdPerRequest = HIKER_USD_PER_REQUEST;
       await tx`update connectors set enabled = true, config = ${tx.json(cfg as never)}, updated_at = now() where id = ${c.id}`;
       const usd = MONTHLY_USD[c.key];
       if (usd !== undefined) {
@@ -81,6 +81,12 @@ try {
         await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('quota_policy', ${c.id}, 'quota.updated', '{}')`;
       }
     }
+    for (const [c] of await tx`select id from connectors where key in ${tx(DISABLED)}`.then((r) => r.map((x) => [x]))) {
+      await tx`update connectors set enabled = false, updated_at = now() where id = ${c!.id}`;
+      await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('connector', ${c!.id}, 'connector.updated', '{}')`;
+    }
+    // HikerAPI memakai API privat Instagram → risiko tinggi (tenant yang opt-out tidak dilayani, I-19)
+    await tx`update providers set risk_level = 'high', updated_at = now() where key = 'hikerapi'`;
     // run Apify bersamaan dibatasi per akun: plan menolak run baru bila total memori run aktif melebihi batas plan
     // (HTTP 402 actor-memory-limit-exceeded, teramati live 2026-09-30 di plan FREE saat 8 run paralel × 1 GB)
     for (const acc of await tx`select pa.id from provider_accounts pa join providers p on p.id = pa.provider_id where p.key = 'apify' and pa.status = 'active'`) {

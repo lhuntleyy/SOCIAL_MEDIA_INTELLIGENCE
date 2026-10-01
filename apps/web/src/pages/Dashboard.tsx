@@ -17,13 +17,13 @@ import {
   SENT_LABEL,
   type Series,
   Stat,
+  TagCloud,
   TimeChart,
   Treemap,
   useA,
   useDrill,
   useFilterSearch,
   useFilters,
-  WordCloud3D,
 } from "../analytics";
 import { OfficePicker, useNeedsOffice } from "../office";
 import { Empty, ErrorText } from "../ui";
@@ -172,7 +172,7 @@ function Body({ f }: { f: Filters }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Isu" info="Frasa isu yang paling banyak dibicarakan (diekstrak otomatis per post). Klik untuk melihat post-nya.">
-          <WordCloud3D
+          <TagCloud
             items={iss.data?.items.map((i) => ({ key: i.issue, value: i.count }))}
             error={iss.error}
             onPick={(k) => drill({ title: `Isu: ${k}`, params: { issue: k } })}
@@ -180,7 +180,7 @@ function Body({ f }: { f: Filters }) {
           />
         </Panel>
         <Panel title="Isu berdasarkan engagement" info="Isu yang post-nya paling banyak mendapat like/komentar/share.">
-          <WordCloud3D
+          <TagCloud
             items={issEng.data?.items.map((i) => ({ key: i.issue, value: i.engagement })).filter((i) => i.value > 0)}
             error={issEng.error}
             onPick={(k) => drill({ title: `Isu: ${k}`, params: { issue: k }, sort: "engagement" })}
