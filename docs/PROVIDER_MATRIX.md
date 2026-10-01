@@ -4,6 +4,14 @@
 >
 > Pengisian dilakukan di TASK fase 0 (S-10..S-13, S-16, S-17). Setiap verifikasi mencatat: tanggal, URL dokumen, versi API/actor, dan (jika dites) link evidence contract test.
 
+> **Uji HikerAPI 2026-10-01 (trial, 5 request):** `GET /v2/hashtag/medias/recent?name=` → ±30 post/request, **terurut terbaru**,
+> paginasi `page_id` tanpa duplikat, ±4,5 s/request; `#jokowi` 2 halaman = 57 post ≤ 24 jam; `#koperasimerahputih` 1 request = 30 post
+> (29 jam) vs Apify IG = 8 post dalam 2 hari untuk topik yang sama. Keyword (`/v2/fbsearch/reels`, `/gql/topsearch`) = relevansi →
+> post lama (Apr–Sep), sama seperti actor Apify. Field: caption 47/57, like/comment 46/57, username 57/57, lokasi 8/57; **tanpa**
+> view_count & follower_count (perlu request profil terpisah). Harga (DOCS, hikerapi.com/pricing): **$1 / 1.000 request** (populer),
+> $0,60 di volume → ≈ $0,03 per 1.000 post vs Apify IG boolean $10,19 / hashtag $2,30–2,60. Kind: pihak ketiga yang memakai API privat
+> Instagram (pembuat instagrapi) → `risk_level: high` (opt-out tenant berlaku), ToS lihat S-15.
+>
 > **Biaya terukur 2026-10-01 (backfill 7 hari BPIP+JOKOWI, tanpa pagar bulanan):** `apify.instagram.boolean` dengan hashtag turunan
 > **$7,73 / 817 hasil ≈ $9,5 per 1.000** (beberapa run menyentuh `maxTotalChargeUsd` $1) — tiap cabang keyword/`#tag` = event halaman
 > pencarian berbayar; jauh di atas tarif DOCS ($1,55/1K + $0,01/halaman) dan actor hashtag resmi ($2,60/1K). FB scraper_one $1,12/487
