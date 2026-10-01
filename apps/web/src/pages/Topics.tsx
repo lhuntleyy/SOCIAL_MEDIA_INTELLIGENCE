@@ -26,8 +26,8 @@ function TopicListInner() {
   const canWrite = useRole("analyst");
   const [search, setSearch] = useState("");
   const q = useQuery({
-    queryKey: ["topics", search],
-    queryFn: () => api<TopicSummary[]>(`/topics?limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}`),
+    queryKey: ["topics", "topic", search],
+    queryFn: () => api<TopicSummary[]>(`/topics?kind=topic&limit=50${search ? `&search=${encodeURIComponent(search)}` : ""}`),
   });
   return (
     <Card
@@ -96,7 +96,7 @@ export function TopicPage() {
               </Button>
               {canWrite && (
                 <>
-                  <Button onClick={() => nav(`/topics/${id}/edit`)}>Ubah</Button>
+                  <Button onClick={() => nav(t.data?.kind === "account" ? `/accounts/${id}/edit` : `/topics/${id}/edit`)}>Ubah</Button>
                   {t.data.status === "active" ? (
                     <Button variant="ghost" onClick={() => status.mutate("pause")}>
                       Jeda

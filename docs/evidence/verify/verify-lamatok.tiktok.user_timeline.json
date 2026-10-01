@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-01T09:08:03.253Z",
+  "connector": "lamatok.tiktok",
+  "version": "0.1.0",
+  "operation": "user_timeline",
+  "query": "solo.times",
+  "window_hours": 72,
+  "max_items": 30,
+  "samples": 1,
+  "items_valid": 30,
+  "items_invalid": 0,
+  "usage_results_returned": 30,
+  "cost_usd": 0.002,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.views": 1,
+    "metrics.comments": 1,
+    "author.followers": 1
+  },
+  "latency_ms": {
+    "samples": [
+      16153
+    ],
+    "p50": 16153,
+    "p95": 16153
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

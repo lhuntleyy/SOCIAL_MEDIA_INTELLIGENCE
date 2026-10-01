@@ -95,7 +95,9 @@ Refresh token dikirim **hanya** sebagai cookie `smip_rt` (`HttpOnly; Secure; Sam
     "operations_available": ["search_hashtag", "search_keyword"], "min_interval_sec": 900 }
 ] }
 ```
-`operations_available` & `min_interval_sec` dihitung dari routing policy + capability **verified** untuk tenant ini.
+`operations_available` & `min_interval_sec` dihitung dari routing policy + capability **verified** untuk tenant ini (implementasi 2026-10-01: `user_timeline` = platform yang bisa dipakai menu Akun).
+
+**Pantau akun (menu Akun, 2026-10-01):** `POST /topics` dengan `kind: "account"` — tiap query `{"query_text": "@username", "platforms": ["tiktok"]}` (tepat satu platform); server memaksa operation `user_timeline`; `GET /topics?kind=topic|account`; `kind` tidak bisa diubah lewat PATCH.
 
 `GET /taxonomies?type=interest` · `POST /taxonomies` · `DELETE /taxonomies/{id}`
 

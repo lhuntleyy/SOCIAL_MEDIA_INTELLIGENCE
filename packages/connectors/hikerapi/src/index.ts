@@ -201,6 +201,19 @@ export class HikerApiConnector implements Connector {
         resultOrder: null,
         sinceGranularity: "exact", // berhenti per taken_at (detik) → tanpa tagihan berulang
       },
+      // pantau akun (menu Akun): post terbaru akun lewat grid profil
+      user_timeline: {
+        queryFeatures: [],
+        maxQueryLength: null,
+        supportsSince: false,
+        supportsUntil: true,
+        supportsCursor: false,
+        maxPageSize: 12,
+        returnsFields: [],
+        asyncExecution: false,
+        resultOrder: "desc",
+        sinceGranularity: "exact",
+      },
     },
     costModel: { unit: "request", reportsUsageInResponse: false },
     docsUrl: "https://api.instagrapi.com/docs",
@@ -238,11 +251,15 @@ export class HikerApiConnector implements Connector {
 
   async fetch(req: FetchRequest, ctx: ConnectorContext): Promise<FetchResult> {
     if (ctx.signal.aborted) throw new ConnectorError("TIMEOUT", "deadline sudah lewat");
-    if (req.operation !== "search_keyword")
+    if (req.operation !== "search_keyword" && req.operation !== "user_timeline")
       throw new ConnectorError("NOT_SUPPORTED", `operation ${req.operation} tidak didukung`, { scope: "connector" });
     const cfg = ctx.config as HikerConfig;
-    const { keywords, hashtags } = queryParts(req.query?.native ?? "");
-    if (!hashtags.length && !keywords.length) throw new ConnectorError("INVALID_QUERY", "query kosong", { scope: "request" });
+    const timeline = req.operation === "user_timeline";
+    const handles = timeline ? (req.targetIds ?? []).map((h) => h.replace(/^@/, "").trim()).filter(Boolean) : [];
+    if (timeline && !handles.length)
+      throw new ConnectorError("INVALID_QUERY", "user_timeline butuh targetIds (username)", { scope: "request" });
+    const { keywords, hashtags } = timeline ? { keywords: [], hashtags: [] } : queryParts(req.query?.native ?? "");
+    if (!timeline && !hashtags.length && !keywords.length) throw new ConnectorError("INVALID_QUERY", "query kosong", { scope: "request" });
     const sinceMs = req.window?.since ? Date.parse(req.window.since) : null;
     const untilMs = req.window?.until ? Date.parse(req.window.until) : null;
     const maxPages = cfg.maxHashtagPages ?? Math.max(req.pageLimit, Math.ceil(req.maxItems / 30));
@@ -251,6 +268,31 @@ export class HikerApiConnector implements Connector {
     let returned = 0;
     const warnings: FetchResult["warnings"] = [];
 
+    // 0) pantau akun (menu Akun): username → user_id → post terbaru (grid profil), berhenti saat melewati window.since
+    for (const h of handles.slice(0, 20)) {
+      let info: unknown;
+      try {
+        info = await this.call(ctx, "/v1/user/by/username", { username: h });
+      } catch (e) {
+        if (e instanceof ConnectorError && e.httpStatus === 404) continue; // akun tidak ada / privat
+        throw e;
+      }
+      requests++;
+      const uid = str(obj(info).pk) ?? str(obj(info).id);
+      if (!uid) continue;
+      let cursor: string | undefined;
+      for (let p = 0; p < Math.min(5, Math.max(1, req.pageLimit)); p++) {
+        const body = obj(await this.call(ctx, "/gql/user/medias", { user_id: uid, profile_grid_items_cursor: cursor, flat: "true" }));
+        requests++;
+        const ms = collectMedias(body);
+        returned += ms.length;
+        raw.push(...ms);
+        cursor = str(body.end_cursor) ?? str(body.profile_grid_items_cursor) ?? str(body.next_max_id) ?? undefined;
+        // post sematan bisa lama di urutan atas → berhenti hanya bila SEMUA post halaman ini lebih lama dari window
+        const fresh = ms.some((m) => sinceMs === null || Number(f(m, "taken_at")) * 1000 >= sinceMs);
+        if (!ms.length || !cursor || !fresh) break;
+      }
+    }
     // 1) hashtag terbaru: halaman demi halaman sampai melewati window.since
     for (const tag of hashtags) {
       let page: string | undefined;
@@ -273,7 +315,7 @@ export class HikerApiConnector implements Connector {
       }
     }
     // 2) keyword topsearch (relevansi): 1 halaman per keyword
-    if (cfg.keywordSearch !== false)
+    if (cfg.keywordSearch !== false && !timeline)
       for (const kw of keywords.slice(0, cfg.maxKeywords ?? 3)) {
         const body = await this.call(ctx, "/gql/topsearch", { query: kw, flat: "true" });
         requests++;

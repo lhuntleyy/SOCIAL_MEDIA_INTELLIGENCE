@@ -43,7 +43,8 @@ export class QueryIndex<Q extends IndexedQuery> {
 
   candidates(p: PreparedItem): Q[] {
     const out = new Set<Q>(this.always);
-    for (const tok of new Set([...p.joined.trim().split(" "), ...p.hashtags])) for (const q of this.byKey.get(tok) ?? []) out.add(q);
+    const toks = [...p.joined.trim().split(" "), ...p.hashtags, ...(p.author ? [`@${p.author}`] : [])];
+    for (const tok of new Set(toks)) for (const q of this.byKey.get(tok) ?? []) out.add(q);
     return [...out];
   }
 

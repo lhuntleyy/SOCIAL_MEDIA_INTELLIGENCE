@@ -54,7 +54,12 @@ function lex(src: string): Tok[] {
   return out;
 }
 
+/** `@username` (pantau akun): username platform apa adanya (huruf kecil; titik/garis bawah dipertahankan). */
+export const AUTHOR_RE = /^@([A-Za-z0-9._]{1,64})$/;
+
 function leaf(kind: "word" | "phrase", raw: string, pos: number): Node {
+  const author = kind === "word" ? AUTHOR_RE.exec(raw) : null;
+  if (author) return { type: "term", value: `@${author[1]!.toLowerCase()}` };
   const toks = tokenize(raw);
   const isHashtag = kind === "word" && raw.startsWith("#") && toks.length === 1;
   if (!toks.length) throw new QueryError(`Kata "${raw}" tidak mengandung huruf/angka (posisi ${pos})`, pos);

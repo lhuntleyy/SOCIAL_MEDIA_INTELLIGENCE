@@ -5,6 +5,12 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Menu Akun — pantau akun** (pejabat/media/influencer): topik `kind=account` (migrasi 0024) berisi `@username` per platform →
+  operation `user_timeline` (TikTok LamaTok, Instagram HikerAPI, X xquik `from:`; semua VERIFIED live) → semua analitik (sentimen,
+  emosi, isu, laporan) berlaku. Parser: `@username` = term penulis (matcher mencocokkan penulis, bukan teks). `GET /platforms` kini
+  memuat `operations_available` (policy + connector verified). Backfill akun = 1 run per akun untuk seluruh rentang. Contoh: "Pantau:
+  Jokowi" (IG 11, TikTok 6, X 1 post / 7 hari). Dashboard: pemilih topik dikelompokkan Topik / Pantau akun.
+- verify: `--op user_timeline` (query = username dipisah koma), bukti per operation `verify-<key>.<op>.json`.
 - **TikTok via LamaTok** (`packages/connectors/lamatok`, `lamatok.tiktok`, VERIFIED live: 42 video, semua field 100%, p50 2,7 s) —
   keyword `/v2/search` (±30 video/request), plus `user_timeline` (pantau akun) & `post_comments` (komentar) siap pakai; jadi
   **satu-satunya** sumber TikTok (Apify TikTok dinonaktifkan). Backfill KDMP 1 hari: 37 video / 3 request = $0,003.

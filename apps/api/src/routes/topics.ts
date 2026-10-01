@@ -34,6 +34,8 @@ const PlatformZ = z.strictObject({
   enabled: z.boolean().optional(),
 });
 const TopicZ = z.strictObject({
+  /** topic = keyword (bawaan); account = pantau akun (query `@username`, operation user_timeline) */
+  kind: z.enum(["topic", "account"]).optional(),
   name: Str(200).min(2),
   description: Str(2000).nullish(),
   platforms: z.array(PlatformZ).min(1).max(20),
@@ -55,6 +57,7 @@ const ListQ = z.object({
   search: z.string().max(100).optional(),
   status: z.enum(["active", "paused", "archived"]).optional(),
   type: z.enum(["interest", "industry"]).optional(),
+  kind: z.enum(["topic", "account"]).optional(),
   sort: z.enum(["name:asc", "name:desc", "created_at:asc", "created_at:desc", "updated_at:desc"]).default("name:asc"),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().max(200).optional(),

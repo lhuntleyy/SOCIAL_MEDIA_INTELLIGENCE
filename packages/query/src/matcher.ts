@@ -12,6 +12,8 @@ export interface MatchItem {
   lang?: string | null;
   /** Tag/label konten tambahan dari pipeline (dipakai media_tags — interpretasi ADR-008). */
   tags?: string[] | null;
+  /** Username penulis (tanpa '@') — term `@username` (topik akun) cocok bila penulis = username. */
+  author?: string | null;
 }
 
 export interface PreparedItem {
@@ -21,6 +23,7 @@ export interface PreparedItem {
   hashtags: Set<string>;
   lang: string | null;
   tags: Set<string>;
+  author: string | null;
 }
 
 /** Kode bahasa provider → ISO 639-1 yang dipakai query (X memakai "in" untuk Indonesia). */
@@ -41,12 +44,14 @@ export function prepareItem(i: MatchItem): PreparedItem {
     hashtags,
     lang: normalizeLang(i.lang),
     tags: new Set([...(i.tags ?? []).map(normalizeTag), ...hashtags].filter(Boolean)),
+    author: i.author ? i.author.replace(/^@/, "").toLowerCase() : null,
   };
 }
 
 export function evalNode(n: Node, p: PreparedItem): boolean {
   switch (n.type) {
     case "term":
+      if (n.value.startsWith("@")) return p.author === n.value.slice(1);
       return n.value.startsWith("#") ? p.hashtags.has(n.value.slice(1)) : p.joined.includes(` ${n.value} `) || p.hashtags.has(n.value);
     case "phrase":
       // "koperasi merah putih" juga cocok dengan #KoperasiMerahPutih (hashtag = frasa tanpa spasi — lazim di IG/TikTok)

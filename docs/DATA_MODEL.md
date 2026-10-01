@@ -137,6 +137,7 @@ erDiagram
 | filter_ads | boolean | default false | |
 | language_hints | text[] | default `{id}` | |
 | default_interval_sec | int | CHECK in (300,900,1800,2700,3600) | 5m/15m/30m/45m/1h — samakan dengan UI produk (screenshot) |
+| kind | text | NOT NULL default 'topic' CHECK in ('topic','account') | migrasi 0024 — `account` = pantau akun (query `@username`, operation user_timeline) |
 | version | int | NOT NULL default 1 | optimistic locking `If-Match` (API_SPEC §1.3); naik di setiap PATCH/pause/resume/archive — migrasi 0011 |
 | created_at, updated_at, deleted_at | timestamptz | | |
 

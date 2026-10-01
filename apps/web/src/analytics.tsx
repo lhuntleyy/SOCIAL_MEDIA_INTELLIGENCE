@@ -140,7 +140,7 @@ export function useFilterSearch() {
 }
 
 export function useFilters() {
-  const topics = useQuery({ queryKey: ["topics", ""], queryFn: () => api<TopicSummary[]>("/topics?limit=50") });
+  const topics = useQuery({ queryKey: ["topics", "all"], queryFn: () => api<TopicSummary[]>("/topics?limit=100") });
   const [sp, setSp] = useSearchParams();
   const p = effectiveParams(sp);
   const list = topics.data?.filter((t) => t.status !== "archived");
@@ -208,11 +208,18 @@ export function FilterBar({ f, title }: { f: Filters; title: string }) {
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm print:hidden">
       <h1 className="mr-2 text-xl font-bold uppercase tracking-wide text-zinc-700">{title}</h1>
       <Select value={f.topic} onChange={(e) => f.set({ topic: e.target.value })} className="py-1.5">
-        {f.list?.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
+        {(["topic", "account"] as const).map((k) => {
+          const ts = f.list?.filter((t) => (t.kind ?? "topic") === k) ?? [];
+          return ts.length ? (
+            <optgroup key={k} label={k === "topic" ? "Topik" : "Pantau akun"}>
+              {ts.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {k === "account" ? `👤 ${t.name}` : t.name}
+                </option>
+              ))}
+            </optgroup>
+          ) : null;
+        })}
       </Select>
       <div className="flex overflow-hidden rounded-lg border border-zinc-300">
         {RANGES.map((r) => (

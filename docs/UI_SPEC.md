@@ -48,6 +48,9 @@ Kanan — **form** (tab):
 Tombol kanan atas: **Cancel**, **Clear**, **Preview**, **Save**.
 - Sebelum Save: modal **Cost Estimate** (requests/hari per platform, % kuota tenant setelah aktif, warning `INTERVAL_CLAMPED`). Jika `QUOTA_WOULD_EXCEED` → Save disabled + saran interval.
 
+### 3.1a Akun (`/accounts`) — pantau akun (2026-10-01)
+Daftar pantauan (topik `kind=account`) + form: nama, deskripsi, baris *platform + username* (platform dari `GET /platforms` yang `operations_available` memuat `user_timeline`). Detail/analitik memakai halaman topik & seluruh halaman analitik (pemilih topik dikelompokkan Topik / Pantau akun).
+
 ### 3.2 Dashboard (`/dashboard`)
 Grid sesuai screenshot ISA:
 | Widget | Chart | Endpoint |

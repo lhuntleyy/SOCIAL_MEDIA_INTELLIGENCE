@@ -5,7 +5,8 @@
 //   bun scripts/connectors.ts rotate <provider> <label> <ENV_VAR> [secretField]
 //                                                           → ganti token akun yang ada (= PUT /admin/accounts/{id}/credential): credential
 //                                                             baru disegel, lama di-crypto-shred, akun kembali `active`, outbox + audit
-//   bun scripts/connectors.ts verify <connectorKey> "<query>" [--samples N] [--max-items N] [--window-hours H] [--apply]
+//   bun scripts/connectors.ts verify <connectorKey> "<query>" [--samples N] [--max-items N] [--window-hours H] [--op user_timeline] [--apply]
+//                                                           → --op user_timeline: "<query>" = username dipisah koma (pantau akun)
 //                                                           → panggil provider SUNGGUHAN (berbayar!) dgn window 24 jam, validasi, laporan
 //                                                             docs/evidence/verify/verify-<key>.json; --apply → capability verified + measured
 // Env: DATABASE_URL, KMS_* (lihat infra/compose/.env.dev). Config biaya connector (maxTotalChargeUsd, memoryMb) diambil dari connectors.config.
@@ -123,7 +124,7 @@ async function rotate(providerKey: string, label: string, envVar: string, field 
   console.log(`token akun ${label} (${providerKey}) diganti (secret disegel, tidak dicetak; credential lama di-crypto-shred)`);
 }
 
-async function verify(key: string, query: string, samples: number, apply: boolean, maxItems = 10, windowHours = 24) {
+async function verify(key: string, query: string, samples: number, apply: boolean, maxItems = 10, windowHours = 24, operation?: string) {
   const c = registry.get(key) as Connector | undefined;
   if (!c) throw new Error(`connector ${key} tidak ada di registry`);
   const [row] =
@@ -145,10 +146,10 @@ async function verify(key: string, query: string, samples: number, apply: boolea
   const report = await runVerify(
     c,
     { credential: { kind: "api_key", secret: cred }, config: (row.config ?? {}) as Record<string, unknown> },
-    { query, samples, maxItems, windowHours },
+    { query, samples, maxItems, windowHours, ...(operation ? { operation: operation as never } : {}) },
   );
   const op = report.operation;
-  const file = `docs/evidence/verify/verify-${key}.json`;
+  const file = `docs/evidence/verify/verify-${key}${op.startsWith("search_") ? "" : `.${op}`}.json`;
   await Bun.write(file, `${JSON.stringify(report, null, 2)}\n`);
   console.log(
     JSON.stringify({ file, status: report.status, items: report.items_valid, cost_usd: report.cost_usd, p50: report.latency_ms.p50 }),
@@ -171,7 +172,15 @@ try {
   else if (cmd === "rotate") await rotate(args[0]!, args[1]!, args[2]!, args[3]);
   else if (cmd === "verify") {
     const opt = (f: string, d: number) => (args.indexOf(f) >= 0 ? Number(args[args.indexOf(f) + 1]) : d);
-    await verify(args[0]!, args[1]!, opt("--samples", 1), args.includes("--apply"), opt("--max-items", 10), opt("--window-hours", 24));
+    await verify(
+      args[0]!,
+      args[1]!,
+      opt("--samples", 1),
+      args.includes("--apply"),
+      opt("--max-items", 10),
+      opt("--window-hours", 24),
+      args.indexOf("--op") >= 0 ? args[args.indexOf("--op") + 1] : undefined,
+    );
   } else throw new Error("perintah: register | account | rotate | verify (lihat header skrip)");
 } finally {
   await sql.end();

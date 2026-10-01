@@ -414,4 +414,47 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     });
     expect((await j<{ initial_backfill: { days: number; runs: number } }>(u)).data.initial_backfill).toEqual({ days: 2, runs: 2 }); // hanya instagram
   });
+  test("menu Akun: topik kind=account → query @username per platform, plan user_timeline; validasi; filter kind; kind tetap", async () => {
+    const acc = {
+      kind: "account",
+      name: "Akun Pejabat",
+      platforms: [{ code: "x" }, { code: "instagram" }],
+      queries: [
+        { kind: "main", query_text: "@Jokowi", platforms: ["x"] },
+        { kind: "sub", query_text: "@jokowi", platforms: ["instagram"] },
+      ],
+    };
+    const r = await j<{ id: string; kind: string; queries: { query_text: string }[] }>(
+      await h.call("POST", "/topics", { token: tok.ownerB, body: acc }),
+    );
+    expect(r.data.kind).toBe("account");
+    expect(r.data.queries.map((q) => q.query_text)).toEqual(["@jokowi", "@jokowi"]);
+    const plans = await h.sql`select platform_code, operation from crawl_plans where topic_id = ${r.data.id} order by platform_code`;
+    expect(plans.map((p) => [p.platform_code, p.operation])).toEqual([
+      ["instagram", "user_timeline"],
+      ["x", "user_timeline"],
+    ]);
+    // bukan @username / tanpa platform tunggal → ditolak
+    const bad = await j(
+      await h.call("POST", "/topics", {
+        token: tok.ownerB,
+        body: { ...acc, name: "Salah", queries: [{ kind: "main", query_text: "jokowi OR prabowo", platforms: ["x"] }] },
+      }),
+    );
+    expect(bad.error?.code).toBe("VALIDATION_FAILED");
+    const list = await j<{ kind: string }[]>(await h.call("GET", "/topics?kind=account", { token: tok.ownerB }));
+    expect(list.data.map((t) => t.kind)).toEqual(["account"]);
+    expect((await j<unknown[]>(await h.call("GET", "/topics?kind=topic", { token: tok.ownerB }))).data).toHaveLength(0);
+    // backfill akun: satu run per akun untuk seluruh rentang (bukan per hari)
+    const to = new Date(Date.now() - 60_000);
+    const bf = await j<{ runs_created: number }>(
+      await h.call("POST", `/topics/${r.data.id}/backfill`, {
+        token: tok.ownerB,
+        body: { from: new Date(to.getTime() - 3 * 86_400_000).toISOString(), to: to.toISOString() },
+      }),
+    );
+    expect(bf.data.runs_created).toBe(2);
+    const ch = await j(await h.call("PATCH", `/topics/${r.data.id}`, { token: tok.ownerB, body: { kind: "topic" } }));
+    expect(ch.error?.code).toBe("VALIDATION_FAILED");
+  });
 });

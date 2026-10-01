@@ -6,6 +6,7 @@ import { BrowserRouter, Navigate, NavLink, Outlet, Route, Routes } from "react-r
 import { useFilterSearch } from "./analytics";
 import { getViewAs, setViewAs } from "./api";
 import { AuthProvider, useAuth } from "./auth";
+import { AccountForm, AccountList } from "./pages/Accounts";
 import Audience from "./pages/Audience";
 import Contributors from "./pages/Contributors";
 import Conversation from "./pages/Conversation";
@@ -75,6 +76,9 @@ function Shell() {
           <NavLink to="/topics" className={link}>
             Topik
           </NavLink>
+          <NavLink to="/accounts" className={link}>
+            Akun
+          </NavLink>
           {isAdmin && (
             <NavLink to="/users" className={link}>
               {op && !view ? "Kantor & pengguna" : "Pengguna"}
@@ -133,6 +137,9 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/topics/new" element={<TopicForm />} />
               <Route path="/topics/:id" element={<TopicPage />} />
               <Route path="/topics/:id/edit" element={<TopicForm />} />
+              <Route path="/accounts" element={<AccountList />} />
+              <Route path="/accounts/new" element={<AccountForm />} />
+              <Route path="/accounts/:id/edit" element={<AccountForm />} />
               <Route path="/users" element={<Users />} />
               <Route path="/settings" element={<Settings />} />
               {/* alamat lama */}

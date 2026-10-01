@@ -1,5 +1,7 @@
 export interface TopicSummary {
   id: string;
+  /** topic = keyword; account = pantau akun (menu Akun) */
+  kind?: "topic" | "account";
   name: string;
   description: string | null;
   status: "active" | "paused" | "archived";
@@ -14,6 +16,7 @@ export interface TopicDetail extends Omit<TopicSummary, "platforms"> {
     kind: "main" | "sub";
     label: string | null;
     query_text: string;
+    platforms?: string[] | null;
     keywords: string[];
     languages: string[] | null;
     enabled: boolean;

@@ -51,6 +51,7 @@ export interface PlatformBody {
   enabled?: boolean;
 }
 export interface TopicBody {
+  kind?: "topic" | "account";
   name: string;
   description?: string | null;
   platforms: PlatformBody[];
@@ -376,21 +377,36 @@ export class TopicService {
         tx,
         sql`select code, name, icon from platforms where enabled order by sort_order, code`,
       );
-      return list.map((p) => ({ ...p, enabled: true, min_interval_sec: limits.min_interval_sec }));
+      // operation yang benar-benar bisa dilayani: policy aktif + rule aktif + connector aktif dengan capability verified
+      const ops = await rows<{ platform_code: string; operation: string }>(
+        tx,
+        sql`select distinct rp.platform_code, rp.operation from routing_policies rp
+            join routing_rules rr on rr.policy_id = rp.id and rr.enabled
+            join connectors c on c.id = rr.connector_id and c.enabled
+            join connector_capabilities cc on cc.connector_id = c.id and cc.operation = rp.operation and cc.status = 'verified'
+            where rp.enabled`,
+      );
+      return list.map((p) => ({
+        ...p,
+        enabled: true,
+        min_interval_sec: limits.min_interval_sec,
+        operations_available: ops.filter((o) => o.platform_code === p.code).map((o) => o.operation),
+      }));
     });
   }
 
-  async list(a: Actor, q: { search?: string; status?: string; type?: string; sort: string; limit: number; offset: number }) {
+  async list(a: Actor, q: { search?: string; status?: string; type?: string; kind?: string; sort: string; limit: number; offset: number }) {
     return this.tenant(a, async (tx) => {
       const [col, dir] = q.sort.split(":") as [string, string];
       const order = sql.raw(`${col === "name" ? "lower(t.name)" : `t.${col}`} ${dir === "desc" ? "desc" : "asc"}, t.id`);
       const where = sql`t.deleted_at is null
         ${q.status ? sql`and t.status = ${q.status}::e_topic_status` : sql``}
+        ${q.kind ? sql`and t.kind = ${q.kind}` : sql``}
         ${q.search ? sql`and t.name ilike ${`%${q.search.replace(/[\\%_]/g, (m) => `\\${m}`)}%`}` : sql``}
         ${q.type ? sql`and exists (select 1 from topic_taxonomies tt join taxonomies x on x.id = tt.taxonomy_id where tt.topic_id = t.id and x.type = ${q.type}::e_taxonomy_type)` : sql``}`;
       const items = await rows<Row>(
         tx,
-        sql`select t.id, t.name, t.description, t.status, t.version, t.created_at, t.updated_at,
+        sql`select t.id, t.kind, t.name, t.description, t.status, t.version, t.created_at, t.updated_at,
                    (select coalesce(array_agg(tp.platform_code order by tp.platform_code), '{}') from topic_platforms tp where tp.topic_id = t.id and tp.enabled) as platforms,
                    u.id as author_id, u.name as author_name
             from topics t left join users u on u.id = t.author_user_id
@@ -404,6 +420,7 @@ export class TopicService {
   private summary(r: Row) {
     return {
       id: r.id,
+      kind: r.kind,
       name: r.name,
       description: r.description,
       status: r.status,
@@ -442,6 +459,7 @@ export class TopicService {
     );
     return {
       id: t.id,
+      kind: t.kind,
       name: t.name,
       description: t.description,
       status: t.status,
@@ -620,7 +638,28 @@ export class TopicService {
     }
   }
 
+  /**
+   * Topik akun (menu Akun): tiap query = satu `@username` untuk satu platform; semua platform memakai operation user_timeline.
+   * Validasi di sini agar UI/API tidak bisa membuat topik akun yang memakai pencarian keyword (atau sebaliknya).
+   */
+  static accountBody<T extends { platforms?: PlatformBody[]; queries?: QueryBody[] }>(b: T): T {
+    const queries = (b.queries ?? []).map((q, i) => {
+      const t = (q.query_text ?? "").trim();
+      if (!/^@[A-Za-z0-9._]{1,64}$/.test(t) || q.platforms?.length !== 1)
+        throw new ApiError("VALIDATION_FAILED", "Akun harus berupa @username dengan tepat satu platform", [
+          { path: `queries[${i}]`, issue: "format @username + platforms[1]" },
+        ]);
+      return { ...q, query_text: t.toLowerCase(), keywords: [], media_tags: [], not_media_tags: [], languages: null };
+    });
+    const used = new Set(queries.map((q) => q.platforms![0]!));
+    const platforms = (b.platforms ?? []).filter((p) => used.has(p.code)).map((p) => ({ ...p, operations: ["user_timeline"] }));
+    for (const code of used)
+      if (!platforms.some((p) => p.code === code)) platforms.push({ code, operations: ["user_timeline"], enabled: true });
+    return { ...b, ...(b.platforms || b.queries ? { platforms } : {}), ...(b.queries ? { queries } : {}) };
+  }
+
   async create(a: Actor, b: TopicBody) {
+    if (b.kind === "account") b = TopicService.accountBody(b);
     const out = await this.createTx(a, b);
     return { ...out, initial_backfill: await this.autoBackfill(a, String(out.id)) };
   }
@@ -643,8 +682,8 @@ export class TopicService {
       }
       const id = Bun.randomUUIDv7();
       try {
-        await tx.execute(sql`insert into topics (id, tenant_id, name, description, author_user_id, filter_ads, language_hints, default_interval_sec)
-          values (${id}, ${a.tenantId}, ${b.name.trim()}, ${b.description ?? null}, ${a.userId}, ${b.filter_ads ?? false}, ${textArray(b.language_hints ?? ["id"])}, ${dflt})`);
+        await tx.execute(sql`insert into topics (id, tenant_id, kind, name, description, author_user_id, filter_ads, language_hints, default_interval_sec)
+          values (${id}, ${a.tenantId}, ${b.kind ?? "topic"}, ${b.name.trim()}, ${b.description ?? null}, ${a.userId}, ${b.filter_ads ?? false}, ${textArray(b.language_hints ?? ["id"])}, ${dflt})`);
       } catch (e) {
         if (pgCode(e) === "23505") throw new ApiError("CONFLICT", "Nama topik sudah dipakai");
         throw e;
@@ -685,6 +724,20 @@ export class TopicService {
       const cur = await this.lockVersion(tx, id, ifMatch);
       if (cur.status === "archived") throw new ApiError("CONFLICT", "Topik sudah diarsipkan");
       const existing = await this.load(tx, id);
+      if (b.kind && b.kind !== existing.kind)
+        throw new ApiError("VALIDATION_FAILED", "Jenis topik (topik/akun) tidak bisa diubah", [{ path: "kind", issue: "tetap" }]);
+      if (existing.kind === "account" && (b.platforms || b.queries)) {
+        const cur = existing.platforms.map((p) => ({
+          code: String(p.code),
+          interval_sec: Number(p.interval_sec),
+          enabled: Boolean(p.enabled),
+        }));
+        b = TopicService.accountBody({
+          ...b,
+          platforms: b.platforms ?? cur,
+          queries: b.queries ?? (existing.queries as unknown as QueryBody[]),
+        });
+      }
       seen((existing.platforms as { code: string; enabled: boolean }[]).filter((p) => p.enabled).map((p) => String(p.code)));
       const platforms: PlatformBody[] =
         b.platforms ??
@@ -808,9 +861,15 @@ export class TopicService {
           { path: "platforms", issue: "kosong" },
         ]);
       let n = 0;
-      for (let since = from.getTime(); since < to.getTime(); since += DAY) {
+      // pantau akun (user_timeline): satu run untuk seluruh rentang — profil yang sama tak perlu diambil ulang per hari
+      for (const p of plans.filter((x) => x.operation === "user_timeline")) {
+        await createCrawlRun(tx, p, "backfill", { since: from, until: to }, now, BACKFILL_PRIORITY);
+        n++;
+      }
+      const daily = plans.filter((x) => x.operation !== "user_timeline");
+      for (let since = from.getTime(); daily.length && since < to.getTime(); since += DAY) {
         const until = new Date(Math.min(since + DAY, to.getTime()));
-        for (const p of plans) {
+        for (const p of daily) {
           await createCrawlRun(tx, p, "backfill", { since: new Date(since), until }, now, BACKFILL_PRIORITY);
           n++;
         }

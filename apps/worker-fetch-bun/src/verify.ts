@@ -41,7 +41,9 @@ function pathValue(o: unknown, path: string): unknown {
 export async function runVerify(c: Connector, acc: AccountMaterial, o: VerifyOptions): Promise<VerifyReport> {
   const op = o.operation ?? ((Object.keys(c.manifest.operations).find((k) => k.startsWith("search_")) ?? "search_keyword") as Operation);
   const sup = c.manifest.operations[op];
-  if (!sup || !op.startsWith("search_")) throw new Error(`verify hanya untuk operation search_* (connector ${c.manifest.key}: ${op})`);
+  const timeline = op === "user_timeline";
+  if (!sup || !(op.startsWith("search_") || timeline))
+    throw new Error(`verify hanya untuk operation search_* / user_timeline (connector ${c.manifest.key}: ${op})`);
   const until = new Date();
   const since = new Date(until.getTime() - o.windowHours * 3600_000);
   const lat: number[] = [];
@@ -64,7 +66,15 @@ export async function runVerify(c: Connector, acc: AccountMaterial, o: VerifyOpt
       idempotencyKey: `verify.${Date.now()}.${i}`,
       platform: c.manifest.platform,
       operation: op,
-      query: { native: o.query, sourceNodeIds: [] },
+      // user_timeline (pantau akun): query = daftar username dipisah koma
+      ...(timeline
+        ? {
+            targetIds: o.query
+              .split(",")
+              .map((h) => h.trim().replace(/^@/, ""))
+              .filter(Boolean),
+          }
+        : { query: { native: o.query, sourceNodeIds: [] } }),
       window: { since: since.toISOString(), until: until.toISOString() },
       cursor: null,
       pageLimit: 1,

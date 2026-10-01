@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-01T09:10:20.974Z",
+  "connector": "apify.x.xquik",
+  "version": "0.1.0",
+  "operation": "user_timeline",
+  "query": "jokowi",
+  "window_hours": 168,
+  "max_items": 20,
+  "samples": 1,
+  "items_valid": 1,
+  "items_invalid": 0,
+  "usage_results_returned": 1,
+  "cost_usd": 0.000106,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.views": 1,
+    "author.followers": 1
+  },
+  "latency_ms": {
+    "samples": [
+      4956
+    ],
+    "p50": 4956,
+    "p95": 4956
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

@@ -110,6 +110,14 @@ describe("apify.x.xquik", () => {
     expect(start.path).toContain("maxTotalChargeUsd=0.05");
     expect(start.path).toContain("waitForFinish=50");
     expect(xWindowOperators(undefined)).toBe("");
+    // pantau akun (menu Akun): user_timeline → from:username per akun; username tidak valid dibuang
+    expect(
+      X_XQUIK.buildInput({ ...req(), operation: "user_timeline", query: undefined, targetIds: ["@jokowi", "bukan valid!"] }, {}),
+    ).toEqual({
+      searchTerms: ["from:jokowi since_time:1790553600 until_time:1790647200"],
+      maxItems: 50,
+      queryType: "Latest",
+    });
   });
 
   test("normalisasi: post/reply/repost; bio & data profil lain dibuang; item tanpa handle / di luar window dibuang; usage = dikembalikan", async () => {

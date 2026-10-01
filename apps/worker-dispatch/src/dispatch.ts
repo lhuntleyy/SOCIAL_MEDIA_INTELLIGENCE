@@ -28,7 +28,7 @@ import {
   writeJobOutbox,
 } from "@smip/db";
 import type { Logger } from "@smip/observability";
-import { compileGeneric, coverHashtags, type Node } from "@smip/query";
+import { compileGeneric, coverHashtags, type Node, positiveLeaves } from "@smip/query";
 import { failureBackoffSec, type Router, type Snapshot, shouldAlertConsecutive } from "@smip/router";
 import { sql } from "drizzle-orm";
 import { adaptiveMaxItems } from "./adaptive";
@@ -413,6 +413,19 @@ export async function handleDispatch(
         platformMax,
       );
     }
+    // topik akun (menu Akun): user_timeline → username dari term `@username` di query
+    const timelineTargets =
+      plan.operation === "user_timeline" && !plan.target_ids
+        ? positiveLeaves(ast as Node)
+            .filter((l) => l.value.startsWith("@"))
+            .map((l) => l.value.slice(1))
+        : undefined;
+    if (timelineTargets && !timelineTargets.length) {
+      await d.router.release(decision.reservationId);
+      await finishRun(tx, run, "failed", now, { code: "INVALID_QUERY", message: "user_timeline butuh @username di query" });
+      await releasePlan(tx, d, run, "failure", plan.interval_sec, now);
+      return "failed";
+    }
     const queries = plan.operation.startsWith("search_")
       ? compileFor(snap, decision.connectorId, plan.operation, ast as Node, routing.recompiled)
       : undefined;
@@ -444,7 +457,7 @@ export async function handleDispatch(
         platform: plan.platform_code,
         operation: plan.operation,
         ...(queries ? { queries } : {}),
-        ...(plan.target_ids ? { targetIds: plan.target_ids } : {}),
+        ...(plan.target_ids ? { targetIds: plan.target_ids } : timelineTargets ? { targetIds: timelineTargets } : {}),
         window: { since: run.window_from ? iso(run.window_from) : undefined, until: run.window_to ? iso(run.window_to) : undefined },
         cursor: null,
         pageLimit: f.pageLimit,

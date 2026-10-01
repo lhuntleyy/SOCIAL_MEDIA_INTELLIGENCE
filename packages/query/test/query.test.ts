@@ -72,6 +72,15 @@ describe("parser", () => {
     expect(P("covid-19")).toEqual({ type: "phrase", value: "covid 19" }); // '-' di tengah kata bukan NOT
   });
 
+  test("@username (topik akun): term author — cocok bila penulis = username, bukan isi teks", () => {
+    expect(P("@Solo.Times")).toEqual({ type: "term", value: "@solo.times" });
+    const q = compileQuery({ query_text: "@solo.times OR @kemenkop" });
+    expect(matchQuery(q, { text: "apa saja", author: "Solo.Times" }).match).toBe(true);
+    expect(matchQuery(q, { text: "menyebut @solo.times di teks", author: "orang_lain" }).match).toBe(false);
+    const idx = new QueryIndex([{ id: "a", query: q }]);
+    expect(idx.match({ text: "x", author: "kemenkop" }).map((m) => m.id)).toEqual(["a"]);
+  });
+
   test("operator tidak peka huruf; kata operator harfiah lewat kutip", () => {
     expect(P("jokowi or jkw")).toEqual({ type: "or", children: ["jokowi", "jkw"].map((v) => ({ type: "term", value: v })) });
     expect(P("demo and not rusuh")).toEqual(P("demo AND NOT rusuh"));

@@ -33,8 +33,8 @@ const PLAN: Record<string, { rules: [string, number, number][] }> = {
 const MONTHLY_CAP = false;
 /** Batas biaya per run actor (`maxTotalChargeUsd`) — pengaman run liar, bukan pembatas volume (maxItems 300/run tetap berlaku). */
 const PER_RUN_USD = 1;
-/** Run Apify bersamaan per akun (plan STARTER; FREE dulu 4 karena batas memori 8 GB). */
-const APIFY_CONCURRENCY = 8;
+/** Run Apify bersamaan per akun: plan FREE (batas memori 8 GB → 402/RATE_LIMITED saat > ±4 run × 1 GB); STARTER bisa 8. */
+const APIFY_CONCURRENCY = 4;
 const MONTHLY_USD: Record<string, number> = {
   "apify.x.xquik": 1.5,
   "apify.x.kaito": 0.3,
@@ -47,6 +47,12 @@ const MONTHLY_USD: Record<string, number> = {
   "apify.threads.scrapersdelight": 0.8,
   "apify.youtube.streamers": 0.1,
 };
+/** Pantau akun (menu Akun, operation user_timeline): connector per platform — policy dibuat bila belum ada. */
+const TIMELINE: Record<string, { rules: [string, number, number][] }> = {
+  tiktok: { rules: [["lamatok.tiktok", 1, 100]] },
+  instagram: { rules: [["hikerapi.instagram", 1, 100]] },
+  x: { rules: [["apify.x.xquik", 1, 100]] },
+};
 /** Connector yang dimatikan (tidak dipakai routing). */
 const DISABLED = ["apify.instagram.boolean", "apify.instagram.hashtag", "apify.tiktok.clockworks", "apify.tiktok.xmolodtsov"];
 /** Tarif HikerAPI & LamaTok (DOCS hikerapi.com/pricing & lamatok.com/pricing 2026-10-01: $1 / 1.000 request; $0,60 di volume).
@@ -57,7 +63,7 @@ const sql = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
 try {
   await sql.begin(async (tx) => {
     await tx`SET LOCAL ROLE smip_system`;
-    const keys = Object.values(PLAN).flatMap((p) => p.rules.map((r) => r[0]));
+    const keys = [...new Set([...Object.values(PLAN), ...Object.values(TIMELINE)].flatMap((p) => p.rules.map((r) => r[0])))];
     const conns = await tx`select c.id, c.key, c.provider_id, c.config from connectors c where c.key in ${tx(keys)}`;
     const byKey = new Map(conns.map((c) => [c.key as string, c]));
     for (const k of keys) if (!byKey.has(k)) throw new Error(`connector ${k} belum terdaftar`);
@@ -89,7 +95,7 @@ try {
     for (const acc of await tx`select pa.id from provider_accounts pa join providers p on p.id = pa.provider_id where p.key = 'apify' and pa.status = 'active'`) {
       const [rl] =
         await tx`select id from rate_limit_policies where scope_type = 'provider_account' and scope_id = ${acc.id} and algorithm = 'concurrency'`;
-      const ref = `internal_safety: ${APIFY_CONCURRENCY} run × 1 GB < batas memori plan STARTER Apify (2026-10-01); 402 actor-memory-limit-exceeded teramati di FREE 2026-09-30`;
+      const ref = `internal_safety: ${APIFY_CONCURRENCY} run × 1 GB < batas memori plan FREE Apify (8 GB); 402 actor-memory-limit-exceeded teramati 2026-09-30 & 2026-10-01`;
       if (rl)
         await tx`update rate_limit_policies set capacity = ${APIFY_CONCURRENCY}, source_ref = ${ref}, enabled = true where id = ${rl.id}`;
       else
@@ -97,17 +103,24 @@ try {
           values (${Bun.randomUUIDv7()}, 'provider_account', ${acc.id}, 'concurrency', ${APIFY_CONCURRENCY}, 0, 1000, 'internal_safety', ${ref}, true)`;
       await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('rate_limit_policy', ${acc.id}, 'rate_limit.updated', '{}')`;
     }
-    for (const [platform, p] of Object.entries(PLAN)) {
-      const [pol] =
-        await tx`select id from routing_policies where tenant_id is null and platform_code = ${platform} and operation = 'search_keyword'`;
-      if (!pol) throw new Error(`policy ${platform}/search_keyword tidak ada`);
+    const plans: [string, string, { rules: [string, number, number][] }][] = [
+      ...Object.entries(PLAN).map(([pl, p]) => [pl, "search_keyword", p] as [string, string, typeof p]),
+      ...Object.entries(TIMELINE).map(([pl, p]) => [pl, "user_timeline", p] as [string, string, typeof p]),
+    ];
+    for (const [platform, operation, p] of plans) {
+      let [pol] =
+        await tx`select id from routing_policies where tenant_id is null and platform_code = ${platform} and operation = ${operation}`;
+      if (!pol && operation !== "search_keyword")
+        [pol] =
+          await tx`insert into routing_policies (id, platform_code, operation) values (${Bun.randomUUIDv7()}, ${platform}, ${operation}) returning id`;
+      if (!pol) throw new Error(`policy ${platform}/${operation} tidak ada`);
       await tx`delete from routing_rules where policy_id = ${pol.id}`;
       for (const [key, prio, weight] of p.rules)
         await tx`insert into routing_rules (id, policy_id, connector_id, priority, weight, enabled, conditions)
           values (${Bun.randomUUIDv7()}, ${pol.id}, ${byKey.get(key)!.id}, ${prio}, ${weight}, true, '{}')`;
       await tx`update routing_policies set version = version + 1, updated_at = now() where id = ${pol.id}`;
       await tx`insert into outbox (aggregate, aggregate_id, event_type, payload) values ('routing_policy', ${pol.id}, 'policy.replaced', ${tx.json({ by: "live-routing" })})`;
-      console.log(`${platform}: ${p.rules.map((r) => `${r[0]}(p${r[1]}/w${r[2]})`).join(" → ")}`);
+      console.log(`${platform}/${operation}: ${p.rules.map((r) => `${r[0]}(p${r[1]}/w${r[2]})`).join(" → ")}`);
     }
     await tx`insert into audit_logs (id, actor_type, action, target_type, after) values (${Bun.randomUUIDv7()}, 'system', 'routing.live_switch', 'routing_policy', ${tx.json({ plan: PLAN, monthly_cap: MONTHLY_CAP, monthly_usd: MONTHLY_USD, per_run_usd: PER_RUN_USD, apify_concurrency: APIFY_CONCURRENCY } as never)})`;
     if (dry) throw new Error("--dry: rollback");

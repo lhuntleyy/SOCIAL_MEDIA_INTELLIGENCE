@@ -135,9 +135,25 @@ export const X_XQUIK: ActorSpec = {
       asyncExecution: true,
       resultOrder: "desc",
     },
+    // pantau akun (menu Akun): operator search X `from:username` + window — satu searchTerm per akun
+    user_timeline: {
+      queryFeatures: [],
+      maxQueryLength: null,
+      supportsSince: true,
+      supportsUntil: true,
+      supportsCursor: false,
+      maxPageSize: 1000,
+      returnsFields: ["metrics.likes", "metrics.views", "author.followers"],
+      asyncExecution: true,
+      resultOrder: "desc",
+    },
   },
   buildInput(req) {
     const w = xWindowOperators(req.window);
+    if (req.operation === "user_timeline") {
+      const handles = (req.targetIds ?? []).map((h) => h.replace(/^@/, "").trim()).filter((h) => /^[A-Za-z0-9_]{1,15}$/.test(h));
+      return { searchTerms: handles.map((h) => (w ? `from:${h} ${w}` : `from:${h}`)), maxItems: req.maxItems, queryType: "Latest" };
+    }
     const q = req.query?.native ?? "";
     return { searchTerms: [w ? `${q} ${w}` : q], maxItems: req.maxItems, queryType: "Latest" };
   },
