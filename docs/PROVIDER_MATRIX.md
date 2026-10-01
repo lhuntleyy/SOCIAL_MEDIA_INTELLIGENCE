@@ -4,6 +4,12 @@
 >
 > Pengisian dilakukan di TASK fase 0 (S-10..S-13, S-16, S-17). Setiap verifikasi mencatat: tanggal, URL dokumen, versi API/actor, dan (jika dites) link evidence contract test.
 
+> **Uji LamaTok (TikTok) 2026-10-01 (trial, 6 request + verify):** `/v2/search?keyword=` 30 video/request, 2 halaman "jokowi" =
+> 60 video tanpa duplikat (39 ≤ 24 jam, 54 ≤ 7 hari; tak terurut ketat); "kopdes" 1 request = 28 video (21 ≤ 7 hari) vs Apify
+> clockworks 5 video KDMP dalam 7 hari ($4,01/1K terukur). Hashtag `/v2/hashtag/medias` 17 video campuran. Komentar
+> `/v2/media/comments/by/id` 49/request. Field like/view/komentar/follower 100% (verify). Harga DOCS lamatok.com/pricing: $1 / 1.000
+> request ($0,60 volume). Risk high (API privat TikTok). Sejak 2026-10-01 satu-satunya sumber TikTok.
+>
 > **Uji HikerAPI 2026-10-01 (trial, 5 request):** `GET /v2/hashtag/medias/recent?name=` → ±30 post/request, **terurut terbaru**,
 > paginasi `page_id` tanpa duplikat, ±4,5 s/request; `#jokowi` 2 halaman = 57 post ≤ 24 jam; `#koperasimerahputih` 1 request = 30 post
 > (29 jam) vs Apify IG = 8 post dalam 2 hari untuk topik yang sama. Keyword (`/v2/fbsearch/reels`, `/gql/topsearch`) = relevansi →

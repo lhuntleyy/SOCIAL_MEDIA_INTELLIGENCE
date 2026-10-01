@@ -5,6 +5,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **TikTok via LamaTok** (`packages/connectors/lamatok`, `lamatok.tiktok`, VERIFIED live: 42 video, semua field 100%, p50 2,7 s) —
+  keyword `/v2/search` (±30 video/request), plus `user_timeline` (pantau akun) & `post_comments` (komentar) siap pakai; jadi
+  **satu-satunya** sumber TikTok (Apify TikTok dinonaktifkan). Backfill KDMP 1 hari: 37 video / 3 request = $0,003.
 - **Instagram via HikerAPI** (`packages/connectors/hikerapi`, `hikerapi.instagram`, VERIFIED live 2026-10-01: 64 post, p50 8,2 s) —
   hashtag terbaru (halaman berhenti di window → tanpa tagihan berulang) + keyword `/gql/topsearch`; jadi **satu-satunya** sumber Instagram
   (Apify IG dinonaktifkan, keputusan pemilik). Backfill JOKOWI 1 hari: 102 post / 6 request = $0,006. Risk `high` (API privat IG).

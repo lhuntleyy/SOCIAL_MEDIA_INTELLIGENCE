@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-01T09:02:58.632Z",
+  "connector": "lamatok.tiktok",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "jokowi",
+  "window_hours": 24,
+  "max_items": 30,
+  "samples": 2,
+  "items_valid": 42,
+  "items_invalid": 0,
+  "usage_results_returned": 60,
+  "cost_usd": 0,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.views": 1,
+    "metrics.comments": 1,
+    "author.followers": 1
+  },
+  "latency_ms": {
+    "samples": [
+      3360,
+      2670
+    ],
+    "p50": 2670,
+    "p95": 3360
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

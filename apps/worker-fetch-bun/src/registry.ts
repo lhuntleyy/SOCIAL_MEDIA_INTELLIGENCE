@@ -3,6 +3,7 @@
 import { apifyConnectors } from "@smip/connector-apify";
 import { FakeConnector, fakeItem } from "@smip/connector-fake";
 import { HikerApiConnector } from "@smip/connector-hikerapi";
+import { LamatokConnector } from "@smip/connector-lamatok";
 import type { Connector } from "@smip/connector-sdk";
 import { YoutubeDataConnector } from "@smip/connector-youtube-data";
 
@@ -44,7 +45,7 @@ function demoItems(platform: string) {
 
 export function connectorRegistry(env: string): Map<string, Connector> {
   // connector nyata: aktif/tidaknya diatur DB (providers/connectors.enabled + routing), bukan di sini
-  const list: Connector[] = [...apifyConnectors(), new YoutubeDataConnector(), new HikerApiConnector()];
+  const list: Connector[] = [...apifyConnectors(), new YoutubeDataConnector(), new HikerApiConnector(), new LamatokConnector()];
   if (env !== "production") list.push(...FAKE_PLATFORMS.map((p) => new FakeConnector({ platform: p, autoRespond: demoItems(p) })));
   return new Map(list.map((c) => [c.manifest.key, c]));
 }

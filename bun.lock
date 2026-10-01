@@ -111,6 +111,10 @@
       "name": "@smip/connector-hikerapi",
       "version": "0.0.0",
     },
+    "packages/connectors/lamatok": {
+      "name": "@smip/connector-lamatok",
+      "version": "0.0.0",
+    },
     "packages/connectors/youtube-data": {
       "name": "@smip/connector-youtube-data",
       "version": "0.0.0",
@@ -357,6 +361,8 @@
     "@smip/connector-fake": ["@smip/connector-fake@workspace:packages/connectors/fake"],
 
     "@smip/connector-hikerapi": ["@smip/connector-hikerapi@workspace:packages/connectors/hikerapi"],
+
+    "@smip/connector-lamatok": ["@smip/connector-lamatok@workspace:packages/connectors/lamatok"],
 
     "@smip/connector-sdk": ["@smip/connector-sdk@workspace:packages/connector-sdk"],
 
