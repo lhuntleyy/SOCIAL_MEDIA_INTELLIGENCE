@@ -623,8 +623,9 @@ export function PieChart({
         series: [
           {
             type: "pie",
-            radius: donut ? ["42%", "70%"] : "70%",
-            label: { formatter: "{b} ({d}%)" },
+            // radius lebih kecil + label 2 baris: nama tidak terpotong ("Po…") di kartu sempit
+            radius: donut ? ["36%", "60%"] : "60%",
+            label: { formatter: "{b}\n{d}%", overflow: "none", lineHeight: 14 },
             data: items.map((i) => ({ name: i.name, value: i.value, key: i.key, itemStyle: i.color ? { color: i.color } : undefined })),
           },
         ],

@@ -166,6 +166,10 @@ bun $E scripts/connectors.ts account apify apify-1 APIFY_TOKEN                  
 bun $E scripts/connectors.ts account youtube_data_api yt-1 YOUTUBE_API_KEY api_key
 ```
 
+> **Lewat UI (disarankan setelah instalasi):** *Pengaturan → Sumber data → Akun provider* — **tambah akun / API key**, **ganti key**
+> (mis. token Apify baru atau pindah akun ber-saldo), matikan, hapus. Key disegel, hanya 4 karakter terakhir yang ditampilkan.
+> Status **jeda sementara · saldo/kuota di provider habis** = isi ulang saldo di dashboard provider (HikerAPI/LamaTok/Apify).
+
 **8.2 Verifikasi** tiap connector yang akan dipakai (menjalankan pencarian sungguhan — **berbayar kecil** untuk Apify):
 ```bash
 Q='"koperasi merah putih" OR kopdes'

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { api } from "../api";
-import { Badge, Button, Card, ErrorText, PLATFORM_LABEL, Switch, Tabs } from "../ui";
+import { Badge, Button, Card, ErrorText, Input, PLATFORM_LABEL, Select, Switch, Tabs } from "../ui";
 import AiSettings from "./AdminLlm";
 
 interface Connector {
@@ -53,6 +53,8 @@ const KIND: Record<string, { label: string; tone: "blue" | "zinc" | "red" }> = {
 };
 const PROVIDER_NAME: Record<string, string> = {
   apify: "Apify",
+  hikerapi: "HikerAPI (Instagram)",
+  lamatok: "LamaTok (TikTok)",
   "youtube-data": "YouTube Data API",
   youtube_data_api: "YouTube Data API",
   fake: "Uji (data palsu)",
@@ -65,6 +67,7 @@ const ACCOUNT_STATUS: Record<string, { label: string; tone: "green" | "red" | "a
   revoked: { label: "dicabut", tone: "zinc" },
 };
 const REASON: Record<string, string> = {
+  QUOTA_EXHAUSTED: "saldo/kuota di provider habis — isi ulang saldo di dashboard provider; dicoba lagi otomatis tiap jam",
   FORBIDDEN: "provider menolak akses (HTTP 403) — cek saldo/batas pemakaian & izin di dashboard provider",
   AUTH_INVALID: "token/API key tidak valid atau kedaluwarsa — ganti credential",
   CHALLENGE_REQUIRED: "platform meminta verifikasi akun — selesaikan manual",
@@ -186,6 +189,138 @@ function MaxItems({ code, value }: { code: string; value: number | null | undefi
   );
 }
 
+/** Nama field secret per provider (cara connector membaca credential). */
+const SECRET_FIELD: Record<string, string> = { apify: "api_token" };
+const KEY_HELP: Record<string, string> = {
+  apify: "console.apify.com → Settings → API & Integrations → Personal API token",
+  hikerapi: "hikerapi.com → dashboard → Access key",
+  lamatok: "lamatok.com → dashboard → Access key",
+  youtube_data_api: "Google Cloud Console → APIs & Services → Credentials (YouTube Data API v3)",
+};
+
+/** Ganti key (credential disegel; lama di-crypto-shred), matikan/aktifkan, atau hapus akun provider. */
+function AccountActions({ a, onDone }: { a: Account; onDone: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [key, setKey] = useState("");
+  const rotate = useMutation({
+    mutationFn: async () => {
+      await api(`/admin/accounts/${a.id}/credential`, {
+        method: "PUT",
+        json: { kind: "api_key", secret: { [SECRET_FIELD[a.provider_key] ?? "api_key"]: key.trim() } },
+      });
+      // key baru → akun dipakai lagi (status bermasalah biasanya karena key lama)
+      if (a.status !== "active" && a.status !== "disabled")
+        await api(`/admin/accounts/${a.id}`, { method: "PATCH", json: { status: "active" } });
+    },
+    onSuccess: () => {
+      setKey("");
+      setEditing(false);
+      onDone();
+    },
+  });
+  const toggle = useMutation({
+    mutationFn: () =>
+      api(`/admin/accounts/${a.id}`, { method: "PATCH", json: { status: a.status === "disabled" ? "active" : "disabled" } }),
+    onSuccess: onDone,
+  });
+  const remove = useMutation({ mutationFn: () => api(`/admin/accounts/${a.id}`, { method: "DELETE" }), onSuccess: onDone });
+  return (
+    <div className="w-full">
+      <div className="flex flex-wrap justify-end gap-3 text-xs">
+        <button type="button" className="text-brand-600 hover:underline" onClick={() => setEditing(!editing)}>
+          ganti key
+        </button>
+        <button type="button" className="text-zinc-500 hover:underline" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
+          {a.status === "disabled" ? "aktifkan" : "matikan"}
+        </button>
+        <button
+          type="button"
+          className="text-zinc-400 hover:text-red-600"
+          onClick={() => confirm(`Hapus akun ${a.label}? Key-nya dimusnahkan permanen.`) && remove.mutate()}
+        >
+          hapus
+        </button>
+      </div>
+      {editing && (
+        <div className="mt-2 rounded-lg bg-zinc-50 p-2">
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              autoComplete="off"
+              placeholder="API key / token baru"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+            />
+            <Button onClick={() => rotate.mutate()} disabled={key.trim().length < 8 || rotate.isPending}>
+              {rotate.isPending ? "Menyimpan…" : "Simpan"}
+            </Button>
+          </div>
+          {KEY_HELP[a.provider_key] && <p className="mt-1 text-xs text-zinc-500">Ambil dari: {KEY_HELP[a.provider_key]}</p>}
+        </div>
+      )}
+      <ErrorText error={rotate.error ?? toggle.error ?? remove.error} />
+    </div>
+  );
+}
+
+interface ProviderRow {
+  id: string;
+  key: string;
+  name: string;
+  enabled: boolean;
+}
+/** Tambah akun provider baru (mis. key kedua untuk dipakai bergiliran, atau provider yang belum punya akun). */
+function AddAccount({ onDone }: { onDone: () => void }) {
+  const providers = useQuery({ queryKey: ["admin-providers"], queryFn: () => api<ProviderRow[]>("/admin/providers") });
+  const list = (providers.data ?? []).filter((p) => p.key !== "fake");
+  const [pid, setPid] = useState("");
+  const [label, setLabel] = useState("");
+  const [key, setKey] = useState("");
+  const prov = list.find((p) => p.id === pid);
+  const add = useMutation({
+    mutationFn: () =>
+      api("/admin/accounts", {
+        method: "POST",
+        json: {
+          provider_id: pid,
+          label: label.trim(),
+          credential: { kind: "api_key", secret: { [SECRET_FIELD[prov?.key ?? ""] ?? "api_key"]: key.trim() } },
+        },
+      }),
+    onSuccess: () => {
+      setKey("");
+      setLabel("");
+      onDone();
+    },
+  });
+  return (
+    <div className="mt-3 rounded-lg border border-dashed border-zinc-300 p-3">
+      <div className="mb-2 text-xs font-semibold uppercase text-zinc-500">Tambah akun / API key</div>
+      <div className="grid gap-2 md:grid-cols-[1fr_1fr_2fr_auto]">
+        <Select value={pid} onChange={(e) => setPid(e.target.value)}>
+          <option value="">— pilih provider —</option>
+          {list.map((p) => (
+            <option key={p.id} value={p.id}>
+              {PROVIDER_NAME[p.key] ?? p.name}
+            </option>
+          ))}
+        </Select>
+        <Input placeholder="Label (mis. apify-2)" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <Input type="password" autoComplete="off" placeholder="API key / token" value={key} onChange={(e) => setKey(e.target.value)} />
+        <Button onClick={() => add.mutate()} disabled={!pid || !label.trim() || key.trim().length < 8 || add.isPending}>
+          Tambah
+        </Button>
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">
+        {prov && KEY_HELP[prov.key] ? `Ambil dari: ${KEY_HELP[prov.key]}. ` : ""}
+        Key disimpan terenkripsi dan tidak pernah ditampilkan lagi (hanya 4 karakter terakhir). Lebih dari satu akun per provider dipakai
+        bergiliran.
+      </p>
+      <ErrorText error={add.error} />
+    </div>
+  );
+}
+
 function Sources() {
   const qc = useQueryClient();
   const [showTest, setShowTest] = useState(false);
@@ -220,7 +355,8 @@ function Sources() {
   const list = (q.data ?? []).filter((c) => showTest || c.provider.key !== "fake");
   const u = new Map((usage.data ?? []).map((x) => [x.connector, x]));
   const spend = (usage.data ?? []).filter((x) => x.connector.startsWith("apify.")).reduce((a, x) => a + x.cost_units, 0);
-  const accs = (accounts.data ?? []).filter((a) => showTest || a.provider_key !== "fake");
+  const accs = (accounts.data ?? []).filter((a) => (showTest || a.provider_key !== "fake") && a.status !== "revoked");
+  const refreshAccounts = () => void qc.invalidateQueries({ queryKey: ["admin-accounts"] });
   // provider tanpa satu pun akun aktif → semua connector-nya tidak bisa dipakai router
   const usable = (provider: string) => {
     const mine = (accounts.data ?? []).filter((a) => a.provider_key === provider && a.status !== "revoked");
@@ -250,15 +386,16 @@ function Sources() {
       </Card>
       <Card title="Akun provider">
         <p className="mb-2 text-sm text-zinc-600">
-          Akun berstatus <b>butuh perhatian</b> tidak dipakai sama sekali — semua sumber dari provider itu berhenti mengambil data. Perbaiki
-          penyebabnya di dashboard provider, lalu aktifkan lagi.
+          API key / token tiap provider (Apify, HikerAPI, LamaTok, YouTube) dikelola di sini: <b>ganti key</b> saat token baru atau saldo
+          pindah akun, <b>tambah akun</b> untuk key kedua (dipakai bergiliran). Akun <b>butuh perhatian</b> / <b>jeda sementara</b> tidak
+          dipakai — perbaiki penyebabnya (mis. isi saldo) lalu aktifkan lagi.
         </p>
         <ul className="divide-y divide-zinc-100">
           {accs.map((a) => {
             const st = ACCOUNT_STATUS[a.status] ?? { label: a.status, tone: "zinc" as const };
             const reason = a.attention_reason ? (REASON[a.attention_reason] ?? a.attention_reason) : null;
             return (
-              <li key={a.id} className="flex items-center gap-3 py-2">
+              <li key={a.id} className="flex flex-wrap items-center gap-3 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium">{PROVIDER_NAME[a.provider_key] ?? a.provider_key}</span>
@@ -278,11 +415,13 @@ function Sources() {
                     Aktifkan lagi
                   </Button>
                 )}
+                <AccountActions a={a} onDone={refreshAccounts} />
               </li>
             );
           })}
           {!accs.length && <li className="py-2 text-sm text-zinc-500">Belum ada akun.</li>}
         </ul>
+        <AddAccount onDone={refreshAccounts} />
         <div className="mt-3 space-y-1 border-t border-zinc-100 pt-2">
           {[...new Map(accs.map((a) => [a.provider_id, a.provider_key])).entries()].map(([pid, key]) => (
             <div key={pid}>

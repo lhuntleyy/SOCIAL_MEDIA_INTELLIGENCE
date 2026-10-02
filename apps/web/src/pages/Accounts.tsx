@@ -20,6 +20,7 @@ interface Row {
   handle: string;
 }
 
+const STATUS_LABEL: Record<string, string> = { active: "aktif", paused: "dijeda", archived: "diarsipkan" };
 const statusTone = (s: string) => (s === "active" ? "green" : s === "paused" ? "amber" : "zinc");
 const handlesOf = (t: TopicDetail) =>
   t.queries.map((q) => ({ platform: q.platforms?.[0] ?? "", handle: q.query_text.replace(/^@/, "") })).filter((r) => r.platform);
@@ -65,7 +66,7 @@ function AccountListInner() {
                 <div className="truncate font-medium">👤 {t.name}</div>
                 <div className="truncate text-xs text-zinc-500">{t.platforms.map((p) => PLATFORM_LABEL[p] ?? p).join(" · ")}</div>
               </div>
-              <Badge tone={statusTone(t.status)}>{t.status}</Badge>
+              <Badge tone={statusTone(t.status)}>{STATUS_LABEL[t.status] ?? t.status}</Badge>
             </Link>
           </li>
         ))}

@@ -141,6 +141,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-03 | Audit + key di Pengaturan | Audit live: IG & TikTok mati sejak 01-10 karena **saldo HikerAPI & LamaTok $0** (402) — perlu isi ulang oleh pemilik; kini terlihat di UI (cooldown + alasan). Kelola API key provider dari Pengaturan. Fix biaya HikerAPI (maks 8 hashtag/run). Audit UI Playwright di localhost: 13 halaman + drill-down tanpa error JS/API. 461+ test lulus |
 | 2026-10-01 | Menu Akun (pantau akun) | Keputusan pemilik: menu baru per akun. `topics.kind` (0024), query `@username` → user_timeline; connector user_timeline: lamatok/hikerapi/xquik (verified live); API kind + validasi + filter + operations_available; UI `Accounts.tsx`. Test: query (@author), topics (kind, plan, backfill 1 run/akun). Apify FREE → maks 4 run bersamaan |
 | 2026-10-01 | TikTok → LamaTok | Keputusan pemilik: LamaTok satu-satunya sumber TikTok. Connector `lamatok.tiktok` (search_keyword verified; user_timeline & post_comments declared) + 16 test; backfill KDMP 1 hari 37 video/$0,003 |
 | 2026-10-01 | Instagram → HikerAPI | Keputusan pemilik: HikerAPI satu-satunya sumber IG (Apify IG nonaktif). Connector `hikerapi.instagram` + 15 test (contract, paginasi berhenti di window, normalizer GQL `1l*`), VERIFIED live, backfill JOKOWI 1 hari 102 post/$0,006. Tag cloud isu pengganti 3D |

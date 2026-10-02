@@ -5,6 +5,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Kelola API key provider dari Pengaturan → Sumber data → Akun provider** (2026-10-03): ganti key (credential lama di-crypto-shred, akun bermasalah aktif lagi), matikan/aktifkan, hapus, **tambah akun** (key kedua dipakai bergiliran) untuk Apify / HikerAPI / LamaTok / YouTube — tanpa terminal. Memakai Admin API I-21 yang sudah ada (`/admin/accounts`, `PUT …/credential`); field secret per provider (`api_token` Apify, `api_key` lainnya). Diuji Playwright (request benar, tanpa error).
 - **Menu Akun — pantau akun** (pejabat/media/influencer): topik `kind=account` (migrasi 0024) berisi `@username` per platform →
   operation `user_timeline` (TikTok LamaTok, Instagram HikerAPI, X xquik `from:`; semua VERIFIED live) → semua analitik (sentimen,
   emosi, isu, laporan) berlaku. Parser: `@username` = term penulis (matcher mencocokkan penulis, bukan teks). `GET /platforms` kini
@@ -140,6 +141,9 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Kode spike: `package.json`, `.bun-version` (1.4.2), `scripts/compat-check.ts` + `scripts/compat/*`, `scripts/spike-infra.sh`, bukti `docs/evidence/`.
 
 ### Fixed
+- **Saldo provider habis tidak terlihat** (audit live 2026-10-02): HikerAPI & LamaTok saldo **$0** (HTTP 402) sejak 01-10 ±12:30 UTC → Instagram & TikTok 0 post, 77 percobaan gagal, akun tetap "aktif" di UI (hanya throttle Redis). `QUOTA_EXHAUSTED` ber-scope akun kini juga menulis **jeda sementara + alasan ke DB** (tampil di Pengaturan: "saldo/kuota di provider habis — isi ulang") + alert; sweeper mencoba lagi tiap jam.
+- HikerAPI: jumlah hashtag per run tak terbatas (tiap hashtag ≤ 10 halaman berbayar) → maks. 8 (`maxHashtags`) + peringatan; post tanpa `taken_at` membuat paging tak berhenti di window (NaN) → diabaikan.
+- UI: label pie terpotong ("Po…"); status topik/akun berbahasa Inggris; "Sorotan netral" di Laporan mengulang "Post paling ramai".
 - Panel *Isu* kosong di demo: container API belum di-restart setelah endpoint baru; word cloud kini menampilkan error/memuat, bukan kotak kosong.
 - **Query `or/and/not` huruf kecil dibaca sebagai kata biasa** → `jokowi or jkw` = `jokowi AND or AND jkw` → data terambil tapi 0 post
   cocok (topik BPIP & JOKOWI). Operator kini tidak peka huruf (ADR-008 amandemen); `scripts/reparse-queries.ts` mem-parse ulang query lama.

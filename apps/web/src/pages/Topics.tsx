@@ -7,6 +7,7 @@ import { OfficePicker, useNeedsOffice } from "../office";
 import type { TopicDetail, TopicSummary } from "../types";
 import { Badge, Button, Card, Empty, ErrorText, Input, PLATFORM_LABEL } from "../ui";
 
+const STATUS_LABEL: Record<string, string> = { active: "aktif", paused: "dijeda", archived: "diarsipkan" };
 const statusTone = (s: string) =>
   s === "active" || s === "succeeded" ? "green" : s === "failed" ? "red" : s === "paused" || s === "partial" ? "amber" : "zinc";
 
@@ -56,7 +57,7 @@ function TopicListInner() {
                   {t.platforms.map((p) => PLATFORM_LABEL[p] ?? p).join(" · ") || "tanpa platform"}
                 </div>
               </div>
-              <Badge tone={statusTone(t.status)}>{t.status}</Badge>
+              <Badge tone={statusTone(t.status)}>{STATUS_LABEL[t.status] ?? t.status}</Badge>
             </Link>
           </li>
         ))}
@@ -88,7 +89,7 @@ export function TopicPage() {
       <div className="space-y-4">
         <ErrorText error={t.error} />
         {t.data && (
-          <Card title={t.data.name} right={<Badge tone={statusTone(t.data.status)}>{t.data.status}</Badge>}>
+          <Card title={t.data.name} right={<Badge tone={statusTone(t.data.status)}>{STATUS_LABEL[t.data.status] ?? t.data.status}</Badge>}>
             {t.data.description && <p className="mb-3 text-sm text-zinc-600">{t.data.description}</p>}
             <div className="mb-3 flex flex-wrap gap-2">
               <Button variant="ghost" onClick={() => nav(`/?topic=${id}`)}>

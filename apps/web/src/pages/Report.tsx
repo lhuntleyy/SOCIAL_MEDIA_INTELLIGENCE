@@ -70,7 +70,7 @@ function Body({ f }: { f: Filters }) {
   const top = useA<Post[]>(f, "/posts?limit=10&sort=engagement");
   const neg = useA<Post[]>(f, "/posts?limit=5&sort=engagement&sentiment=negative");
   const posi = useA<Post[]>(f, "/posts?limit=5&sort=engagement&sentiment=positive");
-  const neu = useA<Post[]>(f, "/posts?limit=5&sort=engagement&sentiment=neutral");
+  const neu = useA<Post[]>(f, "/posts?limit=15&sort=engagement&sentiment=neutral");
   const [csv, setCsv] = useState<"idle" | "busy">("idle");
   const [pdf, setPdf] = useState<"idle" | "busy" | "error">("idle");
   const reportRef = useRef<HTMLElement>(null);
@@ -323,7 +323,11 @@ function Body({ f }: { f: Filters }) {
           { title: "Post paling ramai", rows: top.data },
           { title: "Sorotan sentimen negatif", rows: neg.data },
           { title: "Sorotan sentimen positif", rows: posi.data },
-          { title: "Sorotan sentimen netral", rows: neu.data },
+          // tanpa post yang sudah tampil di "Post paling ramai" (netral teramai biasanya sama persis)
+          {
+            title: "Sorotan sentimen netral",
+            rows: neu.data?.filter((p) => !top.data?.some((t) => t.platform === p.platform && t.post_id === p.post_id)).slice(0, 5),
+          },
         ].map((sec) => (
           <Section key={sec.title} title={sec.title}>
             {sec.rows?.length ? (

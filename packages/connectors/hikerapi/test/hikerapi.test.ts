@@ -147,6 +147,16 @@ describe("hikerapi.instagram", () => {
     expect(calls.every((c) => !c.includes(KEY))).toBe(true); // key hanya di header
   });
 
+  test("jumlah hashtag per run dibatasi (maxHashtags) + peringatan — query OR panjang tidak melipatgandakan biaya", async () => {
+    mode = "ok";
+    calls.length = 0;
+    const many = Array.from({ length: 12 }, (_, i) => `tagnomor${i}`).join(" OR ");
+    const r = await connector.fetch(req({ query: { native: many, sourceNodeIds: [] } }), ctx());
+    const tags = new Set(calls.filter((c) => c.startsWith("/v2/hashtag")).map((c) => /name=([^&]+)/.exec(c)?.[1]));
+    expect(tags.size).toBe(8);
+    expect(r.warnings.map((w) => w.code)).toContain("HASHTAGS_TRUNCATED");
+  });
+
   test("hashtag tak dikenal (404) dilewati, bukan menggagalkan run", async () => {
     mode = "ok";
     const r = await connector.fetch(req({ query: { native: "tidakada", sourceNodeIds: [] } }), ctx());

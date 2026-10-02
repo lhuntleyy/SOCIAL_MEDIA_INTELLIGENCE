@@ -40,7 +40,7 @@ export type Effect =
   | { kind: "capability_failed"; connectorId: string; operation: string }
   | {
       kind: "alert";
-      event: "account_needs_attention" | "account_blocked" | "schema_drift";
+      event: "account_needs_attention" | "account_blocked" | "account_quota_exhausted" | "schema_drift";
       connectorId: string;
       accountId: string;
       code: ConnectorErrorCode;
@@ -89,6 +89,13 @@ export function decideFailover(o: AttemptOutcome, s: AttemptState, cfg: Failover
     case "QUOTA_EXHAUSTED": {
       const scopeId = o.errorScope === "connector" ? o.connectorId : o.accountId;
       effects.push({ kind: "throttle", scopeId, ms: o.retryAfterMs ?? cfg.quotaFullMs });
+      if (o.errorScope !== "connector") {
+        // saldo/kuota akun provider habis (mis. HTTP 402 HikerAPI/LamaTok): catat di DB (status "jeda sementara" + alasan,
+        // terlihat di Pengaturan → Sumber data) + alert. Sweeper mengaktifkan lagi setelah jeda; masih habis → jeda lagi.
+        // Sebelumnya hanya throttle Redis → akun tetap "aktif" di UI, IG & TikTok mati 1+ hari tanpa tanda (live 2026-10-02).
+        effects.push({ kind: "account_cooldown", accountId: o.accountId, ms: o.retryAfterMs ?? cfg.quotaFullMs, code });
+        effects.push({ kind: "alert", event: "account_quota_exhausted", connectorId: o.connectorId, accountId: o.accountId, code });
+      }
       next = { action: "failover", ...(o.errorScope === "connector" ? conn : acct) };
       break;
     }

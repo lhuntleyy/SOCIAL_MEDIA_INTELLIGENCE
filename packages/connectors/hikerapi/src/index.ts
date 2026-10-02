@@ -42,6 +42,8 @@ export interface HikerConfig {
   keywordSearch?: boolean;
   /** Maks. keyword (cabang OR) yang dicari per run. */
   maxKeywords?: number;
+  /** Maks. hashtag yang diambil per run (default 8). */
+  maxHashtags?: number;
 }
 
 export const HIKER_CONFIG_SCHEMA = {
@@ -52,6 +54,7 @@ export const HIKER_CONFIG_SCHEMA = {
     maxHashtagPages: { type: "integer", minimum: 1, maximum: 50 },
     keywordSearch: { type: "boolean" },
     maxKeywords: { type: "integer", minimum: 0, maximum: 20 },
+    maxHashtags: { type: "integer", minimum: 1, maximum: 32 },
   },
 } as const;
 
@@ -294,7 +297,11 @@ export class HikerApiConnector implements Connector {
       }
     }
     // 1) hashtag terbaru: halaman demi halaman sampai melewati window.since
-    for (const tag of hashtags) {
+    // batas jumlah hashtag per run: tiap hashtag ≤ maxPages request berbayar (query OR panjang → biaya berlipat)
+    const maxTags = cfg.maxHashtags ?? 8;
+    if (hashtags.length > maxTags)
+      warnings.push({ code: "HASHTAGS_TRUNCATED", message: `${hashtags.length} hashtag, hanya ${maxTags} pertama yang diambil` });
+    for (const tag of hashtags.slice(0, maxTags)) {
       let page: string | undefined;
       for (let p = 0; p < maxPages; p++) {
         let body: unknown;
@@ -309,7 +316,9 @@ export class HikerApiConnector implements Connector {
         const ms = collectMedias(body);
         returned += ms.length;
         raw.push(...ms);
-        const oldest = Math.min(...ms.map((m) => Number(f(m, "taken_at")) * 1000));
+        // post tanpa taken_at diabaikan (Math.min dengan NaN = NaN → paging tak pernah berhenti di window)
+        const times = ms.map((m) => Number(f(m, "taken_at")) * 1000).filter(Number.isFinite);
+        const oldest = times.length ? Math.min(...times) : Number.NEGATIVE_INFINITY;
         page = str(obj(body).next_page_id) ?? undefined;
         if (!ms.length || !page || (sinceMs !== null && oldest < sinceMs)) break;
       }

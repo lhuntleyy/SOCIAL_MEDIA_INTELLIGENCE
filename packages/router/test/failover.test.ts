@@ -34,7 +34,7 @@ describe("I-10 decideFailover", () => {
   test("tabel aksi per kode", () => {
     const rows: [AttemptOutcome["errorCode"], Partial<AttemptOutcome>, FailoverDecision, Effect["kind"][], 0 | 1 | 2][] = [
       ["RATE_LIMITED", { retryAfterMs: 30_000 }, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["throttle"], 0],
-      ["QUOTA_EXHAUSTED", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["throttle"], 0],
+      ["QUOTA_EXHAUSTED", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["throttle", "account_cooldown", "alert"], 0], // saldo akun habis → jeda tercatat di DB + alert
       ["QUOTA_EXHAUSTED", { errorScope: "connector" }, { action: "failover", excludeConnectorId: "c1", delayMs: 0 }, ["throttle"], 0],
       ["AUTH_INVALID", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["account_attention", "alert"], 1],
       ["CHALLENGE_REQUIRED", {}, { action: "failover", excludeAccountId: "a1", delayMs: 0 }, ["account_attention", "alert"], 1],
