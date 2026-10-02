@@ -339,3 +339,41 @@ platform dikunci per paket (`plans.limits` / `topic_platforms.interval_sec`); (3
 (5) ukur ulang biaya 2 minggu pertama tiap klien — "ramai" tidak selalu mahal (X murah; yang mahal IG/TikTok/FB); (6) peluang
 turun biaya terbesar: provider IG keyword yang terurut waktu / tanpa biaya halaman, Threads API resmi (gratis, butuh App Review),
 kuota YouTube diperluas; (7) kurs & tarif diverifikasi ulang (§10).
+
+## 12. Hitung ulang 2026-10-03 — IG via HikerAPI, TikTok via LamaTok
+
+Tarif: HikerAPI & LamaTok **$0,001/request** (DOCS + `connectors.config.usdPerRequest`); terukur live: HikerAPI ±3,5 request/run
+(±30 post/halaman hashtag, berhenti di window), LamaTok ±2,3 request/run (±30 video/halaman). Biaya **per request, bukan per post** →
+ramai/sepi hampir sama; yang menentukan = jumlah keyword/hashtag × frekuensi. Asumsi 3 keyword + 3 hashtag per topik.
+Tarif lain tetap §11.1 (X xquik $0,16/1K, Threads $1/1K **ditagih ulang 24 jam tiap run**, FB $3/1K adaptif + init, YouTube resmi gratis).
+AI $0,33/1K post. Infra single-node 16 GB + backup: $90 (10 topik) / $120 (20) / $150 (30). Kurs Rp 16.500.
+Kantor = 10 topik (3 kecil + 5 sedang + 2 ramai, ukuran §11.3). Skrip model: rumus §11.3 dengan IG/TikTok = request × $0,001.
+
+### 12.1 Biaya per topik per bulan (USD)
+| Skenario | Kecil | Sedang | Ramai | Penyumbang terbesar |
+|---|---:|---:|---:|---|
+| A. **Semua 5 menit** | 187 | 1.382 | 2.853 | **Threads** (1.141 / 2.592) — filter per hari ditagih ulang 288×/hari; FB 151 |
+| A'. Semua 5 menit, **Threads 1 jam** (IG keyword 1 jam) | 137 | 313 | 453 | FB 5m (151), Threads 95–216 |
+| B. **Rekomendasi**: X/TikTok/IG-hashtag 5m · FB 15m · Threads/IG-keyword/YouTube* 1j | 85 | 212 | 353 | Threads 95–216, FB 50 |
+| C. Standar: X/TikTok/IG 15m · FB 1j · Threads/YouTube 3j | 26 | 73 | 139 | Threads 32–72 |
+
+IG & TikTok kini murah di interval berapa pun (5m ≈ $26–52/topik/bln; dulu Apify IG 5m ≈ $4.565). **X hampir gratis.** Yang masih
+mahal: **Threads** (actor Apify filter per-hari) dan **FB di 5 menit** (lantai 5 hasil/run). *YouTube 1 jam = 24 search/topik/hari →
+30 topik butuh 720/hari > kuota 100/hari/project → wajib **ajukan perluasan kuota** ke Google (gratis, lewat audit); membuat banyak
+project untuk mengakali kuota melanggar ToS Google.
+
+### 12.2 Total & harga jual (harga = biaya × 1,2 ÷ (1 − 60% margin), belum PPN)
+| Skenario | 1 kantor (10 topik) | 2 kantor (20) | 3 kantor (30) | **Harga / kantor / bln** |
+|---|---:|---:|---:|---:|
+| A. Semua 5 menit | Rp 218,9 jt | Rp 436,8 jt | Rp 654,8 jt | ± Rp 655 jt — **tidak layak dijual** |
+| A'. Semua 5m, Threads 1j | Rp 49,0 jt | Rp 97,1 jt | Rp 145,2 jt | **± Rp 145 jt** |
+| B. Rekomendasi | Rp 34,8 jt | Rp 68,6 jt | Rp 102,4 jt | **± Rp 102 jt** |
+| C. Standar | Rp 13,5 jt | Rp 25,9 jt | Rp 38,4 jt | **± Rp 38 jt** |
+
+Biaya per kantor hampir linear (infra kecil dibagi). Penghematan antar kantor bila topik beririsan: §12.3.
+
+### 12.3 Peluang turun biaya berikutnya (urutan dampak)
+1. **Threads**: provider yang inkremental / per-request (atau Threads API resmi — gratis, butuh App Review) → B turun ± 30–60%.
+2. **FB**: interval 15m–1j (berita FB jarang menit-an) atau provider per-request.
+3. **Berbagi fetch antar kantor** (collection stream ADR-009, sudah dibangun I-22, belum teruji di demo): keyword sama → bayar sekali.
+4. Komentar (bila ditambah): ± 20 post teratas/topik/hari × 1 request ≈ $0,6/topik/bln (LamaTok/HikerAPI) + AI komentar.

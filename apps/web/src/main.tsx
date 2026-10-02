@@ -22,6 +22,14 @@ import Users, { AcceptInvite } from "./pages/Users";
 const ROLE_NAME: Record<string, string> = { owner: "Admin kantor", admin: "Admin kantor", analyst: "Analis", viewer: "Pembaca" };
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 15_000, refetchOnWindowFocus: false } } });
 
+/** Pengaturan sumber data/AI (status provider, saldo, key) hanya untuk owner platform — bukan klien (admin/user kantor),
+ *  juga tidak saat owner sedang "masuk ke kantor" klien. */
+function OwnerOnly({ children }: { children: React.ReactNode }) {
+  const { me } = useAuth();
+  if (!me?.user.is_platform_operator || getViewAs()) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 function Shell() {
   const { me, loading, logout } = useAuth();
   const client = useQueryClient();
@@ -141,7 +149,14 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/accounts/new" element={<AccountForm />} />
               <Route path="/accounts/:id/edit" element={<AccountForm />} />
               <Route path="/users" element={<Users />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route
+                path="/settings"
+                element={
+                  <OwnerOnly>
+                    <Settings />
+                  </OwnerOnly>
+                }
+              />
               {/* alamat lama */}
               <Route path="/admin/tenants" element={<Navigate to="/users" replace />} />
               <Route path="/admin/providers" element={<Navigate to="/settings" replace />} />

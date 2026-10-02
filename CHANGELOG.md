@@ -141,6 +141,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Kode spike: `package.json`, `.bun-version` (1.4.2), `scripts/compat-check.ts` + `scripts/compat/*`, `scripts/spike-infra.sh`, bukti `docs/evidence/`.
 
 ### Fixed
+- Halaman *Pengaturan* (status sumber data, saldo provider, key) kini dijaga **khusus owner platform** juga di sisi web — admin/user kantor (klien) yang membuka `/settings` langsung dialihkan ke dashboard (sebelumnya hanya menu yang disembunyikan). COST_MODEL §12: hitung ulang biaya & harga dengan HikerAPI/LamaTok.
 - **Saldo provider habis tidak terlihat** (audit live 2026-10-02): HikerAPI & LamaTok saldo **$0** (HTTP 402) sejak 01-10 ±12:30 UTC → Instagram & TikTok 0 post, 77 percobaan gagal, akun tetap "aktif" di UI (hanya throttle Redis). `QUOTA_EXHAUSTED` ber-scope akun kini juga menulis **jeda sementara + alasan ke DB** (tampil di Pengaturan: "saldo/kuota di provider habis — isi ulang") + alert; sweeper mencoba lagi tiap jam.
 - HikerAPI: jumlah hashtag per run tak terbatas (tiap hashtag ≤ 10 halaman berbayar) → maks. 8 (`maxHashtags`) + peringatan; post tanpa `taken_at` membuat paging tak berhenti di window (NaN) → diabaikan.
 - UI: label pie terpotong ("Po…"); status topik/akun berbahasa Inggris; "Sorotan netral" di Laporan mengulang "Post paling ramai".
