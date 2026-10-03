@@ -105,12 +105,14 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 ## Fase 4 — Provider Ops & Alert
 | ID | Status | PIC | Bukti | Catatan |
 |---|---|---|---|---|
-| O-01 | in_progress | claude | `apps/web/src/pages/AdminProviders.tsx` | Daftar connector (provider/kind, capability, health) + aktif/nonaktif + cek health (I-21). Belum: priority/weight, rate, quota, verify |
+| O-01 | done | claude | `apps/web/src/pages/Settings.tsx` (Sumber data) · `Routing.tsx` | Daftar sumber + status/saldo + aktif/nonaktif + cek health + batas biaya per sumber (quota) + config tiap sumber (Batas & jadwal) + **urutan/bobot/aktif per platform (Routing, 2026-10-04)**. Verify tetap lewat `scripts/connectors.ts` (berbayar, perlu keputusan operator) |
 | O-05 | done (email menyusul) | claude | `apps/worker-sink/src/alerts.ts` · `packages/notify` · `apps/web/src/pages/Alerts.tsx` · alerts.test (API + evaluator + sink integrasi) | Aturan per topik: **sentimen negatif tinggi**, **lonjakan percakapan** (vs rata-rata 7 hari), **isu baru** (tanpa riwayat 7 hari); evaluasi tiap 5 menit (agregat ClickHouse, satu pemegang lock), cooldown per aturan; event open → dibaca → selesai; saluran **Telegram** (token bot disegel KMS, write-only) & **webhook** (HTTPS publik, guard SSRF, tanda tangan HMAC `X-SMIP-Signature`); kirim uji; hasil kirim dicatat di event; badge jumlah alert baru di menu. Email: belum (butuh SMTP) |
 | O-06 | done | claude | `apps/api/src/exports/files.ts` · `GET /exports/posts` · export-files.test + analytics.test | **Unduh data** Excel (.xlsx, tanpa dependency: SpreadsheetML + ZIP deflate, baris judul tebal & beku, filter) / CSV (UTF-8 BOM, anti formula injection) — post sesuai filter dashboard / drill-down (rentang, platform, sentimen, isu, hashtag, akun…), kolom waktu WIB, akun, teks, URL, metrik terakhir (suka/komentar/bagikan/tayang), engagement, sentimen, emosi, isu, hashtag; maks. 50.000 post terbaru (`X-SMIP-Truncated`); analis+ (`exports:write`); tercatat di `exports` + audit. Uji live: BPIP 30 hari 129 post. Langsung diunduh (tanpa S3/presigned — tidak ada file tersimpan) |
 | O-04 | done | claude | `apps/web/src/pages/Monitor.tsx` · `GET /admin/crawl-monitor` · admin-providers.test | Pengaturan → **Monitor** (owner): kesehatan pengambilan per platform (berhasil %, gagal, sebagian, dilewati, berjalan, post baru, terakhir berhasil; 24 jam/3 hari/7 hari), kegagalan terbaru (kode, pesan, topik, kantor, connector), DLQ per queue (kirim ulang/buang), pemakaian & perkiraan biaya per kantor, audit log (filter jenis, sembunyikan akses lihat kantor). Langsung menemukan insiden FB (RUNBOOK §13) |
 | D-03 | done | claude | `apps/api/src/realtime.ts` · `routes/stream.ts` · stream.test (SEC-10/SEC-11) | SSE `GET /stream?topic_id` (cookie `sse_ticket`), `POST /stream/ticket`; event `aggregates.updated`, `alert.fired`, `heartbeat` 25 s, `ticket.expired`; Redis pub/sub `smip:rt` antar replika; Bun `server.timeout(req, 0)` untuk SSE |
-| O-02, O-03, O-07 | todo | | | |
+| O-02 | done | claude | `apps/web/src/pages/Routing.tsx` | Pengaturan → Routing: simulator per kantor/platform/operasi/jenis/jadwal → sumber terpilih + alasan tiap sumber tersisih (bahasa awam). Uji: FB → silentflow, IG → "tidak ada API key yang siap (saldo habis)" |
+| O-03 | done | claude | Pengaturan → Sumber data → Akun provider | Ganti/tambah/hapus API key (write-only, disegel KMS, hapus kriptografis), jeda/aktifkan, alasan bermasalah — dibangun 2026-10-03 |
+| O-07 | todo | | | |
 
 ## Fase 5 — Hardening
 | ID | Status | PIC | Bukti | Catatan |
@@ -148,6 +150,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | O-01/O-02 Routing | Tab Routing owner: urutan/bobot/aktif sumber per platform (simpan dengan If-Match) + simulator dengan alasan tersisih. O-03 ditandai selesai (Akun provider). |
 | 2026-10-04 | D-03 Update instan (SSE) | worker-sink meneruskan `realtime.notify` (+ alert baru) ke Redis pub/sub → API (subscriber per replika) → SSE per topik; tiket cookie HttpOnly `Path=/v1/stream` 15 menit (hash di Redis), tanpa token di URL; dashboard "● live" memuat ulang widget saat data baru (3 dtk batch), auto-refresh tetap cadangan. Uji SEC-10/SEC-11 + E2E browser (1 event → 13 widget dimuat ulang). 523 test |
 | 2026-10-04 | O-04 Monitor + insiden FB | Tab Monitor owner (kesehatan per platform, kegagalan, DLQ, biaya per kantor, audit). Monitor menemukan Facebook mati ±14 jam (capability silentflow ditandai failed oleh worker lama saat deploy) → dipulihkan, worker kini melapor connector belum dimuat sebagai error sementara; RUNBOOK §13. 520 test |
 | 2026-10-04 | U-04 Galeri | Tab Galeri di Percakapan: post bermedia (foto/video) per topik, filter jenis media/sentimen, urut engagement/terbaru, detail + tautan asli; `GET /analytics/gallery` (URL non-https dibuang). Uji live: 45/48 gambar termuat, sisanya fallback teks. 519 test |

@@ -6,6 +6,7 @@ import { Badge, Button, Card, ErrorText, Input, PLATFORM_LABEL, Select, Switch, 
 import AiSettings from "./AdminLlm";
 import Limits from "./Limits";
 import Monitor from "./Monitor";
+import Routing from "./Routing";
 
 interface Connector {
   id: string;
@@ -433,15 +434,16 @@ function Sources() {
   );
 }
 
-type Tab = "sources" | "limits" | "monitor" | "ai";
+type Tab = "sources" | "routing" | "limits" | "monitor" | "ai";
 export default function Settings() {
   const [sp, setSp] = useSearchParams();
-  const tab: Tab = (["sources", "limits", "monitor", "ai"] as const).find((t) => t === sp.get("tab")) ?? "sources";
+  const tab: Tab = (["sources", "routing", "limits", "monitor", "ai"] as const).find((t) => t === sp.get("tab")) ?? "sources";
   return (
     <div className="space-y-4">
       <Tabs
         tabs={[
           { id: "sources", label: "Sumber data" },
+          { id: "routing", label: "Routing" },
           { id: "limits", label: "Batas & jadwal" },
           { id: "monitor", label: "Monitor" },
           { id: "ai", label: "AI" },
@@ -449,7 +451,17 @@ export default function Settings() {
         value={tab}
         onChange={(v) => setSp({ tab: v }, { replace: true })}
       />
-      {tab === "sources" ? <Sources /> : tab === "limits" ? <Limits /> : tab === "monitor" ? <Monitor /> : <AiSettings />}
+      {tab === "sources" ? (
+        <Sources />
+      ) : tab === "routing" ? (
+        <Routing />
+      ) : tab === "limits" ? (
+        <Limits />
+      ) : tab === "monitor" ? (
+        <Monitor />
+      ) : (
+        <AiSettings />
+      )}
     </div>
   );
 }
