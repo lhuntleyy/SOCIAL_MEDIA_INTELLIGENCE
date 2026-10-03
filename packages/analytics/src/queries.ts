@@ -390,6 +390,92 @@ export async function feed(ch: ClickHouseClient, f: AnalyticsFilter, o: FeedOpti
   }));
 }
 
+export interface GalleryOptions extends Omit<FeedOptions, "limit" | "offset"> {
+  mediaType?: "image" | "video";
+  limit: number;
+  offset: number;
+}
+export interface GalleryItem {
+  platform: string;
+  post_id: string;
+  published_at: string;
+  sentiment: string;
+  engagement: number | null;
+  author_handle: string;
+  text: string;
+  url: string | null;
+  media: { type: string; url: string; thumb: string | null }[];
+}
+
+/**
+ * U-04/D-04 Galeri: post match topik yang punya media (foto/video) — urut engagement atau terbaru. Hanya konten publik post
+ * (tanpa demografi). Teks dipotong 280 karakter; media maks. 4 per post.
+ */
+export async function gallery(
+  ch: ClickHouseClient,
+  f: AnalyticsFilter,
+  o: GalleryOptions,
+): Promise<{ items: GalleryItem[]; has_more: boolean }> {
+  const w = feedWhere(f, { ...o });
+  const media =
+    o.mediaType === "video"
+      ? " AND arrayExists(x -> JSONExtractString(x, 'type') = 'video', JSONExtractArrayRaw(media))"
+      : o.mediaType === "image"
+        ? " AND arrayExists(x -> JSONExtractString(x, 'type') IN ('image', 'gif'), JSONExtractArrayRaw(media))"
+        : "";
+  const order = o.sort === "latest" ? "m.published_at DESC" : "m.engagement DESC, m.published_at DESC";
+  const rows = await q<{
+    platform: string;
+    post_id: string;
+    published_at: string;
+    sentiment: string;
+    engagement: string;
+    engagement_known: number;
+    author_handle: string;
+    text: string;
+    url: string | null;
+    media: string;
+  }>(
+    ch,
+    `SELECT m.platform AS platform, m.post_id AS post_id, toString(m.published_at) AS published_at, toString(m.sentiment) AS sentiment,
+            m.engagement AS engagement, m.engagement_known AS engagement_known, m.author_handle AS author_handle,
+            substring(p.text, 1, 280) AS text, p.url AS url, p.media AS media
+     FROM (SELECT * FROM topic_matches FINAL WHERE ${w.where}) AS m
+     INNER JOIN (SELECT platform, post_id, text, url, media FROM posts FINAL
+                 WHERE post_id IN (SELECT post_id FROM topic_matches FINAL WHERE ${w.where}) AND media != '[]' AND media != ''${media}) AS p
+       ON p.platform = m.platform AND p.post_id = m.post_id
+     ORDER BY ${order} LIMIT {lim:UInt32} OFFSET {off:UInt32}`,
+    { ...w.params, lim: o.limit + 1, off: o.offset },
+  );
+  const items = rows.slice(0, o.limit).map((r) => {
+    let media: GalleryItem["media"] = [];
+    try {
+      media = (JSON.parse(r.media) as { type?: string; url?: string; thumb?: string | null }[])
+        .filter((m) => typeof m?.url === "string" && /^https:\/\//.test(m.url))
+        .slice(0, 4)
+        .map((m) => ({
+          type: String(m.type ?? "image"),
+          url: m.url!,
+          thumb: typeof m.thumb === "string" && /^https:\/\//.test(m.thumb) ? m.thumb : null,
+        }));
+    } catch {
+      /* media rusak → tanpa media */
+    }
+    return {
+      platform: r.platform,
+      post_id: r.post_id,
+      published_at: r.published_at,
+      sentiment: r.sentiment,
+      engagement: r.engagement_known ? Number(r.engagement) : null,
+      author_handle: r.author_handle,
+      text: r.text,
+      url: r.url,
+      media,
+    };
+  });
+  return { items: items.filter((i) => i.media.length), has_more: rows.length > o.limit };
+}
+
 /** Batas baris export (O-06) — lebih dari ini dipotong (terbaru dulu) dan ditandai `truncated`. */
 export const EXPORT_MAX_ROWS = 50_000;
 

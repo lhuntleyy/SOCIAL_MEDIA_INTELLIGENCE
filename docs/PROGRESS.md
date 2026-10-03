@@ -98,7 +98,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | U-04 | in_progress | claude | `apps/web/src/pages/Conversation.tsx` | Percakapan: Kronologi, **Isu** (donut teratas, perbandingan vs periode sebelumnya, cloud positif/negatif), Sentimen (+cloud isu per sentimen), Emosi, Engagement. Belum: override sentimen (A-05), Galeri, Kontributor terpisah |
 | A-05 | done | claude | [analytics.test](../apps/api/test/analytics.test.ts) P-06 · [sink.test](../apps/worker-sink/test/sink.test.ts) · CI | Override sentimen end-to-end: `@smip/analytics overrideSentiment` (salinan +1 terakhir → −1, +1 `human`), API PATCH (analyst+, scope `posts:write`, RLS topik, `sentiment_overrides`, audit jsonb), relabel/reprocess melewati label `human`, UI kartu post (analyst+). Belum: antrean kurasi admin sebelum masuk training (AI_SPEC §8), override emosi |
 | A-08, A-09 | in_progress | claude | enrich.test (ambang, below_18 disensor, cache, gagal → unknown, saklar) | Jalur LLM per akun + cache CH + τ + minor_suppressed. Belum: eval precision/disparitas pada golden set (S-23), leksikon nama sebagai sinyal pertama, backfill demografi post lama |
-| D-04 | in_progress | claude | analytics.test (psikografi + coverage + isolasi tenant) | `/analytics/psychography`. Belum: Gallery/Chronology endpoint terpisah |
+| D-04 | done | claude | analytics.test (psikografi + coverage + isolasi tenant + galeri) | `/analytics/psychography`, `/analytics/gallery` (2026-10-04); kronologi memakai feed `/posts` (content_type) |
 | U-06 | in_progress | claude | `apps/web/src/pages/Audience.tsx` | Gender, usia, sentimen per gender/usia + coverage di Audiens |
 | A-01, A-02, A-07, D-03, U-02 … U-05 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
 
@@ -146,6 +146,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | U-04 Galeri | Tab Galeri di Percakapan: post bermedia (foto/video) per topik, filter jenis media/sentimen, urut engagement/terbaru, detail + tautan asli; `GET /analytics/gallery` (URL non-https dibuang). Uji live: 45/48 gambar termuat, sisanya fallback teks. 519 test |
 | 2026-10-04 | O-06 Export | Unduh data Excel/CSV dari dashboard & popup drill-down (filter ikut), maks. 50.000 post, anti formula injection, tercatat. 518 test + Playwright (unduhan live valid) |
 | 2026-10-04 | O-05 Alert | Halaman Alert: aturan (negatif tinggi / lonjakan / isu baru), riwayat + baca/selesai, saluran Telegram & webhook (secret disegel, SSRF guard, HMAC), evaluator worker-sink tiap 5 menit. 520+ test + Playwright |
 | 2026-10-04 | Paket per kantor + adaptif | Paket jadwal per kantor (plans 0029, menu Kantor); jadwal adaptif (topik sepi melambat ×2 s.d. 3 jam) + mode malam 00–06 WIB (scheduler `pace.ts`); tombol Ambil sekarang dihapus. 505 test |

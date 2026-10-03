@@ -37,6 +37,7 @@ const Common = z.object({
   content_type: z.enum(["post", "reply", "repost", "quote", "comment", "replies", "reposts"]).optional(),
   sort: z.enum(["latest", "engagement"]).optional(),
   count: z.enum(["0", "1"]).optional(),
+  media_type: z.enum(["image", "video"]).optional(),
 });
 
 export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
@@ -73,6 +74,21 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
     r.get(path, read, async (c) => c.json({ data: await fn(await filter(c)), meta: meta(c) }));
 
   route("/analytics/summary", ({ f }) => A.summary(d.ch, f));
+  // U-04 galeri: post bermedia (foto/video) untuk filter yang sama dengan feed
+  route("/analytics/gallery", ({ f, q }) =>
+    A.gallery(d.ch, f, {
+      sentiment: q.sentiment,
+      emotion: q.emotion,
+      hashtag: q.hashtag,
+      issue: q.issue,
+      authorId: q.author_id,
+      contentType: q.content_type,
+      sort: q.sort,
+      mediaType: q.media_type,
+      limit: Math.min(q.limit ?? 48, 60),
+      offset: q.offset ?? 0,
+    }),
+  );
   route("/analytics/exposure", ({ f, q }) => A.exposure(d.ch, f, q.granularity ?? A.autoGranularity(f), q.mode));
   route("/analytics/emotion/timeline", ({ f, q }) => A.emotionTimeline(d.ch, f, q.granularity ?? A.autoGranularity(f)));
   route("/analytics/accounts/active", ({ f }) => A.activeAccounts(d.ch, f));

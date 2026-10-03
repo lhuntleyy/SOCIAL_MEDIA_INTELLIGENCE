@@ -25,10 +25,12 @@ import {
 import { api } from "../api";
 import { Badge, Empty, Tabs } from "../ui";
 import { type Accounts, AnalyticsPage, type Breakdown, type Prop, perPlatform } from "./Dashboard";
+import Gallery from "./Gallery";
 
-type Tab = "chronology" | "issues" | "sentiment" | "emotion" | "engagement";
+type Tab = "chronology" | "gallery" | "issues" | "sentiment" | "emotion" | "engagement";
 const TABS: { id: Tab; label: string }[] = [
   { id: "chronology", label: "Kronologi" },
+  { id: "gallery", label: "Galeri" },
   { id: "issues", label: "Isu" },
   { id: "sentiment", label: "Sentimen" },
   { id: "emotion", label: "Emosi" },
@@ -353,6 +355,7 @@ export default function Conversation() {
             }}
           />
           {tab === "chronology" && <Chronology f={f} />}
+          {tab === "gallery" && <Gallery f={f} />}
           {tab === "issues" && <Issues f={f} />}
           {tab === "sentiment" && <Sentiment f={f} />}
           {tab === "emotion" && <Emotion f={f} />}

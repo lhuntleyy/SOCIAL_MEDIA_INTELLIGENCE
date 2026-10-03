@@ -331,6 +331,46 @@ describe.skipIf(!up)("D-01 analytics", () => {
     ]);
   });
 
+  test("U-04 galeri: hanya post bermedia, filter foto/video, URL non-https dibuang, sort engagement, tenant lain 404", async () => {
+    const now = Date.now();
+    const ts = (ms: number) => new Date(ms).toISOString().replace("T", " ").slice(0, 23);
+    await ch.insert({
+      table: "posts",
+      format: "JSONEachRow",
+      values: [
+        {
+          platform: "x",
+          post_id: "p2",
+          text: "foto rapat kopdes",
+          published_at: ts(now - 10_800_000),
+          author_id: "a0",
+          author_handle: "akun0",
+          hashtags: [],
+          mentions: [],
+          content_type: "post",
+          lang: "id",
+          matched: 1,
+          source_connector: "fake.x",
+          raw_ref: "",
+          ingested_at: ts(now),
+          version: 2,
+          media: JSON.stringify([
+            { type: "image", url: "https://img.example/a.jpg", thumb: null },
+            { type: "image", url: "javascript:alert(1)", thumb: null },
+          ]),
+        },
+      ],
+    });
+    type G = { items: { post_id: string; media: { url: string }[]; sentiment: string; text: string }[]; has_more: boolean };
+    const g = (await get(`/analytics/gallery?topic_id=${TA}`, ta)).json.data as G;
+    expect(g.items.map((i) => i.post_id)).toEqual(["p2"]);
+    expect(g.items[0]).toMatchObject({ sentiment: "positive", text: "foto rapat kopdes", media: [{ url: "https://img.example/a.jpg" }] });
+    expect(g.has_more).toBe(false);
+    expect(((await get(`/analytics/gallery?topic_id=${TA}&media_type=video`, ta)).json.data as G).items).toEqual([]);
+    expect(((await get(`/analytics/gallery?topic_id=${TA}&sentiment=negative`, ta)).json.data as G).items).toEqual([]);
+    expect((await get(`/analytics/gallery?topic_id=${TA}`, tb)).status).toBe(404);
+  });
+
   test("SEC-01: topik tenant lain → 404; parameter tidak valid → 400", async () => {
     expect((await get(`/analytics/sentiment/proportion?topic_id=${TA}`, tb)).status).toBe(404);
     expect((await get(`/posts?topic_id=${TA}`, tb)).status).toBe(404);
