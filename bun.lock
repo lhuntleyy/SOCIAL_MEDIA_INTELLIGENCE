@@ -143,6 +143,10 @@
       "name": "@smip/llm",
       "version": "0.0.0",
     },
+    "packages/notify": {
+      "name": "@smip/notify",
+      "version": "0.0.0",
+    },
     "packages/observability": {
       "name": "@smip/observability",
       "version": "0.0.0",
@@ -379,6 +383,8 @@
     "@smip/geo": ["@smip/geo@workspace:packages/geo"],
 
     "@smip/llm": ["@smip/llm@workspace:packages/llm"],
+
+    "@smip/notify": ["@smip/notify@workspace:packages/notify"],
 
     "@smip/observability": ["@smip/observability@workspace:packages/observability"],
 

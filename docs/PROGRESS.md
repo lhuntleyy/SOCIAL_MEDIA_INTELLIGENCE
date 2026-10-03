@@ -106,7 +106,8 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | ID | Status | PIC | Bukti | Catatan |
 |---|---|---|---|---|
 | O-01 | in_progress | claude | `apps/web/src/pages/AdminProviders.tsx` | Daftar connector (provider/kind, capability, health) + aktif/nonaktif + cek health (I-21). Belum: priority/weight, rate, quota, verify |
-| O-02 … O-07 | todo | | | |
+| O-05 | done (email menyusul) | claude | `apps/worker-sink/src/alerts.ts` · `packages/notify` · `apps/web/src/pages/Alerts.tsx` · alerts.test (API + evaluator + sink integrasi) | Aturan per topik: **sentimen negatif tinggi**, **lonjakan percakapan** (vs rata-rata 7 hari), **isu baru** (tanpa riwayat 7 hari); evaluasi tiap 5 menit (agregat ClickHouse, satu pemegang lock), cooldown per aturan; event open → dibaca → selesai; saluran **Telegram** (token bot disegel KMS, write-only) & **webhook** (HTTPS publik, guard SSRF, tanda tangan HMAC `X-SMIP-Signature`); kirim uji; hasil kirim dicatat di event; badge jumlah alert baru di menu. Email: belum (butuh SMTP) |
+| O-02 … O-04, O-06, O-07 | todo | | | |
 
 ## Fase 5 — Hardening
 | ID | Status | PIC | Bukti | Catatan |
@@ -144,6 +145,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | O-05 Alert | Halaman Alert: aturan (negatif tinggi / lonjakan / isu baru), riwayat + baca/selesai, saluran Telegram & webhook (secret disegel, SSRF guard, HMAC), evaluator worker-sink tiap 5 menit. 520+ test + Playwright |
 | 2026-10-04 | Paket per kantor + adaptif | Paket jadwal per kantor (plans 0029, menu Kantor); jadwal adaptif (topik sepi melambat ×2 s.d. 3 jam) + mode malam 00–06 WIB (scheduler `pace.ts`); tombol Ambil sekarang dihapus. 505 test |
 | 2026-10-03 | Auto-refresh + Off = jeda | Perbandingan biaya jadwal 5m–3j (COST_MODEL §12.6): kantor 10 topik 1 jam Rp 10,4 jt, 30 menit Rp 12,9 jt. Auto-refresh dikembalikan (layar, gratis), Off = jeda topik di server; jadwal diatur owner (5 paket baru). Ambil sekarang tetap. 500 test + Playwright |
 | 2026-10-03 | FB murah + API mahal mati | Facebook → silentflow ($0,0023/post, terurut terbaru, adaptif; VERIFIED). Dimatikan: YouTube Apify, Threads scrapersdelight, X/FB scraper_one, FB scrapeforge. CaptAPI dievaluasi (9× lebih mahal per request, tanpa FB keyword) → tidak dipakai. 499 test |

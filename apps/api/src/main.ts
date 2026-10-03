@@ -10,6 +10,7 @@ import { BullMqQueue } from "@smip/queue";
 import { LlmAdminService } from "./admin/llm";
 import { ProviderAdminService } from "./admin/providers";
 import { AdminService } from "./admin/service";
+import { AlertService } from "./alerts/service";
 import { createApp } from "./app";
 import { loadJwtKeys } from "./auth/jwt";
 import { LoginLimiter } from "./auth/rate-limit";
@@ -42,7 +43,12 @@ const llm = new LlmAdminService(db, {
   fingerprintPepper: new Uint8Array(Buffer.from(cfg.CREDENTIAL_PEPPER_B64!, "base64")),
   http: new HttpClient({ timeoutMs: 30_000 }),
 });
-const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, llm, analytics: { db, ch }, keys, logger });
+const alerts = new AlertService(db, {
+  kms,
+  fingerprintPepper: new Uint8Array(Buffer.from(cfg.CREDENTIAL_PEPPER_B64!, "base64")),
+  http: new HttpClient({ timeoutMs: 15_000 }),
+});
+const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, llm, alerts, analytics: { db, ch }, keys, logger });
 
 const INTERNAL_IP_HEADER = "x-smip-client-ip";
 const isPrivate = (ip: string) =>

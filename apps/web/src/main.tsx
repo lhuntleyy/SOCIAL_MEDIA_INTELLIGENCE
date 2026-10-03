@@ -7,6 +7,7 @@ import { useFilterSearch } from "./analytics";
 import { getViewAs, setViewAs } from "./api";
 import { AuthProvider, useAuth } from "./auth";
 import { AccountForm, AccountList } from "./pages/Accounts";
+import Alerts, { useOpenAlerts } from "./pages/Alerts";
 import Audience from "./pages/Audience";
 import Contributors from "./pages/Contributors";
 import Conversation from "./pages/Conversation";
@@ -30,6 +31,16 @@ function OwnerOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AlertsLink({ className }: { className: (s: { isActive: boolean }) => string }) {
+  const open = useOpenAlerts(true).data?.open ?? 0;
+  return (
+    <NavLink to="/alerts" className={className}>
+      Alert
+      {open > 0 && <span className="ml-1 rounded-full bg-red-600 px-1.5 text-xs text-white">{open}</span>}
+    </NavLink>
+  );
+}
+
 function Shell() {
   const { me, loading, logout } = useAuth();
   const client = useQueryClient();
@@ -41,6 +52,7 @@ function Shell() {
   const view = getViewAs();
   const isAdmin = ["owner", "admin"].includes(me.current_tenant.role) || op;
   const tenantName = me.tenants.find((t) => t.id === me.current_tenant.id)?.name;
+  const inOffice = !op || !!view;
   const link = ({ isActive }: { isActive: boolean }) =>
     `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? "bg-brand-600 text-white" : "text-zinc-600 hover:bg-zinc-100"}`;
   return (
@@ -87,6 +99,7 @@ function Shell() {
           <NavLink to="/accounts" className={link}>
             Akun
           </NavLink>
+          {inOffice && <AlertsLink className={link} />}
           {isAdmin && (
             <NavLink to="/users" className={link}>
               {op && !view ? "Kantor & pengguna" : "Pengguna"}
@@ -148,6 +161,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/accounts" element={<AccountList />} />
               <Route path="/accounts/new" element={<AccountForm />} />
               <Route path="/accounts/:id/edit" element={<AccountForm />} />
+              <Route path="/alerts" element={<Alerts />} />
               <Route path="/users" element={<Users />} />
               <Route
                 path="/settings"

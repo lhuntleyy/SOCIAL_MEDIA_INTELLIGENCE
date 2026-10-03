@@ -128,17 +128,24 @@ const refresh = z.object({
   ENGAGEMENT_REFRESH_MAX_POSTS: z.coerce.number().int().min(1).max(10_000).default(500),
 });
 
+const alerts = z.object({
+  /** URL publik dashboard untuk tautan di pesan alert (opsional). */
+  APP_PUBLIC_URL: z.url().optional(),
+  ALERTS_EVAL_MS: z.coerce.number().int().min(60_000).default(300_000),
+});
+
 const SHAPES: Record<ServiceName, z.ZodObject<z.ZodRawShape>[]> = {
   api: [base, clickhouse, kms, api],
   scheduler: [base, scheduler],
   "worker-dispatch": [base],
   "worker-fetch-bun": [base, s3, kms],
   "worker-pipeline": [base, s3],
-  "worker-sink": [base, clickhouse, s3, refresh],
+  // kms: alert O-05 membuka secret saluran notifikasi (token bot Telegram, kunci tanda tangan webhook)
+  "worker-sink": [base, clickhouse, s3, refresh, kms, alerts],
   "worker-ai": [base, clickhouse, s3, kms],
   "worker-health": [base, kms],
   "worker-ops": [base, clickhouse, s3],
-  workers: [base, clickhouse, s3, kms, scheduler, refresh],
+  workers: [base, clickhouse, s3, kms, scheduler, refresh, alerts],
 };
 
 function schemaFor(service: ServiceName) {
@@ -167,7 +174,16 @@ function schemaFor(service: ServiceName) {
 type Merge<T extends readonly unknown[]> = T extends readonly [infer H, ...infer R] ? H & Merge<R> : unknown;
 type Out<S> = S extends z.ZodTypeAny ? z.output<S> : never;
 type AllConfig = Merge<
-  [Out<typeof base>, Out<typeof clickhouse>, Out<typeof s3>, Out<typeof kms>, Out<typeof api>, Out<typeof scheduler>, Out<typeof refresh>]
+  [
+    Out<typeof base>,
+    Out<typeof clickhouse>,
+    Out<typeof s3>,
+    Out<typeof kms>,
+    Out<typeof api>,
+    Out<typeof scheduler>,
+    Out<typeof refresh>,
+    Out<typeof alerts>,
+  ]
 >;
 /** Konfigurasi hasil validasi. Field di luar service tsb tidak dijamin ada — akses lewat service yang benar. */
 export type Config = Partial<AllConfig> & Out<typeof base> & { service: ServiceName };

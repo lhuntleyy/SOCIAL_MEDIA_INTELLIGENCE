@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type { LlmAdminService } from "./admin/llm";
 import type { ProviderAdminService } from "./admin/providers";
 import type { AdminService } from "./admin/service";
+import type { AlertService } from "./alerts/service";
 import type { JwtKeys } from "./auth/jwt";
 import type { AuthService } from "./auth/service";
 import type { AppEnv } from "./context";
@@ -13,6 +14,7 @@ import { requestId } from "./middleware/request-id";
 import { adminRoutes, publicAdminRoutes } from "./routes/admin";
 import { llmAdminRoutes } from "./routes/admin-llm";
 import { providerAdminRoutes } from "./routes/admin-providers";
+import { alertRoutes } from "./routes/alerts";
 import { analyticsRoutes } from "./routes/analytics";
 import { authRoutes } from "./routes/auth";
 import { topicRoutes } from "./routes/topics";
@@ -24,6 +26,8 @@ export interface AppDeps {
   topics?: TopicService;
   /** API_SPEC §9 (I-21). */
   providers?: ProviderAdminService;
+  /** O-05 alert & saluran notifikasi. */
+  alerts?: AlertService;
   /** Pengaturan LLM (Fase 3). */
   llm?: LlmAdminService;
   /** D-01/D-02: analitik & feed (ClickHouse). */
@@ -72,6 +76,7 @@ export function createApp(d: AppDeps) {
   if (d.llm) prot.route("/", llmAdminRoutes(d.llm));
   if (d.analytics) prot.route("/", analyticsRoutes(d.analytics));
   if (d.topics) prot.route("/", topicRoutes(d.topics));
+  if (d.alerts) prot.route("/", alertRoutes(d.alerts));
   d.mount?.(prot);
   app.route("/", prot);
 

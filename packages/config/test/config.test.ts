@@ -46,6 +46,8 @@ describe("loadConfig", () => {
       [
         "CLICKHOUSE_URL",
         "DATABASE_URL",
+        "KMS_ADAPTER", // alert O-05 membuka secret saluran notifikasi
+        "KMS_KEY_ID",
         "REDIS_CACHE_URL",
         "S3_ACCESS_KEY_ID",
         "S3_BUCKET_EXPORTS",

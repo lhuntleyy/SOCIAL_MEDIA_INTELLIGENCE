@@ -13,7 +13,7 @@ import { MemoryBlobStore } from "@smip/storage";
 import { stubEnrich } from "@smip/worker-ai-stub";
 import { cachedGazetteer, Deduper, handlePipelineItems } from "@smip/worker-pipeline";
 import postgres from "postgres";
-import { handleSink, planComments, planEngagementRefresh, type SinkDeps } from "../src";
+import { evaluateAlerts, handleSink, planComments, planEngagementRefresh, type SinkDeps } from "../src";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
 const REDIS = process.env.TEST_REDIS_CACHE_URL ?? "redis://127.0.0.1:56380";
@@ -425,5 +425,70 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
     await sql`insert into system_settings (key, value) values ('comments.enabled', 'false') on conflict (key) do update set value = 'false'`;
     await sql`update crawl_runs set status = 'succeeded' where kind = 'comments'`;
     expect((await planComments(created.db, ch)).runs).toBe(0); // dimatikan di Pengaturan
+  });
+
+  test("O-05 evaluateAlerts: agregat 1 jam negatif tinggi → event + webhook (aturan nonaktif / topik dijeda dilewati), cooldown", async () => {
+    const [topic, rule, off, chan] = [++seq, ++seq, ++seq, ++seq].map(id) as [string, string, string, string];
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`insert into topics (id, tenant_id, name) values (${topic}, ${T}, 'Alert uji')`;
+      await tx`insert into notification_channels (id, tenant_id, kind, config) values (${chan}, ${T}, 'webhook', ${tx.json({ name: "Hook", url: "https://hook.example/x" })})`;
+      await tx`insert into alert_rules (id, tenant_id, topic_id, type, params, channels, cooldown_sec) values
+        (${rule}, ${T}, ${topic}, 'negative_ratio', ${tx.json({ window_hours: 3, threshold_pct: 60, min_posts: 10 })}, ${`{${chan}}`}::uuid[], 3600),
+        (${off}, ${T}, ${topic}, 'volume_spike', ${tx.json({ window_hours: 1, factor: 1.5, min_posts: 1 })}, '{}', 3600)`;
+      await tx`update alert_rules set enabled = false where id = ${off}`;
+    });
+    const hour = new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000).toISOString().replace("T", " ").slice(0, 19);
+    await ch.insert({
+      table: "agg_topic_1h",
+      values: [
+        {
+          tenant_id: T,
+          topic_id: topic,
+          platform: "x",
+          sentiment: "negative",
+          content_type: "post",
+          bucket: hour,
+          posts: 16,
+          engagement: 0,
+          engagement_known_posts: 0,
+        },
+        {
+          tenant_id: T,
+          topic_id: topic,
+          platform: "x",
+          sentiment: "neutral",
+          content_type: "post",
+          bucket: hour,
+          posts: 4,
+          engagement: 0,
+          engagement_known_posts: 0,
+        },
+      ],
+      format: "JSONEachRow",
+    });
+    const posts: { url: string; body: string }[] = [];
+    const deps = {
+      db: created.db,
+      ch,
+      kms: null,
+      post: async (url: string, init: { body: string }) => {
+        posts.push({ url, body: init.body });
+        return { status: 204 };
+      },
+    };
+    const r = await evaluateAlerts(deps);
+    expect(r.fired).toBe(1);
+    expect(r.deliveries.sent).toBe(1);
+    expect(posts[0]!.url).toBe("https://hook.example/x");
+    expect(JSON.parse(posts[0]!.body)).toMatchObject({
+      event: "alert.fired",
+      title: "Sentimen negatif 80% (3 jam terakhir)",
+      topic: { name: "Alert uji" },
+    });
+    const [ev] = await sql`select status, payload from alert_events where rule_id = ${rule}`;
+    expect(ev!.status).toBe("open");
+    expect(ev!.payload.deliveries[0]).toMatchObject({ channel_id: chan, status: "sent" });
+    expect((await evaluateAlerts(deps)).fired).toBe(0); // cooldown 1 jam
   });
 });

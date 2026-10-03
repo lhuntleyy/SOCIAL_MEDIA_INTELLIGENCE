@@ -393,9 +393,15 @@ Client merespons dengan invalidasi query TanStack terkait (tidak mengirim data b
 | PATCH/DELETE | `/alert-rules/{id}` |
 | GET | `/alert-events?status=open` |
 | POST | `/alert-events/{id}/ack` · `/resolve` |
-| GET/POST | `/notification-channels` (secret write-only) |
+| GET/POST | `/notification-channels` (secret write-only) · PATCH/DELETE `/notification-channels/{id}` · POST `/notification-channels/{id}/test` — admin+; `kind` telegram (`config.chat_id`, `secret` = token bot, wajib) / webhook (`config.url` HTTPS publik, `secret` = kunci HMAC opsional) |
 | POST | `/exports` → 202 `{ "export_id": "…", "status": "queued" }` |
 | GET | `/exports/{id}` → `{ "status": "done", "download_url": "<presigned, 24h>" }` |
+
+Implementasi O-05 (2026-10-04): `type` = `negative_ratio` `{window_hours 1–72 (3), threshold_pct 5–100 (50), min_posts (20)}` ·
+`volume_spike` `{window_hours (1), factor 1,5–50 (3), min_posts (30)}` · `new_issue` `{window_hours (6), min_mentions (10)}`; `cooldown_sec`
+900–604800. Aturan & event: baca viewer+, ubah analyst+. Evaluasi tiap 5 menit (worker-sink). Webhook: POST JSON `{event: "alert.fired",
+event_id, type, title, message, topic, office, fired_at, metrics}` + header `X-SMIP-Timestamp`, `X-SMIP-Signature: sha256=HMAC(secret,
+"<timestamp>.<body>")`. Email belum didukung (dilaporkan `skipped`).
 
 Contoh alert rule:
 ```json

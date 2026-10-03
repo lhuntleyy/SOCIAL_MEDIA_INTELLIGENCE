@@ -1,11 +1,14 @@
 // Service `worker-sink` (ARCHITECTURE §5): consume sink.analytics → ClickHouse + penutupan run + realtime.notify.
 import { createClient } from "@clickhouse/client";
 import { loadConfig } from "@smip/config";
+import { HttpClient } from "@smip/connector-sdk";
 import { SinkAnalyticsPayload } from "@smip/contracts";
+import { createKms } from "@smip/crypto";
 import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { S3BlobStore } from "@smip/storage";
+import { evaluateAlerts } from "./alerts";
 import { planComments } from "./comments";
 import { planEngagementRefresh } from "./refresh";
 import { handleSink } from "./sink";
@@ -73,10 +76,36 @@ async function planCommentsTick() {
   }
 }
 const commentsTimer = setInterval(planCommentsTick, 15 * 60_000);
+// O-05 alert: evaluasi aturan tiap ALERTS_EVAL_MS (satu pemegang lock), kirim Telegram/webhook lewat HttpClient (guard SSRF)
+const kms = createKms(cfg);
+const http = new HttpClient({ timeoutMs: 15_000 });
+const ALERTS_LOCK = "lock:alerts:evaluator";
+let evaluating = false;
+async function alertsTick() {
+  if (evaluating) return;
+  evaluating = true;
+  try {
+    if ((await cache.send("SET", [ALERTS_LOCK, owner, "NX", "PX", String((cfg.ALERTS_EVAL_MS ?? 300_000) - 5000)])) !== "OK") return;
+    const r = await evaluateAlerts({
+      db,
+      ch,
+      kms,
+      post: async (url, init) => ({ status: (await http.request(url, { ...init, throwOnStatus: false })).status }),
+      appUrl: cfg.APP_PUBLIC_URL,
+    });
+    if (r.fired) logger.info("alert terpicu", { ...r });
+  } catch (e) {
+    logger.error("evaluasi alert gagal", { error: e });
+  } finally {
+    evaluating = false;
+  }
+}
+const alertsTimer = setInterval(alertsTick, cfg.ALERTS_EVAL_MS ?? 300_000);
 logger.info("worker-sink mulai", { engagement_refresh: cfg.ENGAGEMENT_REFRESH_ENABLED });
 const shutdown = async () => {
   if (refreshTimer) clearInterval(refreshTimer);
   clearInterval(commentsTimer);
+  clearInterval(alertsTimer);
   await sub.close(30_000);
   await queue.close();
   await ch.close();
