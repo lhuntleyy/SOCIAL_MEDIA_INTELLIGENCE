@@ -31,6 +31,14 @@ export const SETTING_DEFAULTS = {
   "schedule.night_start_hour": 0,
   "schedule.night_end_hour": 6,
   "schedule.night_interval_sec": 10_800,
+  /** Retensi (H-04, DATA_MODEL §9): post yang tidak cocok topik mana pun dihapus setelah N hari. */
+  "retention.unmatched_posts_days": 30,
+  /** Retensi: post yang pernah cocok tapi tak lagi dipakai kantor mana pun dihapus setelah N hari. */
+  "retention.global_posts_days": 400,
+  /** Retensi data kantor bila paket tidak menentukan `retention_days`. */
+  "retention.default_tenant_days": 365,
+  /** Retensi data operasional (outbox terkirim, ledger dedup) — hari. */
+  "retention.ops_days": 30,
 } as const;
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 export type Settings = { -readonly [K in SettingKey]: (typeof SETTING_DEFAULTS)[K] extends boolean ? boolean : number };

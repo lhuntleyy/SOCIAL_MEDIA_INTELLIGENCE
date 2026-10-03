@@ -13,7 +13,7 @@ import { MemoryBlobStore } from "@smip/storage";
 import { stubEnrich } from "@smip/worker-ai-stub";
 import { cachedGazetteer, Deduper, handlePipelineItems } from "@smip/worker-pipeline";
 import postgres from "postgres";
-import { evaluateAlerts, handleSink, planComments, planEngagementRefresh, type SinkDeps } from "../src";
+import { evaluateAlerts, handleSink, planComments, planEngagementRefresh, purgeTenant, runRetention, type SinkDeps } from "../src";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
 const REDIS = process.env.TEST_REDIS_CACHE_URL ?? "redis://127.0.0.1:56380";
@@ -491,4 +491,115 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
     expect(ev!.payload.deliveries[0]).toMatchObject({ channel_id: chan, status: "sent" });
     expect((await evaluateAlerts(deps)).fired).toBe(0); // cooldown 1 jam
   });
+
+  test("H-04 retensi: data kantor > retention_days, post tak-match > 30 hari, post tak terpakai > 400 hari, outbox lama; purge kantor tertutup", async () => {
+    const now = Date.now();
+    const ts = (ms: number) => new Date(ms).toISOString().replace("T", " ").slice(0, 23);
+    const old = now - 500 * 86_400_000;
+    const T2 = id(++seq);
+    await sql`insert into tenants (id, slug, name, status) values (${T2}, ${`purge${seq}`}, 'Tutup', 'closed')`;
+    const tm = (tenant: string, post: string, at: number) => ({
+      tenant_id: tenant,
+      topic_id: id(0x9999),
+      topic_query_id: id(0x9998),
+      platform: "x",
+      post_id: post,
+      content_type: "post",
+      published_at: ts(at),
+      author_id: "a",
+      author_handle: "a",
+      sentiment: "neutral",
+      sentiment_score: 0,
+      emotion: "unknown",
+      model_version: "t",
+      issues: [],
+      hashtags: [],
+      geo_region_code: null,
+      engagement: 0,
+      engagement_known: 0,
+      event_at: ts(now),
+    });
+    await ch.insert({
+      table: "topic_matches",
+      format: "JSONEachRow",
+      values: [tm(T, "ret-old", old), tm(T, "ret-new", now - 3_600_000), tm(T2, "ret-t2", now)],
+    });
+    await ch.insert({
+      table: "agg_topic_1h",
+      format: "JSONEachRow",
+      values: [
+        {
+          tenant_id: T,
+          topic_id: id(0x9999),
+          platform: "x",
+          sentiment: "neutral",
+          content_type: "post",
+          bucket: ts(old).slice(0, 13) + ":00:00",
+          posts: 1,
+          engagement: 0,
+          engagement_known_posts: 0,
+        },
+        {
+          tenant_id: T2,
+          topic_id: id(0x9999),
+          platform: "x",
+          sentiment: "neutral",
+          content_type: "post",
+          bucket: ts(now).slice(0, 13) + ":00:00",
+          posts: 1,
+          engagement: 0,
+          engagement_known_posts: 0,
+        },
+      ],
+    });
+    const post = (pid: string, at: number, matched: number) => ({
+      platform: "x",
+      post_id: pid,
+      text: "t",
+      published_at: ts(at),
+      author_id: "a",
+      author_handle: "a",
+      hashtags: [],
+      mentions: [],
+      media: "[]",
+      matched,
+      source_connector: "fake.x",
+      raw_ref: "",
+      ingested_at: ts(now),
+      version: 1,
+      content_type: "post",
+      lang: "id",
+    });
+    await ch.insert({
+      table: "posts",
+      format: "JSONEachRow",
+      values: [
+        post("ret-unm-old", now - 40 * 86_400_000, 0),
+        post("ret-unm-new", now - 86_400_000, 0),
+        post("ret-glob-old", old, 1),
+        post("ret-new", now - 3_600_000, 1),
+      ],
+    });
+    await sql`insert into outbox (aggregate, aggregate_id, event_type, payload, created_at, published_at) values ('x', ${id(0x9997)}, 'old', '{}', now() - interval '60 days', now() - interval '60 days')`;
+    const r = await runRetention(created.db, ch, { sync: true });
+    expect(r.tenants.find((t) => t.tenant_id === T)?.days).toBe(365);
+    expect(r.outbox_deleted).toBeGreaterThanOrEqual(1);
+    const ids = async (q: string) =>
+      (await (await ch.query({ query: q, format: "JSONEachRow" })).json<{ post_id: string }>()).map((x) => x.post_id).sort();
+    expect(await ids(`SELECT post_id FROM topic_matches WHERE post_id LIKE 'ret-%'`)).toEqual(["ret-new", "ret-t2"]);
+    expect(await ids(`SELECT post_id FROM posts WHERE post_id LIKE 'ret-%'`)).toEqual(["ret-new", "ret-unm-new"]);
+    const aggT = await (
+      await ch.query({
+        query: `SELECT count() AS n FROM agg_topic_1h WHERE tenant_id = '${T}' AND bucket < now() - INTERVAL 400 DAY`,
+        format: "JSONEachRow",
+      })
+    ).json<{ n: string }>();
+    expect(Number(aggT[0]!.n)).toBe(0);
+
+    // purge kantor: hanya yang closed; semua data CH tenant itu + baris tenant hilang
+    await expect(purgeTenant(created.db, ch, T)).rejects.toThrow("tutup kantor dulu");
+    await purgeTenant(created.db, ch, T2);
+    expect(await ids(`SELECT post_id FROM topic_matches WHERE tenant_id = '${T2}'`)).toEqual([]);
+    expect((await sql`select count(*)::int as n from tenants where id = ${T2}`)[0]!.n).toBe(0);
+  }, 120_000);
 });

@@ -35,6 +35,10 @@ const SettingsZ = z
     "schedule.night_start_hour": z.int().min(0).max(23).nullable(),
     "schedule.night_end_hour": z.int().min(0).max(23).nullable(),
     "schedule.night_interval_sec": z.int().min(300).max(86_400).nullable(),
+    "retention.unmatched_posts_days": z.int().min(1).max(365).nullable(),
+    "retention.global_posts_days": z.int().min(30).max(3650).nullable(),
+    "retention.default_tenant_days": z.int().min(30).max(3650).nullable(),
+    "retention.ops_days": z.int().min(7).max(365).nullable(),
     "comments.max_post_age_days": z.int().min(1).max(30).nullable(),
   })
   .partial();

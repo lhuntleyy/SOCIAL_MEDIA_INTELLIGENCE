@@ -74,3 +74,14 @@ belum dimuat sebagai `NETWORK` sementara (tidak mematikan capability).
 **Pemulihan:** cek bukti `docs/evidence/verify/verify-<key>.json` masih `verified` → set `connector_capabilities.status = 'verified'`
 + outbox `capability.verified` + audit `capability.restore`, lalu jadwalkan ulang plan platform itu (`next_run_at = now()`); atau
 jalankan ulang verify bila ragu.
+
+## 14. Retensi data & hapus total kantor (H-04)
+- **Otomatis** (worker-sink, maks. 1×/24 jam, lock Redis `lock:retention`, penanda `retention:last`): data kantor lebih tua dari
+  `retention_days` paket (bawaan `retention.default_tenant_days` = 365, min 30) di semua tabel ClickHouse ber-tenant; post global
+  tak-match > `retention.unmatched_posts_days` (30); post global yang tak lagi dipakai topik mana pun > `retention.global_posts_days`
+  (400); outbox terkirim & ledger dedup > `retention.ops_days` (30). Log: `retensi dijalankan`. Penghapusan ClickHouse = mutation
+  asinkron (`system.mutations`).
+- **Hapus total kantor** (akhir kontrak / permintaan UU PDP): tutup kantor dulu (status `closed`), lalu
+  `bun --env-file=infra/compose/.env.dev scripts/tenant-purge.ts <slug> --confirm <slug>` → semua data ClickHouse kantor itu
+  dihapus (sinkron), credential di-crypto-shred, baris kantor dihapus (cascade Postgres). **Tidak bisa dibatalkan** — pastikan
+  ekspor/backup yang diminta klien sudah diserahkan. Audit log tetap disimpan (tanpa isi data).

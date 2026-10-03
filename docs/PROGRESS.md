@@ -117,7 +117,8 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 ## Fase 5 — Hardening
 | ID | Status | PIC | Bukti | Catatan |
 |---|---|---|---|---|
-| H-01 … H-07 | todo | | | |
+| H-04 | done | claude | `packages/analytics/src/retention.ts` · `apps/worker-sink/src/retention.ts` · `scripts/tenant-purge.ts` · sink.test | Job retensi harian (DATA_MODEL §9): data kantor > retention_days paket di 18 tabel ClickHouse, post tak-match > 30 hari, post tak terpakai > 400 hari, outbox/ledger > 30 hari (angka di `retention.*`); hapus total kantor tertutup (CH + crypto-shred + cascade). RUNBOOK §14 |
+| H-01 … H-03, H-05 … H-07 | todo | | | |
 
 > Saat sebuah fase dimulai, pecah baris "F-01 … F-12" menjadi satu baris per task.
 
@@ -150,6 +151,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | H-04 Retensi | Job retensi harian + hapus total kantor (skrip operator). 524 test |
 | 2026-10-04 | O-01/O-02 Routing | Tab Routing owner: urutan/bobot/aktif sumber per platform (simpan dengan If-Match) + simulator dengan alasan tersisih. O-03 ditandai selesai (Akun provider). |
 | 2026-10-04 | D-03 Update instan (SSE) | worker-sink meneruskan `realtime.notify` (+ alert baru) ke Redis pub/sub → API (subscriber per replika) → SSE per topik; tiket cookie HttpOnly `Path=/v1/stream` 15 menit (hash di Redis), tanpa token di URL; dashboard "● live" memuat ulang widget saat data baru (3 dtk batch), auto-refresh tetap cadangan. Uji SEC-10/SEC-11 + E2E browser (1 event → 13 widget dimuat ulang). 523 test |
 | 2026-10-04 | O-04 Monitor + insiden FB | Tab Monitor owner (kesehatan per platform, kegagalan, DLQ, biaya per kantor, audit). Monitor menemukan Facebook mati ±14 jam (capability silentflow ditandai failed oleh worker lama saat deploy) → dipulihkan, worker kini melapor connector belum dimuat sebagai error sementara; RUNBOOK §13. 520 test |

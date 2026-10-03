@@ -12,6 +12,7 @@ import { z } from "zod";
 import { evaluateAlerts } from "./alerts";
 import { planComments } from "./comments";
 import { planEngagementRefresh } from "./refresh";
+import { runRetention } from "./retention";
 import { handleSink } from "./sink";
 
 const cfg = loadConfig("worker-sink");
@@ -132,11 +133,29 @@ async function alertsTick() {
   }
 }
 const alertsTimer = setInterval(alertsTick, cfg.ALERTS_EVAL_MS ?? 300_000);
+// H-04 retensi: dicek tiap jam, dijalankan maks. sekali per 24 jam (penanda di Redis) oleh satu pemegang lock
+async function retentionTick() {
+  try {
+    if ((await cache.send("SET", ["lock:retention", owner, "NX", "PX", String(30 * 60_000)])) !== "OK") return;
+    if ((await cache.send("SET", ["retention:last", new Date().toISOString(), "NX", "EX", String(23 * 3600)])) !== "OK") return;
+    const r = await runRetention(db, ch);
+    logger.info("retensi dijalankan", {
+      tenants: r.tenants.length,
+      outbox_deleted: r.outbox_deleted,
+      processed_deleted: r.processed_deleted,
+    });
+  } catch (e) {
+    logger.error("retensi gagal", { error: e });
+  }
+}
+const retentionTimer = setInterval(retentionTick, 3600_000);
+setTimeout(retentionTick, 120_000);
 logger.info("worker-sink mulai", { engagement_refresh: cfg.ENGAGEMENT_REFRESH_ENABLED });
 const shutdown = async () => {
   if (refreshTimer) clearInterval(refreshTimer);
   clearInterval(commentsTimer);
   clearInterval(alertsTimer);
+  clearInterval(retentionTimer);
   await sub.close(30_000);
   await rtSub.close(5_000);
   await queue.close();
