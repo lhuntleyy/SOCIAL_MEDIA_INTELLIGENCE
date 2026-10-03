@@ -5,7 +5,7 @@ import { loadConfig } from "@smip/config";
 import { HttpClient } from "@smip/connector-sdk";
 import { createKms } from "@smip/crypto";
 import { createDb } from "@smip/db";
-import { createLogger } from "@smip/observability";
+import { createLogger, Registry } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { LlmAdminService } from "./admin/llm";
 import { ProviderAdminService } from "./admin/providers";
@@ -53,7 +53,10 @@ const alerts = new AlertService(db, {
 const realtime = new Realtime(redis);
 const rtSub = new Bun.RedisClient(cfg.REDIS_CACHE_URL);
 await rtSub.subscribe(RT_CHANNEL, (m: string) => realtime.onMessage(m));
+const metrics = new Registry();
+const sse = metrics.gauge("smip_sse_connections", "Koneksi SSE terbuka di replika ini");
 const app = createApp({
+  metrics,
   auth,
   admin: new AdminService(db, redis),
   topics,
@@ -85,3 +88,14 @@ const server = Bun.serve({
   },
 });
 logger.info("api listening", { port: server.port });
+// O-07: /metrics di port internal terpisah (tidak lewat ingress — API_SPEC §11)
+if (cfg.API_METRICS_PORT)
+  Bun.serve({
+    port: cfg.API_METRICS_PORT,
+    hostname: "0.0.0.0",
+    fetch: (req) => {
+      if (new URL(req.url).pathname !== "/metrics") return new Response("not found", { status: 404 });
+      sse.set({}, realtime.connections);
+      return metrics.handler();
+    },
+  });

@@ -1,0 +1,41 @@
+# O-07 stack monitoring (OBSERVABILITY §6–§7): Prometheus + Alertmanager + Grafana. TIDAK dijalankan di server demo 2 GB
+# (butuh ± 600 MB). Jalankan di server produksi bersama compose utama:
+#   docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.demo.yml \
+#     -f infra/compose/monitoring/docker-compose.monitoring.yml --env-file infra/compose/.env.demo up -d prometheus alertmanager grafana
+# Grafana hanya di 127.0.0.1:3000 (akses via SSH tunnel / reverse proxy ber-auth). Secret Alertmanager di monitoring/.env (tidak di-commit).
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=90d", "--web.listen-address=:9090"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/rules:/etc/prometheus/rules:ro
+      - prom:/prometheus
+    ports: ["127.0.0.1:9090:9090"]
+    restart: unless-stopped
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--config.expand-env=true"]
+    env_file: [./monitoring/.env]
+    volumes: ["./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"]
+    ports: ["127.0.0.1:9093:9093"]
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana-oss:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    secrets: [grafana_admin]
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    ports: ["127.0.0.1:3000:3000"]
+    restart: unless-stopped
+secrets:
+  grafana_admin:
+    file: ./monitoring/grafana_admin.txt   # buat sendiri (chmod 600), jangan di-commit
+volumes:
+  prom: {}
+  grafana: {}

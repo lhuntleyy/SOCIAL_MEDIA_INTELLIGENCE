@@ -126,3 +126,23 @@ Setiap alert punya link ke bagian RUNBOOK.
 
 ## 8. Audit vs Observability
 Audit log (bisnis, siapa-mengubah-apa) disimpan di Postgres & tidak di-sample; observability boleh di-sample dan punya retensi pendek (log 14–30 hari, metrics 90 hari, traces 7 hari — sesuaikan kapasitas).
+
+## 9. Implementasi saat ini (O-07, 2026-10-04)
+**Endpoint (jaringan internal saja):** scheduler `:9464/metrics` (`SCHEDULER_METRICS_PORT`), API `:9465/metrics` (`API_METRICS_PORT`).
+
+| Metric | Sumber | Catatan |
+|---|---|---|
+| `smip_queue_depth{queue,state}` | scheduler (15 dtk) | KEDA + alert backlog |
+| `smip_crawl_runs_recent{platform,status}` | scheduler `state-metrics.ts` (60 dtk, Postgres) | gauge 1 jam terakhir (pengganti sementara `smip_crawl_runs_total`) |
+| `smip_platform_last_success_age_seconds{platform}` | idem | proksi freshness per platform (topik aktif) |
+| `smip_crawl_plans_active{platform}`, `smip_provider_health_score`, `smip_circuit_state{connector,account_label}` | idem | dari `provider_health` |
+| `smip_provider_accounts{provider,status}`, `smip_capability_failed{connector,operation}` | idem | capability failed yang masih di routing aktif (insiden FB, RUNBOOK §13) |
+| `smip_alert_events_open`, `smip_outbox_unpublished`, `smip_outbox_oldest_unpublished_seconds`, `smip_state_metrics_timestamp_seconds` | idem | |
+| `smip_crawl_gap_abandoned_total`, `smip_cost_guard_throttled_total` | scheduler | counter |
+| `smip_http_requests_total{route,method,status}`, `smip_http_request_duration_seconds{route}` | API middleware | `route` = pola Hono (`/v1/topics/:id`), bukan path mentah |
+| `smip_sse_connections` | API | koneksi SSE replika |
+
+Belum diimplementasi (masih rencana §3): metrik per-attempt provider/router, pipeline, AI/LLM, ClickHouse query latency.
+**Stack:** `infra/compose/monitoring/` — Prometheus (retensi 90 hari), 13 aturan alert (`rules/smip.rules.yml`, unit test
+`tests/smip.rules.test.yml` via `promtool test rules`), Alertmanager → Telegram, Grafana (dashboard "SMIP — Pengambilan & Provider",
+"SMIP — API", ter-provision). Butuh ± 600 MB RAM → tidak dijalankan di server demo 2 GB.

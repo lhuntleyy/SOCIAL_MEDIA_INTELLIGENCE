@@ -94,3 +94,10 @@ jalankan ulang verify bila ragu.
   ClickHouse, insert tabel dasar (MV membangun ulang agregat), bandingkan jumlah baris (exit 1 bila selisih). Lalu arahkan
   `DATABASE_URL` & `CLICKHOUSE_DB` ke database baru, restart `api workers`. Skrip menolak menimpa database aktif.
 - **Drill:** kuartalan (§8) — laporan terakhir `docs/evidence/H-06/drill-2026-10-04.md` (RTO data ± 5 dtk, baris & agregat identik).
+
+## 16. Monitoring (O-07)
+- **Menyalakan** (server ≥ 4 GB): isi `infra/compose/monitoring/.env` (dari `.env.example`: token bot & chat id Telegram ops) dan
+  `infra/compose/monitoring/grafana_admin.txt` (password admin Grafana), keduanya chmod 600, lalu jalankan perintah di header
+  `docker-compose.monitoring.yml`. Grafana/Prometheus/Alertmanager hanya di `127.0.0.1` → akses lewat `ssh -L 3000:127.0.0.1:3000`.
+- **Validasi setelah mengubah aturan:** `docker run --rm -v $PWD/infra/compose/monitoring:/m:ro -w /m/tests --entrypoint promtool prom/prometheus:v3.5.0 test rules smip.rules.test.yml`.
+- Tanpa stack: `curl http://<ip-container-workers>:9464/metrics` dan Pengaturan → Monitor tetap memberi gambaran yang sama.

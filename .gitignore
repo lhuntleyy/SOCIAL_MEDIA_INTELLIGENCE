@@ -15,3 +15,7 @@ __pycache__/
 # gold set / korpus berisi teks post (dipseudonimkan) — simpan di bucket training, bukan git
 workers-py/data/
 apps/web/dist/
+
+# O-07 monitoring secrets
+infra/compose/monitoring/.env
+infra/compose/monitoring/grafana_admin.txt

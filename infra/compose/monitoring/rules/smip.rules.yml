@@ -1,0 +1,104 @@
+# Alert SMIP (OBSERVABILITY §6) — tiap alert menunjuk bagian RUNBOOK.
+groups:
+  - name: smip-ingest
+    rules:
+      - alert: PlatformDataStale
+        expr: smip_platform_last_success_age_seconds > 6 * 3600
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.platform }}: tidak ada pengambilan berhasil > 6 jam"
+          runbook: "docs/RUNBOOK.md §2 (tidak ada provider sehat) · cek Pengaturan → Monitor / Routing"
+      - alert: PlatformDataStaleCritical
+        expr: smip_platform_last_success_age_seconds > 24 * 3600
+        for: 15m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.platform }}: tidak ada data baru > 24 jam (saldo provider / sumber mati?)"
+          runbook: "docs/RUNBOOK.md §2, §4"
+      - alert: CapabilityFailedInRouting
+        expr: smip_capability_failed == 1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.connector }} ({{ $labels.operation }}) berstatus failed tapi masih di routing aktif"
+          runbook: "docs/RUNBOOK.md §13 (urutan deploy & capability failed palsu)"
+      - alert: CrawlFailureRatioHigh
+        expr: |
+          (sum by (platform) (smip_crawl_runs_recent{status="failed"}) / sum by (platform) (smip_crawl_runs_recent)) > 0.5
+          and sum by (platform) (smip_crawl_runs_recent) >= 3
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.platform }}: > 50% pengambilan 1 jam terakhir gagal"
+          runbook: "docs/RUNBOOK.md §1–§4"
+      - alert: QueueBacklog
+        expr: smip_queue_depth{state="backlog"} > 500
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Antrean {{ $labels.queue }} menumpuk ({{ $value }} job)"
+          runbook: "docs/RUNBOOK.md §5"
+      - alert: OutboxStuck
+        expr: smip_outbox_oldest_unpublished_seconds > 300
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Outbox tidak terkirim > 5 menit (scheduler/relay mati?)"
+          runbook: "docs/RUNBOOK.md §11"
+      - alert: CostGuardThrottling
+        expr: increase(smip_cost_guard_throttled_total[1h]) > 0
+        labels: { severity: info }
+        annotations:
+          summary: "Batas biaya lunak tercapai ({{ $labels.scope_type }}) — jadwal diperlambat"
+          runbook: "docs/RUNBOOK.md §4"
+  - name: smip-provider
+    rules:
+      - alert: ProviderCircuitOpen
+        expr: smip_circuit_state == 2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Circuit {{ $labels.connector }} / {{ $labels.account_label }} terbuka"
+          runbook: "docs/RUNBOOK.md §1"
+      - alert: ProviderAccountNeedsAttention
+        expr: smip_provider_accounts{status=~"needs_attention|cooling_down"} > 0
+        for: 30m
+        labels: { severity: warning }
+        annotations:
+          summary: "Akun {{ $labels.provider }} berstatus {{ $labels.status }} (saldo habis / key salah?)"
+          runbook: "docs/RUNBOOK.md §3–§4 · Pengaturan → Sumber data → Akun provider"
+  - name: smip-api
+    rules:
+      - alert: ApiErrorRate
+        expr: |
+          sum(rate(smip_http_requests_total{status=~"5.."}[10m])) / clamp_min(sum(rate(smip_http_requests_total[10m])), 0.001) > 0.02
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "API 5xx > 2% selama 10 menit"
+          runbook: "docs/RUNBOOK.md §7 (ClickHouse) · log api"
+      - alert: DashboardLatencySLO
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(smip_http_request_duration_seconds_bucket{route=~"/v1/analytics.*|/v1/posts"}[15m]))) > 1.5
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "p95 latensi dashboard > 1,5 dtk (SLO OBSERVABILITY §5)"
+          runbook: "docs/RUNBOOK.md §7"
+  - name: smip-meta
+    rules:
+      - alert: SmipTargetDown
+        expr: up{job=~"smip-.*"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.job }} tidak bisa di-scrape (layanan mati?)"
+          runbook: "docker compose ps · log layanan"
+      - alert: StateMetricsStale
+        expr: time() - smip_state_metrics_timestamp_seconds > 300
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Exporter state scheduler berhenti memperbarui (> 5 menit)"
+          runbook: "log scheduler: 'sampling metrik state gagal'"

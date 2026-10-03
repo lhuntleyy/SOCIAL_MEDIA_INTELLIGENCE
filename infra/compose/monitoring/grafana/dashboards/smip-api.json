@@ -1,0 +1,224 @@
+{
+  "uid": "smip-api",
+  "title": "SMIP \u2014 API",
+  "tags": [
+    "smip"
+  ],
+  "timezone": "Asia/Jakarta",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request per detik per status",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "smip-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "smip-prom"
+          },
+          "expr": "sum by (status) (rate(smip_http_requests_total[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error 5xx (%)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "smip-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "smip-prom"
+          },
+          "expr": "100 * sum(rate(smip_http_requests_total{status=~\"5..\"}[10m])) / clamp_min(sum(rate(smip_http_requests_total[10m])), 0.001)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Koneksi SSE (live)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "smip-prom"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "smip-prom"
+          },
+          "expr": "sum(smip_sse_connections)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "p95 latensi dashboard (SLO 1,5 dtk)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "smip-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "smip-prom"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(smip_http_request_duration_seconds_bucket{route=~\"/v1/analytics.*|/v1/posts\"}[10m])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "p95 latensi per route (top 10)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "smip-prom"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "smip-prom"
+          },
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, route) (rate(smip_http_request_duration_seconds_bucket[10m]))))",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Request per route (1 jam)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "smip-prom"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "smip-prom"
+          },
+          "expr": "topk(15, sum by (route) (increase(smip_http_requests_total[1h])))",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ],
+  "editable": true
+}

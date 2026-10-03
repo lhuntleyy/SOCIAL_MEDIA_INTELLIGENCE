@@ -82,6 +82,8 @@ const kms = z.object({
 
 const api = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(8080),
+  /** O-07: port internal `/metrics` API (0 = mati). */
+  API_METRICS_PORT: z.coerce.number().int().min(0).max(65535).default(9465),
   JWT_PRIVATE_KEY_PATH: z.string().min(1),
   JWT_KID: z.string().min(1),
   CORS_ORIGINS: csv,

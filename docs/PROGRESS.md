@@ -112,7 +112,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | D-03 | done | claude | `apps/api/src/realtime.ts` · `routes/stream.ts` · stream.test (SEC-10/SEC-11) | SSE `GET /stream?topic_id` (cookie `sse_ticket`), `POST /stream/ticket`; event `aggregates.updated`, `alert.fired`, `heartbeat` 25 s, `ticket.expired`; Redis pub/sub `smip:rt` antar replika; Bun `server.timeout(req, 0)` untuk SSE |
 | O-02 | done | claude | `apps/web/src/pages/Routing.tsx` | Pengaturan → Routing: simulator per kantor/platform/operasi/jenis/jadwal → sumber terpilih + alasan tiap sumber tersisih (bahasa awam). Uji: FB → silentflow, IG → "tidak ada API key yang siap (saldo habis)" |
 | O-03 | done | claude | Pengaturan → Sumber data → Akun provider | Ganti/tambah/hapus API key (write-only, disegel KMS, hapus kriptografis), jeda/aktifkan, alasan bermasalah — dibangun 2026-10-03 |
-| O-07 | todo | | | |
+| O-07 | done (stack siap, belum dinyalakan di demo 2 GB) | claude | `infra/compose/monitoring/` · `apps/scheduler/src/state-metrics.ts` · api-metrics.test | Exporter state (run/umur sukses per platform, health/circuit, akun, capability failed, outbox, alert) + metrik HTTP API (route berpola) + SSE; Prometheus + 13 aturan alert (unit test promtool: insiden FB & saldo IG) + Alertmanager→Telegram + 2 dashboard Grafana; `promtool`/`amtool` valid. OBSERVABILITY §9, RUNBOOK §16 |
 
 ## Fase 5 — Hardening
 | ID | Status | PIC | Bukti | Catatan |
@@ -153,6 +153,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | O-07 Monitoring | Metrik state + HTTP, Prometheus/Alertmanager/Grafana siap pakai (konfigurasi tervalidasi). 525 test |
 | 2026-10-04 | H-03 Pemindaian keamanan | Secret scan (file + riwayat) bersih & masuk CI, audit dependency, laporan. |
 | 2026-10-04 | H-06 Backup + DR drill | Skrip backup/restore, drill sukses (RTO data 5 dtk, identik). |
 | 2026-10-04 | H-04 Retensi | Job retensi harian + hapus total kantor (skrip operator). 524 test |

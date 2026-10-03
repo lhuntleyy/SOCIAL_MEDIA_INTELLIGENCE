@@ -1,0 +1,27 @@
+# promtool test rules tests/smip.rules.test.yml — skenario insiden nyata (FB 2026-10-03, saldo IG/TikTok habis)
+rule_files: [../rules/smip.rules.yml]
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'smip_capability_failed{connector="apify.facebook.silentflow",operation="search_keyword"}'
+        values: "1x20"
+      - series: 'smip_platform_last_success_age_seconds{platform="instagram"}'
+        values: "90000x20"
+      - series: 'smip_platform_last_success_age_seconds{platform="x"}'
+        values: "1800x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: CapabilityFailedInRouting
+        exp_alerts:
+          - exp_labels: { severity: critical, connector: apify.facebook.silentflow, operation: search_keyword }
+            exp_annotations:
+              summary: "apify.facebook.silentflow (search_keyword) berstatus failed tapi masih di routing aktif"
+              runbook: "docs/RUNBOOK.md §13 (urutan deploy & capability failed palsu)"
+      - eval_time: 20m
+        alertname: PlatformDataStaleCritical
+        exp_alerts:
+          - exp_labels: { severity: critical, platform: instagram }
+            exp_annotations:
+              summary: "instagram: tidak ada data baru > 24 jam (saldo provider / sumber mati?)"
+              runbook: "docs/RUNBOOK.md §2, §4"

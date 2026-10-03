@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+rule_files: ["/etc/prometheus/rules/*.yml"]
+alerting:
+  alertmanagers:
+    - static_configs: [{ targets: ["alertmanager:9093"] }]
+scrape_configs:
+  # scheduler (di dalam container `workers` pada profil single-node): smip_queue_depth + metrik state (state-metrics.ts)
+  - job_name: smip-scheduler
+    static_configs: [{ targets: ["workers:9464"] }]
+  # API: metrik HTTP + koneksi SSE (port internal API_METRICS_PORT)
+  - job_name: smip-api
+    static_configs: [{ targets: ["api:9465"] }]
+  - job_name: prometheus
+    static_configs: [{ targets: ["localhost:9090"] }]

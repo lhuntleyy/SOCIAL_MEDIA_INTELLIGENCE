@@ -8,6 +8,7 @@ import { BullMqQueue } from "@smip/queue";
 import { LeaderLock } from "./leader";
 import { reapStuckRuns } from "./reaper";
 import { jobRelay } from "./relay";
+import { stateMetrics } from "./state-metrics";
 import { planStreams } from "./streams";
 import { schedulerTick } from "./tick";
 
@@ -129,6 +130,11 @@ const metricsServer =
     : undefined;
 const t3 = setInterval(sampleQueues, 15_000);
 void sampleQueues();
+// O-07: gauge state sistem (run per platform, umur sukses terakhir, health/circuit, akun, alert, outbox) tiap 60 dtk
+const sampleState = stateMetrics(metrics, db);
+const runState = () => sampleState().catch((e) => logger.warn("sampling metrik state gagal", { error: e }));
+const t4 = setInterval(runState, 60_000);
+void runState();
 
 const t1 = setInterval(tick, TICK_MS);
 const t2 = setInterval(relay, 1000);
@@ -138,6 +144,7 @@ logger.info("scheduler mulai", { tick_ms: TICK_MS, owner: leader.owner });
 async function shutdown() {
   clearInterval(t1);
   clearInterval(t2);
+  clearInterval(t4);
   clearInterval(t3);
   metricsServer?.stop();
   await leader.release();

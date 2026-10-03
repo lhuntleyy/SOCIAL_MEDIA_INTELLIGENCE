@@ -1,0 +1,26 @@
+# Kirim alert ke Telegram (grup ops). TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID dari monitoring/.env (tidak di-commit).
+route:
+  receiver: ops-telegram
+  group_by: [alertname, platform, connector]
+  group_wait: 1m
+  group_interval: 10m
+  repeat_interval: 6h
+  routes:
+    - matchers: [severity="info"]
+      receiver: ops-telegram
+      repeat_interval: 24h
+receivers:
+  - name: ops-telegram
+    telegram_configs:
+      - bot_token: ${TELEGRAM_BOT_TOKEN}
+        chat_id: ${TELEGRAM_CHAT_ID}
+        parse_mode: HTML
+        message: |-
+          {{ range .Alerts }}{{ if eq .Status "firing" }}🔴{{ else }}✅{{ end }} <b>{{ .Labels.alertname }}</b> ({{ .Labels.severity }})
+          {{ .Annotations.summary }}
+          <i>{{ .Annotations.runbook }}</i>
+          {{ end }}
+inhibit_rules:
+  - source_matchers: [alertname="PlatformDataStaleCritical"]
+    target_matchers: [alertname="PlatformDataStale"]
+    equal: [platform]

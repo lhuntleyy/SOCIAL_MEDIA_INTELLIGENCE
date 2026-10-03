@@ -60,6 +60,11 @@ export class Counter extends Metric {
 
 export class Gauge extends Metric {
   private values = new Map<string, number>();
+  /** Hapus semua seri (gauge yang dihitung ulang penuh tiap sampling — seri yang hilang tidak tertinggal basi). */
+  reset(): void {
+    this.series.clear();
+    this.values.clear();
+  }
   set(labels: Labels, v: number): void {
     const k = this.key(labels);
     this.series.set(k, { labels });

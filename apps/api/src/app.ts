@@ -1,5 +1,5 @@
 // F-09: komposisi aplikasi Hono (API_SPEC). Dependency disuntik → test memakai app.request() tanpa server.
-import type { Logger } from "@smip/observability";
+import type { Logger, Registry } from "@smip/observability";
 import { Hono } from "hono";
 import type { LlmAdminService } from "./admin/llm";
 import type { ProviderAdminService } from "./admin/providers";
@@ -40,6 +40,8 @@ export interface AppDeps {
   logger?: Logger;
   /** IP klien: di belakang ingress pakai header tepercaya yang diset ingress; default = socket (via header internal). */
   clientIp?: (req: Request) => string;
+  /** O-07 metrik HTTP (`smip_http_requests_total`, `smip_http_request_duration_seconds`) — diekspos main.ts di port internal. */
+  metrics?: Registry;
   /** Rute tambahan per fitur (dipasang di bawah /v1, sudah melewati authn + viewerReadOnly). */
   mount?: (protectedApp: Hono<AppEnv>) => void;
 }
@@ -47,6 +49,23 @@ export interface AppDeps {
 export function createApp(d: AppDeps) {
   const app = new Hono<AppEnv>().basePath("/v1");
   app.use("*", requestId);
+  if (d.metrics) {
+    const reqs = d.metrics.counter("smip_http_requests_total", "Request HTTP API", ["route", "method", "status"]);
+    const dur = d.metrics.histogram(
+      "smip_http_request_duration_seconds",
+      "Durasi request HTTP API",
+      ["route"],
+      [0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10],
+    );
+    app.use("*", async (c, next) => {
+      const t0 = performance.now();
+      await next();
+      // route = pola terdaftar (bukan path mentah → kardinalitas rendah, tanpa id); SSE dicatat saat header terkirim
+      const route = c.req.routePath && c.req.routePath !== "*" && c.req.routePath !== "/v1/*" ? c.req.routePath : "unmatched";
+      reqs.inc({ route, method: c.req.method, status: String(c.res.status) });
+      dur.observe({ route }, (performance.now() - t0) / 1000);
+    });
+  }
   app.use("*", async (c, next) => {
     await next();
     c.header("Cache-Control", "no-store");
