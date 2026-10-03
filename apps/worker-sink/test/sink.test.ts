@@ -602,4 +602,22 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
     expect(await ids(`SELECT post_id FROM topic_matches WHERE tenant_id = '${T2}'`)).toEqual([]);
     expect((await sql`select count(*)::int as n from tenants where id = ${T2}`)[0]!.n).toBe(0);
   }, 120_000);
+
+  test("H-02 chaos: ClickHouse mati saat sink → pesan gagal (diulang antrean), lalu sukses TEPAT SEKALI; pengiriman ulang tidak dobel", async () => {
+    const ids = await setup("chaosch");
+    const [m] = await throughPipeline(ids, [post(901, "chaosch satu"), post(902, "chaosch dua")]);
+    const down = createClient({ url: "http://127.0.0.1:1", request_timeout: 2000 });
+    await expect(handleSink({ ...sinkDeps, ch: down }, m!)).rejects.toThrow();
+    await down.close();
+    expect(await events(ids.topic)).toEqual({ n: "0", s: "0" }); // tidak ada yang tertulis setengah
+    expect((await sql`select status from crawl_runs where id = ${ids.run}`)[0]!.status).not.toBe("succeeded");
+    // ClickHouse kembali → retry antrean memproses pesan yang sama
+    const r = await handleSink(sinkDeps, m!);
+    expect(r.finalized).toBe("succeeded");
+    expect(await events(ids.topic)).toEqual({ n: "2", s: "2" });
+    // at-least-once: pesan dikirim ulang lagi (mis. worker mati sebelum ack) → tidak dobel
+    await handleSink(sinkDeps, m!);
+    expect(await events(ids.topic)).toEqual({ n: "2", s: "2" });
+    expect(await agg(ids.topic)).toEqual({ n: "2" });
+  });
 });

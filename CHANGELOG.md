@@ -5,6 +5,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
 ## [Unreleased]
 
 ### Added
+- **Chaos suite (H-02)** (2026-10-04): `scripts/chaos/run.sh` (Redis antrean restart, ClickHouse mati, worker mati di tengah pengambilan) + invarian (data dobel, DLQ, outbox, run menggantung) — semua lulus di server demo; tes integrasi baru "ClickHouse mati saat sink" (gagal → ulang → tepat sekali, kirim ulang tidak dobel). Laporan `docs/evidence/H-02/`.
 - **Backup terjadwal + salinan Google Drive** (2026-10-04): cron tiap 6 jam; `backup.sh` mengenkripsi (gpg AES-256, passphrase di server) lalu mengunggah ke remote rclone `SMIP_BACKUP_REMOTE` (Google Drive, scope `drive.file`) bila sudah dihubungkan pemilik, menghapus salinan > 30 hari; tanpa remote/passphrase → dilewati dengan peringatan (tidak pernah mengunggah tanpa enkripsi). RUNBOOK §15.
 - **Load test + cache analitik (H-01)** (2026-10-04): `scripts/loadtest/dashboard.ts` (13 request/halaman, `--cold` untuk skenario cache meleset). Cache respons analitik & feed di Redis per **versi data topik** (`rt:ver:<kantor>:<topik>` naik saat sink mengabarkan data baru atau koreksi sentimen; TTL 5 menit). Di server demo 2 vCPU: 20 pengguna serentak p95 2,9 → 0,07 dtk; 50 pengguna p95 0,32 dtk; skenario terburuk tetap memenuhi target s.d. 10 pengguna. Laporan `docs/evidence/H-01/`.
 - **Dokumentasi final (H-07)** (2026-10-04): `docs/ONBOARDING_CONNECTOR.md` (langkah menambah provider/actor), indeks RUNBOOK, bagian operasional INSTALL (backup terjadwal, monitoring, retensi, paket), README status & navigasi.
@@ -165,6 +166,7 @@ Format mengikuti [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) dan [S
   - Kode spike: `package.json`, `.bun-version` (1.4.2), `scripts/compat-check.ts` + `scripts/compat/*`, `scripts/spike-infra.sh`, bukti `docs/evidence/`.
 
 ### Fixed
+- ClickHouse demo menabrak batas memori 500 MB setelah restart karena tabel log sistem lama (± 300 MB) di-merge ulang → dikosongkan; prosedur di RUNBOOK §7.
 - **Facebook tidak terambil ±14 jam (2026-10-03 11:31 → 10-04 01:20 UTC):** routing pindah ke `apify.facebook.silentflow` sebelum worker memuat kodenya → worker lama melapor `NOT_SUPPORTED` → capability ditandai `failed` permanen (`NO_CANDIDATE`). Ditemukan lewat Monitor baru. Capability dipulihkan (bukti verify sah), plan FB dijadwalkan ulang (run berhasil lagi). Pencegahan: connector yang belum dimuat worker kini dilaporkan `NETWORK` sementara (retry, capability tidak dimatikan); urutan deploy di RUNBOOK §13.
 - Interval di DB hanya boleh 5/15/30/45/60 menit → pilihan jadwal lain di Pengaturan akan gagal; kini 1 menit–24 jam (0028). `system_settings` tanpa GRANT ke `smip_system` (0027).
 - YouTube: request yang ditolak tetap memakai kuota tetapi tidak dihitung; 403 `commentsDisabled` dulu akan menandai akun "butuh perhatian".

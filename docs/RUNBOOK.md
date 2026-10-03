@@ -34,6 +34,13 @@ Setiap bagian: **Gejala → Diagnosis → Tindakan → Verifikasi**.
 ## 7. ClickHouse insert gagal
 - Cek disk, jumlah parts ("too many parts"), koneksi. Sink akan retry (10 attempts). Jika lama → scale down fetch sementara agar tidak menumpuk data di S3 batch.
 
+- **Profil demo (low-memory, batas 500 MB):** bila query/insert gagal "memory limit exceeded" setelah restart, cek
+  `SELECT table, memory_usage FROM system.merges` — tabel log sistem lama (`system.trace_log`, `text_log`, `metric_log`, …) bisa di-merge
+  ulang dan memakan ratusan MB; aman dikosongkan: `TRUNCATE TABLE system.<log>` (penulisan baru sudah dimatikan profil). Kejadian
+  2026-10-04 (H-02).
+- **Uji ketahanan:** `scripts/chaos/run.sh [--only A|B|C]` (Redis antrean restart, ClickHouse mati, worker mati) — jalankan di luar jam
+  pakai; laporan terakhir `docs/evidence/H-02/`.
+
 ## 8. DR Drill (kuartalan)
 1. Restore Postgres PITR ke instance baru; jalankan smoke.
 2. Restore ClickHouse dari backup; bandingkan count agregat sampel.
