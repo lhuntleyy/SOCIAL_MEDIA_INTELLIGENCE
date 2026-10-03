@@ -71,6 +71,7 @@ export function adminRoutes(svc: AdminService) {
   });
 
   // ----- operator: tenant -----
+  r.get("/admin/plans", requireOperator, async (c) => c.json({ data: await svc.listPlans() }));
   r.get("/admin/tenants", requireOperator, async (c) => c.json({ data: await svc.listTenants() }));
   r.post("/admin/tenants", requireOperator, async (c) => {
     const b = await parseJson(

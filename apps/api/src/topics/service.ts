@@ -254,14 +254,19 @@ export class TopicService {
   /** Interval crawl bawaan bila topik/platform tidak menyebut interval (UI tidak lagi menampilkan interval — diatur sistem). */
   static readonly DEFAULT_INTERVAL_SEC = 3600;
 
-  private async planLimits(
-    tx: Tx,
-  ): Promise<{ max_topics?: number; min_interval_sec?: number; default_interval_sec?: number; initial_backfill_days?: number }> {
+  private async planLimits(tx: Tx): Promise<{
+    max_topics?: number;
+    min_interval_sec?: number;
+    default_interval_sec?: number;
+    initial_backfill_days?: number;
+    /** paket kantor (0029): jadwal pengambilan per platform */
+    platform_intervals?: Record<string, number>;
+  }> {
     const [r] = await rows<{ limits: Record<string, number> | null }>(
       tx,
       sql`select p.limits from tenants t left join plans p on p.id = t.plan_id where t.id = smip_current_tenant()`,
     );
-    return r?.limits ?? {};
+    return (r?.limits ?? {}) as Awaited<ReturnType<TopicService["planLimits"]>>;
   }
 
   /** Interval efektif per platform + warning INTERVAL_CLAMPED / NO_ACTIVE_CONNECTOR. */
@@ -275,7 +280,7 @@ export class TopicService {
     const warnings: { code: string; platform: string; reason: string }[] = [];
     const out = platforms.map((p) => {
       const ops = p.operations?.length ? [...new Set(p.operations)] : ["search_keyword"];
-      // interval platform dari Pengaturan (owner) menang atas bawaan topik; interval eksplisit per topik tetap dihormati
+      // jadwal paket kantor / bawaan owner (Pengaturan) menang atas bawaan topik; interval eksplisit per topik (API) tetap dihormati
       const requested = p.interval_sec ?? platformInterval?.get(p.code) ?? defaultInterval;
       const floors = ops.map((op) => view.get(`${p.code}|${op}`)?.minInterval);
       if (ops.every((op) => !view.has(`${p.code}|${op}`))) {
@@ -290,7 +295,7 @@ export class TopicService {
           reason: byPlan ? "plan_min_interval" : "min_interval_of_available_connectors",
         });
       }
-      return { code: p.code, requested, effective, operations: ops, enabled: p.enabled ?? true };
+      return { code: p.code, requested, explicit: p.interval_sec ?? null, effective, operations: ops, enabled: p.enabled ?? true };
     });
     return { platforms: out, warnings };
   }
@@ -319,7 +324,11 @@ export class TopicService {
       dflt,
       view,
       limits.min_interval_sec,
-      new Map(pi.map((r) => [r.code, Number(r.crawl_interval_sec)])),
+      // paket kantor (0029) menimpa jadwal bawaan owner per platform
+      new Map([
+        ...pi.map((r) => [r.code, Number(r.crawl_interval_sec)] as const),
+        ...Object.entries(limits.platform_intervals ?? {}).map(([k, v]) => [k, Number(v)] as const),
+      ]),
     );
     const matches = await this.matchesPerDay(codes, b.queries);
     const est = estimateCost(
@@ -572,14 +581,14 @@ export class TopicService {
     tx: Tx,
     a: Actor,
     topicId: string,
-    platforms: { code: string; requested: number; operations: string[]; enabled: boolean }[],
+    platforms: { code: string; explicit: number | null; operations: string[]; enabled: boolean }[],
   ) {
     await tx.execute(
       sql`delete from topic_platforms where topic_id = ${topicId} ${platforms.length ? sql`and platform_code not in ${inList(platforms.map((p) => p.code))}` : sql``}`,
     );
     for (const p of platforms) {
       await tx.execute(sql`insert into topic_platforms (topic_id, platform_code, tenant_id, enabled, interval_sec, operations)
-        values (${topicId}, ${p.code}, ${a.tenantId}, ${p.enabled}, ${p.requested}, ${textArray(p.operations)})
+        values (${topicId}, ${p.code}, ${a.tenantId}, ${p.enabled}, ${p.explicit}, ${textArray(p.operations)})
         on conflict (topic_id, platform_code) do update set enabled = excluded.enabled, interval_sec = excluded.interval_sec, operations = excluded.operations`);
     }
   }
@@ -745,23 +754,28 @@ export class TopicService {
       if (b.kind && b.kind !== existing.kind)
         throw new ApiError("VALIDATION_FAILED", "Jenis topik (topik/akun) tidak bisa diubah", [{ path: "kind", issue: "tetap" }]);
       if (existing.kind === "account" && (b.platforms || b.queries)) {
-        const cur = existing.platforms.map((p) => ({
-          code: String(p.code),
-          interval_sec: Number(p.interval_sec),
-          enabled: Boolean(p.enabled),
-        }));
+        const cur = existing.platforms.map((p) => ({ code: String(p.code), enabled: Boolean(p.enabled) }));
         b = TopicService.accountBody({
           ...b,
           platforms: b.platforms ?? cur,
           queries: b.queries ?? (existing.queries as unknown as QueryBody[]),
         });
       }
+      const rawInterval = new Map(
+        (
+          await rows<{ platform_code: string; interval_sec: number | null }>(
+            tx,
+            sql`select platform_code, interval_sec from topic_platforms where topic_id = ${id} and interval_sec is not null`,
+          )
+        ).map((r) => [r.platform_code, Number(r.interval_sec)]),
+      );
       seen((existing.platforms as { code: string; enabled: boolean }[]).filter((p) => p.enabled).map((p) => String(p.code)));
       const platforms: PlatformBody[] =
         b.platforms ??
         existing.platforms.map((p) => ({
           code: String(p.code),
-          interval_sec: Number(p.interval_sec),
+          // hanya interval EKSPLISIT topik yang dibawa; selebihnya mengikuti paket kantor / jadwal owner
+          interval_sec: rawInterval.get(String(p.code)) ?? undefined,
           operations: p.operations as string[],
           enabled: Boolean(p.enabled),
         }));

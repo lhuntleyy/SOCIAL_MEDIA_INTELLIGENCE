@@ -469,9 +469,10 @@ tidak lengkap karena API pencarian hanya memberi post terbaru).
 **Cara menekan biaya tanpa mengubah tampilan klien (urut dampak):**
 1. Jadwal 1 jam (Standar) — klien tetap melihat layar segar via auto-refresh; data paling lambat ± 1 jam.
 2. Lantai post per run 5 → 2 (`fetch.min_items_per_run`): kantor 1 jam $315 → $292 (−7%), 30 menit $471 → $401 (−15%).
-3. Mode malam (00–06 WIB tiap 3 jam): 30 menit $471 → $409 (−13%) — belum ada, perlu dibangun.
+3. Mode malam (00–06 WIB tiap 3 jam): 30 menit $471 → $409 (−13%) — **aktif 2026-10-04** (`schedule.night_*`).
 4. Jadwal adaptif per topik: topik sepi (run tanpa post baru berturut-turut) otomatis melambat sampai 3 jam — penghematan terbesar
-   untuk topik kecil (biaya per run dominan); belum ada, perlu dibangun.
+   untuk topik kecil (biaya per run dominan); **aktif 2026-10-04** (`schedule.adaptive_*`, scheduler `pace.ts`).
+7. Paket per kantor (2026-10-04, migrasi 0029): tiap kantor memilih Hemat/Standar/Plus/Cepat/Real-time di menu Kantor.
 5. Keyword sama antar kantor → satu pengambilan (collection stream, ADR-009, sudah aktif).
 6. YouTube > 5 topik di 1 jam: ajukan perluasan kuota Google (gratis) — jangan membuat banyak project untuk mengakali kuota (ToS).
 

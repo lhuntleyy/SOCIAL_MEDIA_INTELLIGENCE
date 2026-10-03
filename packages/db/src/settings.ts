@@ -21,6 +21,16 @@ export const SETTING_DEFAULTS = {
   "comments.refetch_hours": 24,
   /** Komentar: hanya post yang terbit ≤ N hari terakhir. */
   "comments.max_post_age_days": 3,
+  /** Jadwal adaptif: topik/stream yang beberapa kali berturut-turut tanpa post baru otomatis melambat (×2 tiap run kosong). */
+  "schedule.adaptive_enabled": true,
+  /** Jadwal adaptif: interval paling lambat untuk topik sepi (detik). Topik dengan jadwal lebih lambat dari ini tidak diubah. */
+  "schedule.adaptive_max_interval_sec": 10_800,
+  /** Mode malam: di jam malam (zona waktu kantor) pengambilan paling cepat tiap `schedule.night_interval_sec`. */
+  "schedule.night_enabled": true,
+  /** Mode malam: jam mulai & selesai (0–23, WIB bawaan). */
+  "schedule.night_start_hour": 0,
+  "schedule.night_end_hour": 6,
+  "schedule.night_interval_sec": 10_800,
 } as const;
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 export type Settings = { -readonly [K in SettingKey]: (typeof SETTING_DEFAULTS)[K] extends boolean ? boolean : number };

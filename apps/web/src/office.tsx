@@ -14,6 +14,8 @@ export interface Office {
   topics: number;
   active_topics: number;
   topic_names: string[];
+  /** paket jadwal pengambilan (0029); null = jadwal bawaan owner */
+  plan_code?: string | null;
 }
 
 /** true = owner platform yang sedang di "rumah" platform (belum memilih kantor) → halaman data perlu pilih kantor dulu. */

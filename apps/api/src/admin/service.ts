@@ -6,6 +6,7 @@ import {
   type Db,
   memberships,
   plans,
+  resyncPlanIntervals,
   type Tx,
   tenants,
   users,
@@ -84,14 +85,30 @@ export class AdminService {
   async listTenants() {
     return withSystem(this.db, async (tx) => {
       const rows = (await tx.execute(sql`
-        select t.id, t.slug, t.name, t.status, t.plan_id, t.created_at,
+        select t.id, t.slug, t.name, t.status, t.plan_id, p.code as plan_code, p.name as plan_name, t.created_at,
                (select count(*)::int from memberships m join users u on u.id = m.user_id
                  where m.tenant_id = t.id and not u.is_platform_operator) as users,
                (select count(*)::int from topics tp where tp.tenant_id = t.id and tp.deleted_at is null) as topics,
                (select count(*)::int from topics tp where tp.tenant_id = t.id and tp.deleted_at is null and tp.status = 'active') as active_topics,
                (select coalesce(array_agg(tp.name order by tp.name), '{}') from topics tp where tp.tenant_id = t.id and tp.deleted_at is null) as topic_names
-        from tenants t where t.deleted_at is null and t.kind = 'office' order by t.name`)) as unknown as Record<string, unknown>[];
+        from tenants t left join plans p on p.id = t.plan_id
+        where t.deleted_at is null and t.kind = 'office' order by t.name`)) as unknown as Record<string, unknown>[];
       return rows;
+    });
+  }
+
+  /** Operator: daftar paket (jadwal pengambilan per platform + batas) untuk dipilih per kantor. */
+  async listPlans() {
+    return withSystem(this.db, async (tx) => {
+      const rows = (await tx.execute(
+        sql`select code, name, limits from plans order by coalesce((limits->>'sort')::int, 99), name`,
+      )) as unknown as { code: string; name: string; limits: Record<string, unknown> }[];
+      return rows.map((r) => ({
+        code: r.code,
+        name: r.name,
+        description: (r.limits.description as string | undefined) ?? null,
+        platform_intervals: (r.limits.platform_intervals as Record<string, number> | undefined) ?? null,
+      }));
     });
   }
 
@@ -261,6 +278,8 @@ export class AdminService {
       }
       const r = await tx.update(tenants).set(patch).where(eq(tenants.id, id)).returning({ id: tenants.id, status: tenants.status });
       if (!r.length) throw new ApiError("NOT_FOUND", "Tenant tidak ditemukan");
+      // paket berganti → jadwal pengambilan semua topik kantor ini ikut sekarang
+      if (b.plan_code) await resyncPlanIntervals(tx, { tenantId: id });
       await this.audit(tx, a, "tenant.update", { type: "tenant", id }, b, id);
       return r[0]!;
     });

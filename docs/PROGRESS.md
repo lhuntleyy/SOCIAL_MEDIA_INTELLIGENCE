@@ -144,6 +144,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | Paket per kantor + adaptif | Paket jadwal per kantor (plans 0029, menu Kantor); jadwal adaptif (topik sepi melambat ×2 s.d. 3 jam) + mode malam 00–06 WIB (scheduler `pace.ts`); tombol Ambil sekarang dihapus. 505 test |
 | 2026-10-03 | Auto-refresh + Off = jeda | Perbandingan biaya jadwal 5m–3j (COST_MODEL §12.6): kantor 10 topik 1 jam Rp 10,4 jt, 30 menit Rp 12,9 jt. Auto-refresh dikembalikan (layar, gratis), Off = jeda topik di server; jadwal diatur owner (5 paket baru). Ambil sekarang tetap. 500 test + Playwright |
 | 2026-10-03 | FB murah + API mahal mati | Facebook → silentflow ($0,0023/post, terurut terbaru, adaptif; VERIFIED). Dimatikan: YouTube Apify, Threads scrapersdelight, X/FB scraper_one, FB scrapeforge. CaptAPI dievaluasi (9× lebih mahal per request, tanpa FB keyword) → tidak dipakai. 499 test |
 | 2026-10-03 | Threads murah + Psikografi | Threads → themineworks (terurut terbaru, adaptif; Real-time Rp 221 jt → 56 jt/kantor). Batas & jadwal disederhanakan (4 paket). Psikografi A-08/A-09/D-04/U-06 jalur LLM. Riset provider: ScrapeCreators/CaptAPI (Threads per-request), FB tanpa API per-request murah |

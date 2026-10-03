@@ -264,6 +264,49 @@ function OfficeUsers({ office }: { office?: Office }) {
   );
 }
 
+interface PackageRow {
+  code: string;
+  name: string;
+  description: string | null;
+  platform_intervals: Record<string, number> | null;
+}
+
+/** Paket kantor = jadwal pengambilan semua topik kantor itu (biaya per paket: Pengaturan → Batas & jadwal). */
+function OfficePackage({ o }: { o: Office }) {
+  const qc = useQueryClient();
+  const pk = useQuery({ queryKey: ["plans"], queryFn: () => api<PackageRow[]>("/admin/plans"), staleTime: 600_000 });
+  const save = useMutation({
+    mutationFn: (code: string) => api(`/admin/tenants/${o.id}`, { method: "PATCH", json: { plan_code: code } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tenants"] }),
+  });
+  const list = pk.data ?? [];
+  const cur = list.find((p) => p.code === o.plan_code);
+  return (
+    <span
+      className="flex items-center gap-2 text-xs text-zinc-500"
+      title={cur?.description ?? "Mengikuti jadwal bawaan di Pengaturan → Batas & jadwal"}
+    >
+      <label htmlFor={`pkg-${o.id}`}>Paket</label>
+      <Select
+        id={`pkg-${o.id}`}
+        value={o.plan_code ?? ""}
+        onChange={(e) => save.mutate(e.target.value)}
+        disabled={save.isPending}
+        className="py-1 text-sm"
+      >
+        {!o.plan_code && <option value="">— jadwal bawaan —</option>}
+        {list.map((p) => (
+          <option key={p.code} value={p.code}>
+            {p.name}
+            {p.description ? ` — ${p.description}` : " (jadwal bawaan)"}
+          </option>
+        ))}
+      </Select>
+      {save.error && <span className="text-red-600">{(save.error as Error).message}</span>}
+    </span>
+  );
+}
+
 function OfficeCard({ o, open, onToggle }: { o: Office; open: boolean; onToggle: () => void }) {
   const qc = useQueryClient();
   const enter = useEnterOffice();
@@ -287,6 +330,7 @@ function OfficeCard({ o, open, onToggle }: { o: Office; open: boolean; onToggle:
             </div>
           </div>
         </button>
+        <OfficePackage o={o} />
         <Button variant="ghost" onClick={() => enter(o)}>
           Masuk ke kantor
         </Button>

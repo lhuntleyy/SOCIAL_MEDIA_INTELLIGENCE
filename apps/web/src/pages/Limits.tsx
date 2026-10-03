@@ -447,9 +447,10 @@ function Simple({ platforms }: { platforms: PlatformRow[] }) {
       <Card title="Apa bedanya?">
         <div className="grid gap-3 text-sm md:grid-cols-2">
           <div className="rounded-lg bg-brand-50 p-3">
-            <div className="font-semibold">Kecepatan update data (di sini)</div>
-            Seberapa sering <b>server</b> mengecek Instagram, TikTok, X, dll. untuk post <b>baru</b>. Berlaku untuk semua topik semua
-            kantor. Makin sering = data makin cepat masuk, tapi <b>biaya makin besar</b>.
+            <div className="font-semibold">Jadwal pengambilan (paket kantor)</div>
+            Seberapa sering <b>server</b> mengecek Instagram, TikTok, X, dll. untuk post <b>baru</b> — berjalan terus walau dashboard tidak
+            dibuka. Tiap kantor memakai <b>paket</b>-nya (dipilih di menu <b>Kantor</b>); kantor tanpa paket memakai jadwal bawaan di bawah.
+            Makin sering = data makin cepat masuk, tapi <b>biaya makin besar</b>.
           </div>
           <div className="rounded-lg bg-zinc-50 p-3">
             <div className="font-semibold">Auto-refresh (di dashboard)</div>
@@ -458,7 +459,11 @@ function Simple({ platforms }: { platforms: PlatformRow[] }) {
           </div>
         </div>
       </Card>
-      <Card title="Kecepatan update data">
+      <Card title="Paket & jadwal bawaan">
+        <p className="mb-3 text-xs text-zinc-500">
+          Paket yang sama dipilih per kantor di menu <b>Kantor</b>. Klik paket di sini = jadwal <b>bawaan</b> untuk kantor yang belum punya
+          paket.
+        </p>
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
           {PRESETS.map((pr) => (
             <button
@@ -470,7 +475,7 @@ function Simple({ platforms }: { platforms: PlatformRow[] }) {
             >
               <div className="flex items-center justify-between">
                 <span className="text-base font-bold">{pr.name}</span>
-                {active?.id === pr.id && <Badge tone="green">dipakai</Badge>}
+                {active?.id === pr.id && <Badge tone="green">bawaan</Badge>}
               </div>
               <p className="mt-1 min-h-10 text-xs text-zinc-600">{pr.desc}</p>
               <div className="mt-2 text-sm">
@@ -488,6 +493,46 @@ function Simple({ platforms }: { platforms: PlatformRow[] }) {
         </p>
         <ErrorText error={apply.error} />
       </Card>
+      {v && (
+        <Card title="Penghemat otomatis">
+          <div className="flex flex-wrap items-center gap-3 py-1.5 text-sm">
+            <span className="flex-1">
+              Jadwal adaptif — topik sepi otomatis melambat
+              <span className="block text-xs text-zinc-500">
+                Setelah 2+ pengambilan berturut-turut tanpa post baru, jeda dilipatgandakan (paling lambat{" "}
+                {Math.round(Number(v["schedule.adaptive_max_interval_sec"]) / 3600)} jam). Begitu ada post baru, kembali ke jadwal paket.
+              </span>
+            </span>
+            <Switch
+              on={!!v["schedule.adaptive_enabled"]}
+              onChange={(on) => put.mutate({ "schedule.adaptive_enabled": on })}
+              disabled={put.isPending}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 py-1.5 text-sm">
+            <span className="flex-1">
+              Mode malam — pukul {String(v["schedule.night_start_hour"]).padStart(2, "0")}.00–
+              {String(v["schedule.night_end_hour"]).padStart(2, "0")}.00 WIB paling cepat tiap{" "}
+              {Math.round(Number(v["schedule.night_interval_sec"]) / 3600)} jam
+              <span className="block text-xs text-zinc-500">Pagi langsung kembali ke jadwal paket. Hemat ± 13% di paket 30 menit.</span>
+            </span>
+            <Switch
+              on={!!v["schedule.night_enabled"]}
+              onChange={(on) => put.mutate({ "schedule.night_enabled": on })}
+              disabled={put.isPending}
+            />
+          </div>
+          <NumField
+            label="Lantai post per pengambilan (Facebook & Threads)"
+            hint="Jumlah post minimum yang selalu diminta & ditagih tiap pengambilan walau post barunya lebih sedikit. 2 = lebih hemat; terlalu kecil bisa membuat topik ramai terlambat sebentar (otomatis naik saat ramai)."
+            value={Number(v["fetch.min_items_per_run"])}
+            def={5}
+            min={1}
+            max={100}
+            onSave={(x) => put.mutate({ "fetch.min_items_per_run": x })}
+          />
+        </Card>
+      )}
       {v && (
         <Card title="Komentar, psikografi & topik baru">
           <div className="flex flex-wrap items-center gap-3 py-1.5 text-sm">

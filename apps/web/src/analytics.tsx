@@ -279,21 +279,6 @@ function RefreshControl({ f }: { f: Filters }) {
     },
     onError: (e) => setMsg((e as Error).message),
   });
-  const now = useMutation({
-    mutationFn: () => api<{ platforms: string[]; cooldown_until: string | null }>(`/topics/${f.topic}/fetch-now`, { method: "POST" }),
-    onSuccess: (r) => {
-      setMsg(
-        r.platforms.length
-          ? `Sedang mengambil data ${r.platforms.map((p) => PLATFORM_LABEL[p] ?? p).join(", ")} — muncul di layar ± 1–3 menit.`
-          : `Data baru saja diambil. "Ambil sekarang" bisa dipakai lagi ${r.cooldown_until ? `setelah ${new Date(r.cooldown_until).toLocaleTimeString("id-ID", { timeStyle: "short" })}` : "sebentar lagi"}.`,
-      );
-      setTimeout(() => {
-        refreshTopics();
-        void qc.invalidateQueries();
-      }, 90_000);
-    },
-    onError: (e) => setMsg((e as Error).message),
-  });
   const t = f.current;
   const choose = (id: string) => {
     setMsg(null);
@@ -326,11 +311,6 @@ function RefreshControl({ f }: { f: Filters }) {
             </option>
           ))}
         </Select>
-        {canEdit && t && !f.paused && (
-          <Button variant="ghost" className="py-1" onClick={() => now.mutate()} disabled={now.isPending}>
-            {now.isPending ? "…" : "Ambil sekarang"}
-          </Button>
-        )}
       </div>
       {(msg || t?.last_run_at) && (
         <p className="max-w-md text-right text-xs text-zinc-500">

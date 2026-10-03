@@ -2,7 +2,7 @@
 // relay outbox → queue/pubsub tiap 1 s. Semua pekerjaan hanya oleh leader; SKIP LOCKED menjaga bila lock sempat ganda.
 import { loadConfig } from "@smip/config";
 import { QUEUE_NAMES } from "@smip/core";
-import { createDb, publishOutbox } from "@smip/db";
+import { createDb, loadSettings, publishOutbox } from "@smip/db";
 import { createLogger, Registry } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { LeaderLock } from "./leader";
@@ -45,7 +45,17 @@ async function tick() {
   try {
     if (!(await leader.ensure())) return;
     const fetchWaiting = (await queue.waitingCount("fetch.bun")) + (await queue.waitingCount("fetch.py"));
+    const st = await loadSettings(db);
     const r = await schedulerTick(db, {
+      pace: {
+        adaptive: st["schedule.adaptive_enabled"],
+        adaptiveMaxSec: st["schedule.adaptive_max_interval_sec"],
+        night: st["schedule.night_enabled"],
+        nightStartHour: st["schedule.night_start_hour"],
+        nightEndHour: st["schedule.night_end_hour"],
+        nightSec: st["schedule.night_interval_sec"],
+        timezone: "Asia/Jakarta",
+      },
       initialLookbackSec: cfg.SCHEDULER_INITIAL_LOOKBACK_SEC,
       backpressure: () => fetchWaiting > BACKPRESSURE,
       maxGapAgeSec: MAX_GAP_AGE_SEC,

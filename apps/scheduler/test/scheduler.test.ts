@@ -118,6 +118,7 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
       streamsScheduled: 0,
       streamsCoalesced: 0,
       throttled: 0,
+      paced: { adaptive: 0, night: 0 },
       costGuard: { breached: [], throttledNow: [], released: [] },
     });
     const [run1] = await runsOf(due);
@@ -184,6 +185,44 @@ describe.skipIf(!infraUp)("scheduler (integrasi)", () => {
     await sql`update crawl_plans set next_run_at = now() - interval '1 second' where id = ${p}`;
     expect((await schedulerTick(created.db)).scheduled).toBe(1);
     expect(await runsOf(p)).toHaveLength(2);
+    await sql`update crawl_plans set status = 'paused' where id = ${p}`;
+  });
+
+  test("jadwal adaptif: 3 run kosong berturut-turut → interval ×4 (maks. batas); run berisi → normal; mode malam WIB", async () => {
+    const pc = {
+      adaptive: true,
+      adaptiveMaxSec: 10_800,
+      night: false,
+      nightStartHour: 0,
+      nightEndHour: 6,
+      nightSec: 10_800,
+      timezone: "Asia/Jakarta",
+    };
+    const p = await plan({ interval: 900 });
+    for (const [i, n] of [5, 0, 0, 0].entries()) {
+      const r = await run("succeeded", 4000 - i * 900, p);
+      await sql`update crawl_runs set items_new = ${n} where id = ${r}`;
+    }
+    const now = new Date("2026-10-04T05:00:00Z"); // 12:00 WIB → bukan malam
+    const res = await schedulerTick(created.db, { now: () => now, pace: pc, random: () => 0.5 });
+    expect(res.paced).toEqual({ adaptive: 1, night: 0 });
+    const next = async () =>
+      ((await sql`select next_run_at from crawl_plans where id = ${p}`)[0]!.next_run_at.getTime() - now.getTime()) / 1000;
+    expect(await next()).toBe(3600); // 900 × 2^(3−1)
+    // satu run membawa post baru → jadwal dasar
+    await sql`update crawl_runs set status = 'succeeded', items_new = 7 where crawl_plan_id = ${p} and status = 'queued'`;
+    await sql`update crawl_plans set next_run_at = ${now} where id = ${p}`;
+    expect((await schedulerTick(created.db, { now: () => now, pace: pc, random: () => 0.5 })).paced.adaptive).toBe(0);
+    expect(await next()).toBe(900);
+    // mode malam: 01:00 WIB → paling cepat 3 jam, tapi tidak lewat 06:00 WIB (5 jam lagi → 3 jam)
+    const night = new Date("2026-10-03T18:00:00Z");
+    await sql`update crawl_runs set status = 'succeeded', items_new = 3 where crawl_plan_id = ${p} and status = 'queued'`;
+    await sql`update crawl_plans set next_run_at = ${night} where id = ${p}`;
+    const rn = await schedulerTick(created.db, { now: () => night, pace: { ...pc, night: true }, random: () => 0.5 });
+    expect(rn.paced.night).toBe(1);
+    expect(((await sql`select next_run_at from crawl_plans where id = ${p}`)[0]!.next_run_at.getTime() - night.getTime()) / 1000).toBe(
+      10_800,
+    );
     await sql`update crawl_plans set status = 'paused' where id = ${p}`;
   });
 

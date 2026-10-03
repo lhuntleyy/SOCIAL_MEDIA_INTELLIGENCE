@@ -163,6 +163,22 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     expect((await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 10 })).status).toBe(400);
     await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: null });
     expect((await h.sql`select interval_sec from crawl_plans where id = ${PLAN}`)[0]!.interval_sec).toBe(3600); // kembali ke bawaan topik
+
+    // paket per kantor (0029): jadwal paket menimpa jadwal bawaan owner; ganti paket → plan ikut sekarang
+    const pk = await call("GET", "/admin/plans", opTok);
+    expect(pk.json.data.map((p: { code: string }) => p.code)).toEqual(
+      expect.arrayContaining(["hemat", "standar", "plus", "cepat", "realtime"]),
+    );
+    expect(pk.json.data.find((p: { code: string }) => p.code === "plus").platform_intervals.x).toBe(1800);
+    expect((await call("PATCH", `/admin/tenants/${T1}`, opTok, { plan_code: "plus" })).status).toBe(200);
+    const iv = async () => (await h.sql`select interval_sec from crawl_plans where id = ${PLAN}`)[0]!.interval_sec;
+    expect(await iv()).toBe(1800);
+    await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 300 });
+    expect(await iv()).toBe(1800); // bawaan owner tidak menimpa paket kantor
+    await call("PATCH", `/admin/tenants/${T1}`, opTok, { plan_code: "hemat" });
+    expect(await iv()).toBe(10_800);
+    expect((await call("GET", "/admin/tenants", opTok)).json.data.find((t: { id: string }) => t.id === T1)?.plan_code).toBe("hemat");
+    await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: null });
   });
 
   test("connectors: list berisi capabilities/health/rate_limits/quota tanpa config_schema", async () => {
