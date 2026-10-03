@@ -48,6 +48,27 @@ t1=$(date +%s)
 echo "$MANIFEST},\"clickhouse_schema_version\":$MIG,\"duration_sec\":$((t1 - t0))}" > "$OUT/manifest.json"
 chmod 600 "$OUT"/*
 ( cd "$OUT" && sha256sum -- * > SHA256SUMS )
+# salinan di luar server (opsional): SMIP_BACKUP_REMOTE = remote rclone (mis. gdrive-smip:smip-backups) yang dihubungkan PEMILIK
+# sendiri (`rclone config`, OAuth Google — password tidak pernah lewat sini). Isi backup = data klien → DIENKRIPSI dulu (gpg AES256,
+# passphrase di ~/.config/smip/backup.pass, chmod 600 — simpan juga di tempat aman lain; tanpa itu backup tak bisa dibuka).
+if [ -n "${SMIP_BACKUP_REMOTE:-}" ]; then
+  PASS=${SMIP_BACKUP_PASSFILE:-$HOME/.config/smip/backup.pass}
+  if ! command -v rclone >/dev/null; then
+    echo "PERINGATAN: rclone belum terpasang — salinan luar server dilewati"
+  elif ! rclone listremotes | grep -qx "${SMIP_BACKUP_REMOTE%%:*}:"; then
+    echo "PERINGATAN: remote rclone ${SMIP_BACKUP_REMOTE%%:*} belum dihubungkan — salinan luar server dilewati"
+  elif [ ! -s "$PASS" ]; then
+    echo "PERINGATAN: passphrase $PASS tidak ada — salinan luar server dilewati (tidak mengunggah tanpa enkripsi)"
+  else
+    ENC="$ROOT/smip-$STAMP.tar.gpg"
+    tar -C "$ROOT" -cf - "$STAMP" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$PASS" \
+      --symmetric --cipher-algo AES256 -o "$ENC"
+    rclone copy "$ENC" "$SMIP_BACKUP_REMOTE" --quiet
+    rclone delete "$SMIP_BACKUP_REMOTE" --min-age "${SMIP_BACKUP_REMOTE_DAYS:-30}d" --quiet || true
+    rm -f "$ENC"
+    echo "salinan terenkripsi diunggah ke $SMIP_BACKUP_REMOTE"
+  fi
+fi
 # rotasi: simpan KEEP backup terbaru
 ls -1d "$ROOT"/*/ 2>/dev/null | sort | head -n -"$KEEP" | xargs -r rm -rf
 echo "backup selesai: $OUT ($(du -sh "$OUT" | cut -f1), $((t1 - t0)) dtk)"

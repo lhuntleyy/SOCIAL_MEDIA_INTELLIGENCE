@@ -93,6 +93,14 @@ jalankan ulang verify bila ragu.
 - **Restore (ke database baru):** `scripts/restore.sh <dir> --pg-db <baru> --ch-db <baru>` → cek checksum, pg_restore, migrasi
   ClickHouse, insert tabel dasar (MV membangun ulang agregat), bandingkan jumlah baris (exit 1 bila selisih). Lalu arahkan
   `DATABASE_URL` & `CLICKHOUSE_DB` ke database baru, restart `api workers`. Skrip menolak menimpa database aktif.
+- **Terjadwal:** cron user `ubuntu` tiap 6 jam (menit 15) → log `~/smip-backups/backup.log` (dipasang 2026-10-04 atas persetujuan pemilik).
+- **Salinan Google Drive (sekali setup, oleh pemilik):** `sudo apt install rclone` → `rclone config` → *n* (new) → nama
+  **`gdrive-smip`** → storage **drive** → scope **`drive.file`** (rclone hanya bisa melihat file yang dibuatnya sendiri) →
+  login Google di browser (server tanpa browser: pilih "remote config" lalu jalankan `rclone authorize "drive"` di laptop) → selesai.
+  Uji: `rclone lsd gdrive-smip:`. Backup berikutnya otomatis diunggah sebagai `smip-<UTC>.tar.gpg` ke folder `smip-backups`
+  (dihapus > 30 hari). Isi **dienkripsi** gpg AES-256 dengan passphrase `~/.config/smip/backup.pass` — **salin passphrase itu ke
+  password manager pemilik**; tanpa itu backup di Drive tidak bisa dibuka. Pulihkan: `rclone copy gdrive-smip:smip-backups/<file> .`
+  → `gpg -d --passphrase-file … <file> | tar -xf -` → `scripts/restore.sh <dir> …`.
 - **Drill:** kuartalan (§8) — laporan terakhir `docs/evidence/H-06/drill-2026-10-04.md` (RTO data ± 5 dtk, baris & agregat identik).
 
 ## 16. Monitoring (O-07)
