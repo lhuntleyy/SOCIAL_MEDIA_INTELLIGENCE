@@ -381,7 +381,7 @@ data: {"topic_id":"0192…","platforms":["x"],"buckets":["2026-09-27T09:55:00Z"]
 event: heartbeat
 data: {}
 ```
-Client merespons dengan invalidasi query TanStack terkait (tidak mengirim data berat via SSE). Heartbeat 25 s — **server SSE wajib `Bun.serve({ idleTimeout: 0 })`** (atau heartbeat < 10 s): default Bun memutus koneksi yang diam 10 s (terbukti S-02).
+Client merespons dengan invalidasi query TanStack terkait (tidak mengirim data berat via SSE). **Implementasi D-03 (2026-10-04):** event `ready`, `aggregates.updated`, `alert.fired` (per tenant, tanpa topic), `heartbeat`, `ticket.expired` (klien minta tiket baru); antar replika lewat Redis pub/sub `smip:rt`; non-browser belum didukung (cookie saja). Heartbeat 25 s — **server SSE wajib `Bun.serve({ idleTimeout: 0 })`** (atau heartbeat < 10 s): default Bun memutus koneksi yang diam 10 s (terbukti S-02).
 
 ---
 

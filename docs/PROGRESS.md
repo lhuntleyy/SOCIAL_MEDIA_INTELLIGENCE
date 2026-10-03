@@ -100,7 +100,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | A-08, A-09 | in_progress | claude | enrich.test (ambang, below_18 disensor, cache, gagal → unknown, saklar) | Jalur LLM per akun + cache CH + τ + minor_suppressed. Belum: eval precision/disparitas pada golden set (S-23), leksikon nama sebagai sinyal pertama, backfill demografi post lama |
 | D-04 | done | claude | analytics.test (psikografi + coverage + isolasi tenant + galeri) | `/analytics/psychography`, `/analytics/gallery` (2026-10-04); kronologi memakai feed `/posts` (content_type) |
 | U-06 | in_progress | claude | `apps/web/src/pages/Audience.tsx` | Gender, usia, sentimen per gender/usia + coverage di Audiens |
-| A-01, A-02, A-07, D-03, U-02 … U-05 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
+| A-01, A-02, A-07, U-02 … U-05 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
 
 ## Fase 4 — Provider Ops & Alert
 | ID | Status | PIC | Bukti | Catatan |
@@ -109,6 +109,7 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | O-05 | done (email menyusul) | claude | `apps/worker-sink/src/alerts.ts` · `packages/notify` · `apps/web/src/pages/Alerts.tsx` · alerts.test (API + evaluator + sink integrasi) | Aturan per topik: **sentimen negatif tinggi**, **lonjakan percakapan** (vs rata-rata 7 hari), **isu baru** (tanpa riwayat 7 hari); evaluasi tiap 5 menit (agregat ClickHouse, satu pemegang lock), cooldown per aturan; event open → dibaca → selesai; saluran **Telegram** (token bot disegel KMS, write-only) & **webhook** (HTTPS publik, guard SSRF, tanda tangan HMAC `X-SMIP-Signature`); kirim uji; hasil kirim dicatat di event; badge jumlah alert baru di menu. Email: belum (butuh SMTP) |
 | O-06 | done | claude | `apps/api/src/exports/files.ts` · `GET /exports/posts` · export-files.test + analytics.test | **Unduh data** Excel (.xlsx, tanpa dependency: SpreadsheetML + ZIP deflate, baris judul tebal & beku, filter) / CSV (UTF-8 BOM, anti formula injection) — post sesuai filter dashboard / drill-down (rentang, platform, sentimen, isu, hashtag, akun…), kolom waktu WIB, akun, teks, URL, metrik terakhir (suka/komentar/bagikan/tayang), engagement, sentimen, emosi, isu, hashtag; maks. 50.000 post terbaru (`X-SMIP-Truncated`); analis+ (`exports:write`); tercatat di `exports` + audit. Uji live: BPIP 30 hari 129 post. Langsung diunduh (tanpa S3/presigned — tidak ada file tersimpan) |
 | O-04 | done | claude | `apps/web/src/pages/Monitor.tsx` · `GET /admin/crawl-monitor` · admin-providers.test | Pengaturan → **Monitor** (owner): kesehatan pengambilan per platform (berhasil %, gagal, sebagian, dilewati, berjalan, post baru, terakhir berhasil; 24 jam/3 hari/7 hari), kegagalan terbaru (kode, pesan, topik, kantor, connector), DLQ per queue (kirim ulang/buang), pemakaian & perkiraan biaya per kantor, audit log (filter jenis, sembunyikan akses lihat kantor). Langsung menemukan insiden FB (RUNBOOK §13) |
+| D-03 | done | claude | `apps/api/src/realtime.ts` · `routes/stream.ts` · stream.test (SEC-10/SEC-11) | SSE `GET /stream?topic_id` (cookie `sse_ticket`), `POST /stream/ticket`; event `aggregates.updated`, `alert.fired`, `heartbeat` 25 s, `ticket.expired`; Redis pub/sub `smip:rt` antar replika; Bun `server.timeout(req, 0)` untuk SSE |
 | O-02, O-03, O-07 | todo | | | |
 
 ## Fase 5 — Hardening
@@ -147,6 +148,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | D-03 Update instan (SSE) | worker-sink meneruskan `realtime.notify` (+ alert baru) ke Redis pub/sub → API (subscriber per replika) → SSE per topik; tiket cookie HttpOnly `Path=/v1/stream` 15 menit (hash di Redis), tanpa token di URL; dashboard "● live" memuat ulang widget saat data baru (3 dtk batch), auto-refresh tetap cadangan. Uji SEC-10/SEC-11 + E2E browser (1 event → 13 widget dimuat ulang). 523 test |
 | 2026-10-04 | O-04 Monitor + insiden FB | Tab Monitor owner (kesehatan per platform, kegagalan, DLQ, biaya per kantor, audit). Monitor menemukan Facebook mati ±14 jam (capability silentflow ditandai failed oleh worker lama saat deploy) → dipulihkan, worker kini melapor connector belum dimuat sebagai error sementara; RUNBOOK §13. 520 test |
 | 2026-10-04 | U-04 Galeri | Tab Galeri di Percakapan: post bermedia (foto/video) per topik, filter jenis media/sentimen, urut engagement/terbaru, detail + tautan asli; `GET /analytics/gallery` (URL non-https dibuang). Uji live: 45/48 gambar termuat, sisanya fallback teks. 519 test |
 | 2026-10-04 | O-06 Export | Unduh data Excel/CSV dari dashboard & popup drill-down (filter ikut), maks. 50.000 post, anti formula injection, tercatat. 518 test + Playwright (unduhan live valid) |

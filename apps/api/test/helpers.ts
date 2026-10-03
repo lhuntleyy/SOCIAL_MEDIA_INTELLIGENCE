@@ -34,7 +34,11 @@ export interface ApiHarness {
   keys: JwtKeys;
   redis: Bun.RedisClient;
   token: (c: Partial<AccessClaims> & { sub: string; tid: string; role: AccessClaims["role"] }) => Promise<string>;
-  call: (method: string, path: string, o?: { body?: unknown; token?: string; headers?: Record<string, string> }) => Promise<Response>;
+  call: (
+    method: string,
+    path: string,
+    o?: { body?: unknown; token?: string; headers?: Record<string, string>; signal?: AbortSignal },
+  ) => Promise<Response>;
   close: () => Promise<void>;
 }
 
@@ -68,6 +72,7 @@ export async function apiHarness(name: string, mount?: AppDeps["mount"], extra?:
           ...o.headers,
         },
         body: o.body === undefined ? undefined : JSON.stringify(o.body),
+        ...(o.signal ? { signal: o.signal } : {}),
       }),
     close: async () => {
       redis.close();

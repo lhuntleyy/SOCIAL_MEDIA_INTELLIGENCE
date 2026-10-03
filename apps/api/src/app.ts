@@ -11,12 +11,14 @@ import type { AppEnv } from "./context";
 import { ApiError, errorBody } from "./errors";
 import { authn, viewerReadOnly } from "./middleware/auth";
 import { requestId } from "./middleware/request-id";
+import type { Realtime } from "./realtime";
 import { adminRoutes, publicAdminRoutes } from "./routes/admin";
 import { llmAdminRoutes } from "./routes/admin-llm";
 import { providerAdminRoutes } from "./routes/admin-providers";
 import { alertRoutes } from "./routes/alerts";
 import { analyticsRoutes } from "./routes/analytics";
 import { authRoutes } from "./routes/auth";
+import { streamRoutes, streamTicketRoutes } from "./routes/stream";
 import { topicRoutes } from "./routes/topics";
 import type { TopicService } from "./topics/service";
 
@@ -26,6 +28,8 @@ export interface AppDeps {
   topics?: TopicService;
   /** API_SPEC §9 (I-21). */
   providers?: ProviderAdminService;
+  /** D-03 realtime SSE (butuh analytics.db untuk cek topik). */
+  realtime?: Realtime;
   /** O-05 alert & saluran notifikasi. */
   alerts?: AlertService;
   /** Pengaturan LLM (Fase 3). */
@@ -53,6 +57,8 @@ export function createApp(d: AppDeps) {
 
   const admin = d.admin;
   if (admin) app.route("/", publicAdminRoutes(admin));
+  // SSE: autentikasi via cookie tiket (bukan Bearer) → di luar middleware authn
+  if (d.realtime) app.route("/", streamRoutes({ rt: d.realtime }));
 
   const prot = new Hono<AppEnv>();
   const ext = admin
@@ -77,6 +83,7 @@ export function createApp(d: AppDeps) {
   if (d.analytics) prot.route("/", analyticsRoutes(d.analytics));
   if (d.topics) prot.route("/", topicRoutes(d.topics));
   if (d.alerts) prot.route("/", alertRoutes(d.alerts));
+  if (d.realtime && d.analytics) prot.route("/", streamTicketRoutes({ db: d.analytics.db, rt: d.realtime }));
   d.mount?.(prot);
   app.route("/", prot);
 

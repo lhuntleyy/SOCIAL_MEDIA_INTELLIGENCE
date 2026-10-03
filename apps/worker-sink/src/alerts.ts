@@ -156,6 +156,8 @@ export interface AlertDeps {
   /** URL dasar dashboard untuk tautan di pesan (opsional) */
   appUrl?: string;
   now?: () => Date;
+  /** dipanggil tiap alert baru (mis. dorong ke SSE → badge menu langsung bertambah) */
+  onFired?: (e: { tenant_id: string; topic_id: string; event_id: string; title: string }) => Promise<unknown> | unknown;
 }
 
 export interface AlertTickResult {
@@ -200,6 +202,7 @@ export async function evaluateAlerts(d: AlertDeps): Promise<AlertTickResult> {
         values (${eventId}, ${r.tenant_id}, ${r.id}, ${now.toISOString()}::timestamptz, ${JSON.stringify({ ...msg, deliveries: [] })}::text::jsonb)`),
     );
     res.fired++;
+    await Promise.resolve(d.onFired?.({ tenant_id: r.tenant_id, topic_id: r.topic_id, event_id: eventId, title: f.title })).catch(() => {});
     const deliveries: Delivery[] = [];
     for (const c of await loadTargets(d.db, d.kms, r.tenant_id, r.channels ?? [])) {
       const x = await deliver(c, msg, d.post, now);

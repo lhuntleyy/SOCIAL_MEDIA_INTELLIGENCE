@@ -309,6 +309,63 @@ export function ExportButton({
   );
 }
 
+/** Query analitik yang dimuat ulang saat server mengabarkan data baru (D-03). */
+const isAnalyticsKey = (k: readonly unknown[]) =>
+  typeof k[0] === "string" &&
+  (k[0].startsWith("/analytics") || k[0].startsWith("/posts") || ["gallery", "drill", "feedcol"].includes(k[0]));
+
+/**
+ * D-03 update instan: tiket SSE (cookie HttpOnly, diminta lewat Bearer) → EventSource `/v1/stream` → "data baru" → query analitik
+ * dimuat ulang (dikumpulkan 3 detik). Alert baru → badge menu. Putus → coba lagi 15 detik; auto-refresh tetap jalan sebagai cadangan.
+ */
+export function useLiveUpdates(topic: string, paused: boolean) {
+  const qc = useQueryClient();
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (!topic || paused || typeof EventSource === "undefined") return;
+    let es: EventSource | null = null;
+    let stopped = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let batch: ReturnType<typeof setTimeout> | undefined;
+    const open = async () => {
+      if (stopped) return;
+      try {
+        await api("/stream/ticket", { method: "POST", json: { topic_id: topic } });
+      } catch {
+        retry = setTimeout(open, 60_000);
+        return;
+      }
+      if (stopped) return;
+      es = new EventSource(`/v1/stream?topic_id=${encodeURIComponent(topic)}`);
+      es.addEventListener("ready", () => setLive(true));
+      es.addEventListener("aggregates.updated", () => {
+        clearTimeout(batch);
+        batch = setTimeout(() => void qc.invalidateQueries({ predicate: (q) => isAnalyticsKey(q.queryKey) }), 3000);
+      });
+      es.addEventListener("alert.fired", () => void qc.invalidateQueries({ queryKey: ["alert-events"] }));
+      es.addEventListener("ticket.expired", () => {
+        es?.close();
+        void open();
+      });
+      es.onerror = () => {
+        setLive(false);
+        es?.close();
+        clearTimeout(retry);
+        retry = setTimeout(open, 15_000);
+      };
+    };
+    void open();
+    return () => {
+      stopped = true;
+      clearTimeout(retry);
+      clearTimeout(batch);
+      es?.close();
+      setLive(false);
+    };
+  }, [topic, paused, qc]);
+  return live;
+}
+
 /**
  * Auto-refresh: interval memuat ulang layar (per pengguna, gratis). "Off" menjeda topik di server untuk semua pengguna (tidak ada
  * pengambilan baru → tidak ada biaya); memilih interval pada topik yang dijeda melanjutkannya. Jeda/lanjut hanya analis ke atas.
@@ -332,6 +389,7 @@ function RefreshControl({ f }: { f: Filters }) {
     onError: (e) => setMsg((e as Error).message),
   });
   const t = f.current;
+  const live = useLiveUpdates(f.topic, f.paused);
   const choose = (id: string) => {
     setMsg(null);
     if (id === "off") {
@@ -367,6 +425,11 @@ function RefreshControl({ f }: { f: Filters }) {
       {(msg || t?.last_run_at) && (
         <p className="max-w-md text-right text-xs text-zinc-500">
           {msg ?? (f.paused ? "Topik dijeda" : `Terakhir diambil ${agoText(t!.last_run_at!)}`)}
+          {live && !msg && (
+            <span className="ml-2 text-emerald-600" title="Tersambung: data baru langsung muncul tanpa menunggu auto-refresh">
+              ● live
+            </span>
+          )}
         </p>
       )}
     </div>

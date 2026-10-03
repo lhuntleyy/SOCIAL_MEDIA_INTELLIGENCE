@@ -8,6 +8,7 @@ import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { S3BlobStore } from "@smip/storage";
+import { z } from "zod";
 import { evaluateAlerts } from "./alerts";
 import { planComments } from "./comments";
 import { planEngagementRefresh } from "./refresh";
@@ -76,6 +77,26 @@ async function planCommentsTick() {
   }
 }
 const commentsTimer = setInterval(planCommentsTick, 15 * 60_000);
+// D-03: realtime.notify (outbox sink) → Redis PUBLISH; replika API meneruskan ke klien SSE topik itu
+const rtSub = await queue.consume(
+  "realtime.notify",
+  async (m) => {
+    const p = m.payload;
+    await cache.send("PUBLISH", [
+      "smip:rt",
+      JSON.stringify({
+        tenant_id: p.tenant_id,
+        topic_id: p.topic_id,
+        event: "aggregates.updated",
+        data: { buckets: p.buckets, platforms: p.platforms },
+      }),
+    ]);
+  },
+  {
+    concurrency: 4,
+    parse: z.object({ tenant_id: z.string(), topic_id: z.string(), buckets: z.array(z.string()), platforms: z.array(z.string()) }).parse,
+  },
+);
 // O-05 alert: evaluasi aturan tiap ALERTS_EVAL_MS (satu pemegang lock), kirim Telegram/webhook lewat HttpClient (guard SSRF)
 const kms = createKms(cfg);
 const http = new HttpClient({ timeoutMs: 15_000 });
@@ -92,6 +113,16 @@ async function alertsTick() {
       kms,
       post: async (url, init) => ({ status: (await http.request(url, { ...init, throwOnStatus: false })).status }),
       appUrl: cfg.APP_PUBLIC_URL,
+      onFired: (e) =>
+        cache.send("PUBLISH", [
+          "smip:rt",
+          JSON.stringify({
+            tenant_id: e.tenant_id,
+            topic_id: null,
+            event: "alert.fired",
+            data: { event_id: e.event_id, title: e.title, topic_id: e.topic_id },
+          }),
+        ]),
     });
     if (r.fired) logger.info("alert terpicu", { ...r });
   } catch (e) {
@@ -107,6 +138,7 @@ const shutdown = async () => {
   clearInterval(commentsTimer);
   clearInterval(alertsTimer);
   await sub.close(30_000);
+  await rtSub.close(5_000);
   await queue.close();
   await ch.close();
   cache.close();

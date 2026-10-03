@@ -93,7 +93,7 @@ const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 /** SEC-06: viewer tidak boleh mengubah apa pun, di rute mana pun (kecuali mengelola MFA/sesi dirinya). */
 export const viewerReadOnly = createMiddleware<AppEnv>(async (c, next) => {
   const a = c.get("auth");
-  if (a?.role === "viewer" && !a.op && !SAFE.has(c.req.method) && !/^\/v1\/(me\/mfa\/|auth\/)/.test(c.req.path)) {
+  if (a?.role === "viewer" && !a.op && !SAFE.has(c.req.method) && !/^\/v1\/(me\/mfa\/|auth\/|stream\/ticket$)/.test(c.req.path)) {
     throw new ApiError("FORBIDDEN", "Viewer hanya dapat membaca");
   }
   await next();

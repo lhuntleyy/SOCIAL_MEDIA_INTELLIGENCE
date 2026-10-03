@@ -15,6 +15,7 @@ import { createApp } from "./app";
 import { loadJwtKeys } from "./auth/jwt";
 import { LoginLimiter } from "./auth/rate-limit";
 import { AuthService } from "./auth/service";
+import { Realtime, RT_CHANNEL } from "./realtime";
 import { TopicService } from "./topics/service";
 
 const cfg = loadConfig("api");
@@ -48,7 +49,22 @@ const alerts = new AlertService(db, {
   fingerprintPepper: new Uint8Array(Buffer.from(cfg.CREDENTIAL_PEPPER_B64!, "base64")),
   http: new HttpClient({ timeoutMs: 15_000 }),
 });
-const app = createApp({ auth, admin: new AdminService(db, redis), topics, providers, llm, alerts, analytics: { db, ch }, keys, logger });
+// D-03: satu koneksi subscriber per replika API → klien SSE lokal
+const realtime = new Realtime(redis);
+const rtSub = new Bun.RedisClient(cfg.REDIS_CACHE_URL);
+await rtSub.subscribe(RT_CHANNEL, (m: string) => realtime.onMessage(m));
+const app = createApp({
+  auth,
+  admin: new AdminService(db, redis),
+  topics,
+  providers,
+  llm,
+  alerts,
+  realtime,
+  analytics: { db, ch },
+  keys,
+  logger,
+});
 
 const INTERNAL_IP_HEADER = "x-smip-client-ip";
 const isPrivate = (ip: string) =>
@@ -57,6 +73,8 @@ const server = Bun.serve({
   port: cfg.API_PORT,
   // idleTimeout default Bun 10 s memutus SSE (S-02); route SSE (D-03) akan memakai server.timeout(req, 0).
   async fetch(req, srv) {
+    // SSE: koneksi panjang → matikan idle timeout untuk request ini saja (heartbeat 25 s)
+    if (new URL(req.url).pathname === "/v1/stream") srv.timeout(req, 0);
     // Header IP internal SELALU ditimpa dari socket → klien tidak bisa memalsukan IP untuk mengakali rate limit.
     const headers = new Headers(req.headers);
     const peer = srv.requestIP(req)?.address ?? "unknown";
