@@ -63,3 +63,14 @@ Setiap bagian: **Gejala → Diagnosis → Tindakan → Verifikasi**.
 - **Gejala**: `coverage_pct` gender/age/emotion anjlok.
 - **Diagnosis**: provider berhenti mengirim sinyal (mis. `author.created_at`/nama profil null), model demografi gagal load, atau τ terlalu tinggi.
 - **Tindakan**: cek `smip_ai_low_confidence_ratio` & health model; jangan menurunkan τ demi coverage tanpa eval (bias). Tampilkan coverage apa adanya (SECURITY §9).
+
+## 13. Connector baru: urutan deploy & capability "failed" palsu (insiden 2026-10-03)
+**Gejala:** platform tidak terambil, Pengaturan → Monitor menunjukkan `NO_CANDIDATE` "tidak ada connector yang layak"; router
+trace `CAPABILITY_FAILED` untuk connector yang baru diverifikasi.
+**Penyebab (insiden FB ±14 jam):** routing dipindah ke connector baru (`scripts/live-routing.ts`) SEBELUM worker di-restart memuat
+kodenya → worker lama melapor `NOT_SUPPORTED` → `markCapabilityFailed` permanen. Sejak 2026-10-04 worker melapor connector yang
+belum dimuat sebagai `NETWORK` sementara (tidak mematikan capability).
+**Urutan benar:** (1) deploy kode + restart `workers`, (2) `connectors.ts register/verify`, (3) baru `live-routing.ts`.
+**Pemulihan:** cek bukti `docs/evidence/verify/verify-<key>.json` masih `verified` → set `connector_capabilities.status = 'verified'`
++ outbox `capability.verified` + audit `capability.restore`, lalu jadwalkan ulang plan platform itu (`next_run_at = now()`); atau
+jalankan ulang verify bila ragu.

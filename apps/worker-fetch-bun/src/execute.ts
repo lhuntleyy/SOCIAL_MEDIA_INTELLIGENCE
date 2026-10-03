@@ -57,8 +57,14 @@ export async function executeFetch(d: FetchDeps, msg: FetchRequestPayload, outer
   const signal = AbortSignal.any([...(outer ? [outer] : []), AbortSignal.timeout(Math.max(1, remainingMs))]);
   try {
     const conn = d.connectors.get(msg.connector_key);
+    // connector belum dimuat worker ini = deploy belum selesai (routing sudah menunjuk connector baru, worker belum restart) →
+    // error SEMENTARA (coba lagi / jadwal berikutnya). JANGAN NOT_SUPPORTED: itu menandai capability `failed` permanen
+    // (insiden 2026-10-03: Facebook mati ±14 jam karena silentflow ditandai failed oleh worker lama).
     if (!conn)
-      throw new ConnectorError("NOT_SUPPORTED", `connector ${msg.connector_key} tidak terdaftar di worker ini`, { scope: "connector" });
+      throw new ConnectorError("NETWORK", `connector ${msg.connector_key} belum dimuat worker ini (deploy belum selesai?)`, {
+        scope: "connector",
+        retryAfterMs: 60_000,
+      });
     if (conn.manifest.version !== msg.connector_version) {
       log?.warn("versi connector berbeda dengan registry", { registry: msg.connector_version, worker: conn.manifest.version });
     }

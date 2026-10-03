@@ -5,6 +5,7 @@ import { api } from "../api";
 import { Badge, Button, Card, ErrorText, Input, PLATFORM_LABEL, Select, Switch, Tabs } from "../ui";
 import AiSettings from "./AdminLlm";
 import Limits from "./Limits";
+import Monitor from "./Monitor";
 
 interface Connector {
   id: string;
@@ -432,22 +433,23 @@ function Sources() {
   );
 }
 
-type Tab = "sources" | "limits" | "ai";
+type Tab = "sources" | "limits" | "monitor" | "ai";
 export default function Settings() {
   const [sp, setSp] = useSearchParams();
-  const tab: Tab = sp.get("tab") === "ai" ? "ai" : sp.get("tab") === "limits" ? "limits" : "sources";
+  const tab: Tab = (["sources", "limits", "monitor", "ai"] as const).find((t) => t === sp.get("tab")) ?? "sources";
   return (
     <div className="space-y-4">
       <Tabs
         tabs={[
           { id: "sources", label: "Sumber data" },
           { id: "limits", label: "Batas & jadwal" },
+          { id: "monitor", label: "Monitor" },
           { id: "ai", label: "AI" },
         ]}
         value={tab}
         onChange={(v) => setSp({ tab: v }, { replace: true })}
       />
-      {tab === "sources" ? <Sources /> : tab === "limits" ? <Limits /> : <AiSettings />}
+      {tab === "sources" ? <Sources /> : tab === "limits" ? <Limits /> : tab === "monitor" ? <Monitor /> : <AiSettings />}
     </div>
   );
 }

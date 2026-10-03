@@ -4,7 +4,7 @@
 
 import { HttpClient } from "@smip/connector-sdk";
 import type { Operation } from "@smip/contracts";
-import type { QueueName, RouteInput } from "@smip/core";
+import { QUEUE_NAMES, type QueueName, type RouteInput } from "@smip/core";
 import type { KmsAdapter } from "@smip/crypto";
 import {
   auditLogs,
@@ -792,27 +792,72 @@ export class ProviderAdminService {
       // tenant: run plan (tenant_id langsung) + porsi run stream (cost_allocations, I-25)
       return rows(
         tx,
-        sql`select tenant_id, sum(requests)::float8 as requests, sum(results)::float8 as results, sum(cost_units)::float8 as cost_units from (
+        sql`select x.tenant_id, max(tn.name) as tenant_name, sum(requests)::float8 as requests, sum(results)::float8 as results, sum(cost_units)::float8 as cost_units from (
             select a.tenant_id, (a.usage->>'requests')::numeric as requests, (a.usage->>'results')::numeric as results, coalesce((a.usage->>'costUnits')::numeric, 0) as cost_units
             from provider_attempts a where ${range} and a.tenant_id is not null
             union all
             select ca.tenant_id, ca.requests, ca.results, ca.cost_units from cost_allocations ca
             where ca.run_scheduled_for >= ${q.from}::timestamptz and ca.run_scheduled_for < ${q.to}::timestamptz) x
-          group by tenant_id order by cost_units desc`,
+          left join tenants tn on tn.id = x.tenant_id
+          group by x.tenant_id order by cost_units desc`,
       );
     });
   }
 
-  auditLogs(q: { target_type?: string; actor?: string; from?: string; to?: string; limit: number }) {
+  auditLogs(q: { target_type?: string; actor?: string; from?: string; to?: string; exclude_action?: string; limit: number }) {
     return this.sys((tx) =>
       rows(
         tx,
-        sql`select id, tenant_id, actor_type, actor_id, action, target_type, target_id, after, ip, request_id, at from audit_logs where true
-          ${q.target_type ? sql`and target_type = ${q.target_type}` : sql``} ${q.actor ? sql`and actor_id = ${q.actor}` : sql``}
-          ${q.from ? sql`and at >= ${q.from}::timestamptz` : sql``} ${q.to ? sql`and at < ${q.to}::timestamptz` : sql``}
-          order by at desc limit ${q.limit}`,
+        sql`select l.id, l.tenant_id, tn.name as tenant_name, l.actor_type, l.actor_id, u.name as actor_name, l.action, l.target_type,
+                   l.target_id, l.after, l.ip, l.request_id, l.at
+            from audit_logs l left join users u on u.id = l.actor_id left join tenants tn on tn.id = l.tenant_id where true
+          ${q.target_type ? sql`and l.target_type = ${q.target_type}` : sql``} ${q.actor ? sql`and l.actor_id = ${q.actor}` : sql``}
+          ${q.from ? sql`and l.at >= ${q.from}::timestamptz` : sql``} ${q.to ? sql`and l.at < ${q.to}::timestamptz` : sql``}
+          ${q.exclude_action ? sql`and l.action <> ${q.exclude_action}` : sql``}
+          order by l.at desc limit ${q.limit}`,
       ),
     );
+  }
+
+  /**
+   * O-04 monitor pengambilan: ringkasan run N jam terakhir per platform (plan + collection stream), run yang sedang berjalan,
+   * kegagalan terbaru (kode + pesan terpotong, topik & kantor), dan jumlah job di DLQ per queue.
+   */
+  async crawlMonitor(hours: number) {
+    const since = sql`now() - make_interval(hours => ${hours})`;
+    const data = await this.sys(async (tx) => {
+      const byPlatform = await rows<Record<string, unknown>>(
+        tx,
+        sql`select coalesce(p.platform_code, s.platform_code) as platform,
+                   count(*)::int as total,
+                   count(*) filter (where r.status = 'succeeded')::int as succeeded,
+                   count(*) filter (where r.status = 'partial')::int as partial,
+                   count(*) filter (where r.status = 'failed')::int as failed,
+                   count(*) filter (where r.status = 'skipped')::int as skipped,
+                   count(*) filter (where r.status in ('queued', 'dispatching', 'fetching', 'processing'))::int as running,
+                   coalesce(sum(r.items_new), 0)::int as items_new,
+                   max(r.finished_at) filter (where r.status in ('succeeded', 'partial')) as last_success_at
+            from crawl_runs r left join crawl_plans p on p.id = r.crawl_plan_id left join collection_streams s on s.id = r.collection_stream_id
+            where r.scheduled_for >= ${since} and coalesce(p.platform_code, s.platform_code) is not null
+            group by 1 order by 1`,
+      );
+      const failures = await rows<Record<string, unknown>>(
+        tx,
+        sql`select r.id, r.scheduled_for, r.kind, coalesce(p.platform_code, s.platform_code) as platform, r.error_code,
+                   left(r.error_message, 300) as error_message, c.key as connector, t.name as topic_name, tn.name as tenant_name
+            from crawl_runs r left join crawl_plans p on p.id = r.crawl_plan_id left join collection_streams s on s.id = r.collection_stream_id
+            left join topics t on t.id = p.topic_id left join tenants tn on tn.id = r.tenant_id left join connectors c on c.id = r.final_connector_id
+            where r.scheduled_for >= ${since} and r.status = 'failed' order by r.scheduled_for desc limit 30`,
+      );
+      return { by_platform: byPlatform, failures };
+    });
+    const dlq: Record<string, number> = {};
+    if (this.o.dlq)
+      for (const q of QUEUE_NAMES) {
+        const n = (await this.o.dlq.listDlq(q, 100).catch(() => [])).length;
+        if (n) dlq[q] = n;
+      }
+    return { hours, ...data, dlq };
   }
 
   // ---------- DLQ ----------

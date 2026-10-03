@@ -315,6 +315,9 @@ export function providerAdminRoutes(svc: ProviderAdminService) {
       throw new ApiError("VALIDATION_FAILED", "to harus > from", [{ path: "to", issue: "rentang" }]);
     return c.json({ data: await svc.usage(q) });
   });
+  r.get("/admin/crawl-monitor", op, async (c) =>
+    c.json({ data: await svc.crawlMonitor(query(c, z.object({ hours: z.coerce.number().int().min(1).max(168).default(24) })).hours) }),
+  );
   r.get("/admin/audit-logs", op, async (c) =>
     c.json({
       data: await svc.auditLogs(
@@ -325,6 +328,7 @@ export function providerAdminRoutes(svc: ProviderAdminService) {
             actor: Id.optional(),
             from: Iso.optional(),
             to: Iso.optional(),
+            exclude_action: z.string().max(60).optional(),
             limit: z.coerce.number().int().min(1).max(500).default(100),
           }),
         ),

@@ -444,8 +444,27 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     const c = await call("GET", `/admin/usage?group_by=connector&from=${from}&to=${to}`, opTok);
     expect(c.json.data).toEqual([{ connector: "prova.x", attempts: 2, requests: 3, results: 40, cost_units: 0.2, successes: 1 }]);
     const t = await call("GET", `/admin/usage?group_by=tenant&from=${from}&to=${to}`, opTok);
-    expect(t.json.data).toEqual([{ tenant_id: T1, requests: 3, results: 40, cost_units: 0.2 }]);
+    expect(t.json.data).toEqual([{ tenant_id: T1, tenant_name: "T1", requests: 3, results: 40, cost_units: 0.2 }]);
     expect((await call("GET", `/admin/usage?group_by=connector&from=${to}&to=${from}`, opTok)).status).toBe(400);
+  });
+
+  test("O-04 monitor pengambilan: per platform (plan + stream), kegagalan terbaru, DLQ per queue; operator saja", async () => {
+    const stream = (await h.sql`select id from collection_streams limit 1`)[0]!.id;
+    await h.sql`insert into crawl_runs (id, collection_stream_id, scheduled_for, kind, status, error_code, error_message)
+      values (${tid(0x710)}, ${stream}, now(), 'incremental', 'failed', 'RATE_LIMITED', ${"x".repeat(500)}),
+             (${tid(0x711)}, ${stream}, now(), 'incremental', 'fetching', null, null)`;
+    const m = await call("GET", "/admin/crawl-monitor?hours=24", opTok);
+    expect(m.status).toBe(200);
+    const x = m.json.data.by_platform.find((p: { platform: string }) => p.platform === "x");
+    expect(x).toMatchObject({ failed: 1, running: 1 });
+    expect(x.succeeded).toBeGreaterThanOrEqual(1);
+    expect(m.json.data.failures[0]).toMatchObject({ platform: "x", error_code: "RATE_LIMITED" });
+    expect(m.json.data.failures[0].error_message).toHaveLength(300);
+    expect(m.json.data.dlq["fetch.bun"]).toBe(1);
+    expect((await call("GET", "/admin/crawl-monitor", adm1)).status).toBe(403);
+    const audit = await call("GET", "/admin/audit-logs?limit=5", opTok);
+    expect(audit.json.data[0]).toHaveProperty("actor_name");
+    expect(audit.json.data[0]).toHaveProperty("tenant_name");
   });
 
   test("DLQ: list/redrive/discard diaudit; queue tak dikenal 400; job hilang 404", async () => {

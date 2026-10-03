@@ -88,9 +88,9 @@ describe("executeFetch", () => {
     expect([r2.error?.code, fake.calls.length]).toEqual(["TIMEOUT", 0]);
   });
 
-  test("connector tidak terdaftar → NOT_SUPPORTED (scope connector); kredensial gagal → AUTH_INVALID", async () => {
+  test("connector belum dimuat worker → NETWORK sementara (bukan NOT_SUPPORTED: capability tidak dimatikan); kredensial gagal → AUTH_INVALID", async () => {
     const r = await executeFetch(deps(), { ...msg(), connector_key: "hilang.x" });
-    expect(r.error).toMatchObject({ code: "NOT_SUPPORTED", scope: "connector" });
+    expect(r.error).toMatchObject({ code: "NETWORK", scope: "connector", retry_after_ms: 60_000 });
     const bad = await executeFetch(
       {
         ...deps(),
