@@ -85,3 +85,12 @@ jalankan ulang verify bila ragu.
   `bun --env-file=infra/compose/.env.dev scripts/tenant-purge.ts <slug> --confirm <slug>` → semua data ClickHouse kantor itu
   dihapus (sinkron), credential di-crypto-shred, baris kantor dihapus (cascade Postgres). **Tidak bisa dibatalkan** — pastikan
   ekspor/backup yang diminta klien sudah diserahkan. Audit log tetap disimpan (tanpa isi data).
+
+## 15. Backup & restore (H-06)
+- **Backup:** `scripts/backup.sh [--env infra/compose/.env.dev] [--keep 7]` → `$SMIP_BACKUP_DIR` (bawaan `~/smip-backups/<UTC>/`, chmod 700):
+  `postgres.dump` (pg_dump -Fc), `postgres-globals.sql` (role tanpa password), `ch-<tabel>.native.gz` (tabel dasar ClickHouse),
+  `manifest.json` (jumlah baris, versi skema), `SHA256SUMS`. Menyimpan 7 terbaru. Secret/KEK **tidak** ikut — backup terpisah.
+- **Restore (ke database baru):** `scripts/restore.sh <dir> --pg-db <baru> --ch-db <baru>` → cek checksum, pg_restore, migrasi
+  ClickHouse, insert tabel dasar (MV membangun ulang agregat), bandingkan jumlah baris (exit 1 bila selisih). Lalu arahkan
+  `DATABASE_URL` & `CLICKHOUSE_DB` ke database baru, restart `api workers`. Skrip menolak menimpa database aktif.
+- **Drill:** kuartalan (§8) — laporan terakhir `docs/evidence/H-06/drill-2026-10-04.md` (RTO data ± 5 dtk, baris & agregat identik).

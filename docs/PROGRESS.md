@@ -118,7 +118,8 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | ID | Status | PIC | Bukti | Catatan |
 |---|---|---|---|---|
 | H-04 | done | claude | `packages/analytics/src/retention.ts` · `apps/worker-sink/src/retention.ts` · `scripts/tenant-purge.ts` · sink.test | Job retensi harian (DATA_MODEL §9): data kantor > retention_days paket di 18 tabel ClickHouse, post tak-match > 30 hari, post tak terpakai > 400 hari, outbox/ledger > 30 hari (angka di `retention.*`); hapus total kantor tertutup (CH + crypto-shred + cascade). RUNBOOK §14 |
-| H-01 … H-03, H-05 … H-07 | todo | | | |
+| H-06 | done (jadwal otomatis menunggu persetujuan) | claude | `scripts/backup.sh` · `scripts/restore.sh` · [drill](evidence/H-06/drill-2026-10-04.md) | Backup Postgres + ClickHouse tabel dasar (agregat dibangun ulang MV), checksum, rotasi 7; restore ke database baru + verifikasi baris; drill: 5 dtk, baris & agregat identik. RUNBOOK §15. Belum: jadwal otomatis (cron) & salinan di luar server — keputusan pemilik |
+| H-01 … H-03, H-05, H-07 | todo | | | |
 
 > Saat sebuah fase dimulai, pecah baris "F-01 … F-12" menjadi satu baris per task.
 
@@ -151,6 +152,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | H-06 Backup + DR drill | Skrip backup/restore, drill sukses (RTO data 5 dtk, identik). |
 | 2026-10-04 | H-04 Retensi | Job retensi harian + hapus total kantor (skrip operator). 524 test |
 | 2026-10-04 | O-01/O-02 Routing | Tab Routing owner: urutan/bobot/aktif sumber per platform (simpan dengan If-Match) + simulator dengan alasan tersisih. O-03 ditandai selesai (Akun provider). |
 | 2026-10-04 | D-03 Update instan (SSE) | worker-sink meneruskan `realtime.notify` (+ alert baru) ke Redis pub/sub → API (subscriber per replika) → SSE per topik; tiket cookie HttpOnly `Path=/v1/stream` 15 menit (hash di Redis), tanpa token di URL; dashboard "● live" memuat ulang widget saat data baru (3 dtk batch), auto-refresh tetap cadangan. Uji SEC-10/SEC-11 + E2E browser (1 event → 13 widget dimuat ulang). 523 test |
