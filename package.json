@@ -13,7 +13,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc -p . && tsc -p apps/web",
     "deps": "bun run scripts/check-deps.ts",
-    "check": "bun run lint && bun run typecheck && bun run deps && bun run gen:contracts --check",
+    "check": "bun run lint && bun run typecheck && bun run deps && bun run gen:contracts --check && bun scripts/secret-scan.ts",
     "test": "bun test packages apps scripts",
     "gen:contracts": "bun run scripts/gen-contracts.ts",
     "db:migrate": "bun run scripts/db-migrate.ts",
