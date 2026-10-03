@@ -1,0 +1,194 @@
+{
+  "date": "2026-10-03T11:25:06.864Z",
+  "actor": "silentflow/facebook-search-scraper",
+  "build": "1.0.18",
+  "input": {
+    "query": "pancasila",
+    "search_type": "posts",
+    "max_posts": 8,
+    "recent_posts": true
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 6332,
+  "items": 8,
+  "cost_usd": 0.00005,
+  "charged_events": {
+    "apify-actor-start": 1,
+    "apify-default-dataset-item": 0
+  },
+  "account_usage_usd": {
+    "before": 3.9944265117895386,
+    "after": 3.9944265117895386,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "query": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "What to search for on Facebook, for example a keyword, brand or topic."
+    },
+    "search_type": {
+      "type": "string",
+      "enum": [
+        "posts",
+        "pages",
+        "places",
+        "events",
+        "people",
+        "videos",
+        "global"
+      ],
+      "description": "Which kind of results to return. Defaults to posts."
+    },
+    "max_posts": {
+      "type": "integer",
+      "description": "Maximum number of results to return. Defaults to 10."
+    },
+    "recent_posts": {
+      "type": "boolean",
+      "description": "Sort posts by most recent instead of relevance."
+    },
+    "location": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Optional location to focus the search. For best results include both city and country."
+    },
+    "start_date": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only posts created on or after this date. Format: YYYY-MM-DD."
+    },
+    "end_date": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Only posts created on or before this date. Format: YYYY-MM-DD."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "album_preview": [
+      "array(…)",
+      "null"
+    ],
+    "album_preview[]": [
+      "string:url"
+    ],
+    "associated_group_id": [
+      "string",
+      "string:numeric-id"
+    ],
+    "author": [
+      "object"
+    ],
+    "author.id": [
+      "string",
+      "string:numeric-id"
+    ],
+    "author.name": [
+      "string"
+    ],
+    "author.profile_picture_url": [
+      "string:url"
+    ],
+    "author.url": [
+      "string",
+      "string:url"
+    ],
+    "author_title": [
+      "string"
+    ],
+    "comments_count": [
+      "int"
+    ],
+    "comments_id": [
+      "string"
+    ],
+    "external_url": [
+      "string"
+    ],
+    "image": [
+      "string",
+      "string:url"
+    ],
+    "message": [
+      "string"
+    ],
+    "message_rich": [
+      "array(…)"
+    ],
+    "message_rich[]": [
+      "object"
+    ],
+    "message_rich[].id": [
+      "string:numeric-id"
+    ],
+    "message_rich[].length": [
+      "int"
+    ],
+    "message_rich[].offset": [
+      "int"
+    ],
+    "message_rich[].type": [
+      "string"
+    ],
+    "message_rich[].url": [
+      "string:url"
+    ],
+    "post_id": [
+      "string:numeric-id"
+    ],
+    "reactions": [
+      "object"
+    ],
+    "reactions.angry": [
+      "int"
+    ],
+    "reactions.care": [
+      "int"
+    ],
+    "reactions.haha": [
+      "int"
+    ],
+    "reactions.like": [
+      "int"
+    ],
+    "reactions.love": [
+      "int"
+    ],
+    "reactions.sad": [
+      "int"
+    ],
+    "reactions.wow": [
+      "int"
+    ],
+    "reactions_count": [
+      "int"
+    ],
+    "reshare_count": [
+      "int"
+    ],
+    "shares_id": [
+      "string"
+    ],
+    "timestamp": [
+      "int:epoch-s?"
+    ],
+    "type": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "video": [
+      "string"
+    ],
+    "video_thumbnail": [
+      "string"
+    ],
+    "video_view_count": [
+      "int"
+    ]
+  }
+}

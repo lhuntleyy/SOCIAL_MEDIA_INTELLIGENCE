@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-03T11:26:51.658Z",
+  "connector": "apify.facebook.silentflow",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "pancasila",
+  "window_hours": 72,
+  "max_items": 10,
+  "samples": 2,
+  "items_valid": 20,
+  "items_invalid": 0,
+  "usage_results_returned": 20,
+  "cost_usd": 0.0001,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.comments": 1
+  },
+  "latency_ms": {
+    "samples": [
+      10179,
+      6289
+    ],
+    "p50": 6289,
+    "p95": 10179
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

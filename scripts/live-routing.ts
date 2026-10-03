@@ -8,31 +8,22 @@ const PLAN: Record<string, { rules: [string, number, number][] }> = {
   x: {
     rules: [
       ["apify.x.xquik", 1, 100],
-      ["apify.x.kaito", 2, 100],
-      ["apify.x.scraperone", 3, 100],
+      ["apify.x.kaito", 2, 100], // cadangan murah ($0,00025/post)
     ],
   },
-  youtube: {
-    rules: [
-      ["youtube_data_api.youtube", 1, 100],
-      ["apify.youtube.streamers", 2, 0],
-    ],
-  }, // Apify = standby (mahal)
+  youtube: { rules: [["youtube_data_api.youtube", 1, 100]] }, // API resmi gratis; cadangan Apify dimatikan (mahal)
   // 2026-10-01 (keputusan pemilik): TikTok via LamaTok saja — keyword /v2/search ±30 video/request ($1/1K request) vs Apify
   // clockworks $4,01/1K video (PROVIDER_MATRIX "Uji LamaTok"). Actor Apify TikTok dinonaktifkan.
   tiktok: { rules: [["lamatok.tiktok", 1, 100]] },
   // 2026-10-01 (keputusan pemilik): Instagram via HikerAPI saja — hashtag terbaru (berhenti di window, tanpa tagihan berulang) +
   // keyword /gql/topsearch; ±$0,03/1K post vs Apify IG $2,3–10,2/1K (PROVIDER_MATRIX "Uji HikerAPI"). Actor Apify IG dinonaktifkan.
   instagram: { rules: [["hikerapi.instagram", 1, 100]] },
-  facebook: { rules: [["apify.facebook.scraperone", 1, 100]] },
+  // 2026-10-03: silentflow ($0,0023/post, recent_posts → adaptif; VERIFIED 20 post) menggantikan scraper_one ($0,004/post, dimatikan)
+  facebook: { rules: [["apify.facebook.silentflow", 1, 100]] },
   // themineworks terurut terbaru → maxItems adaptif memangkas tagihan ulang (VERIFIED 2026-10-03: $0,005/run + $0,001/post);
   // scrapersdelight (filter per hari, tak terurut — tiap poll menagih ulang 24 jam) jadi cadangan
-  threads: {
-    rules: [
-      ["apify.threads.themineworks", 1, 100],
-      ["apify.threads.scrapersdelight", 2, 100],
-    ],
-  },
+  // scrapersdelight (filter per hari, tak terurut — tiap poll menagih ulang 24 jam) DIMATIKAN 2026-10-03 (keputusan pemilik: matikan yang mahal)
+  threads: { rules: [["apify.threads.themineworks", 1, 100]] },
 };
 /** Pagar biaya internal. Keputusan pemilik 2026-10-01: **tanpa batas bulanan dulu** (`MONTHLY_CAP=false` → kuota bulanan per
  * connector dinonaktifkan, bukan dihapus; batas nyata = batas pemakaian akun Apify sendiri). Nyalakan lagi: `MONTHLY_CAP = true`.
@@ -66,8 +57,19 @@ const COMMENTS: Record<string, { rules: [string, number, number][] }> = {
   youtube: { rules: [["youtube_data_api.youtube", 1, 100]] }, // VERIFIED 2026-10-03 (100 komentar, gratis, 1 unit kuota)
   tiktok: { rules: [["lamatok.tiktok", 1, 100]] }, // declared — verifikasi setelah saldo LamaTok diisi
 };
-/** Connector yang dimatikan (tidak dipakai routing). */
-const DISABLED = ["apify.instagram.boolean", "apify.instagram.hashtag", "apify.tiktok.clockworks", "apify.tiktok.xmolodtsov"];
+/** Connector yang dimatikan (tidak dipakai routing). 2026-10-03: matikan yang mahal — Apify YouTube, Threads scrapersdelight,
+ * X scraper_one ($0,0025/run). */
+const DISABLED = [
+  "apify.instagram.boolean",
+  "apify.instagram.hashtag",
+  "apify.tiktok.clockworks",
+  "apify.tiktok.xmolodtsov",
+  "apify.youtube.streamers",
+  "apify.threads.scrapersdelight",
+  "apify.x.scraperone",
+  "apify.facebook.scraperone",
+  "apify.facebook.scrapeforge", // verify gagal (0 post dengan filter tanggal) 2026-10-03
+];
 /** Tarif HikerAPI & LamaTok (DOCS hikerapi.com/pricing & lamatok.com/pricing 2026-10-01: $1 / 1.000 request; $0,60 di volume).
  * Tarif HikerAPI (DOCS hikerapi.com/pricing 2026-10-01: $1 / 1.000 request paket populer; $0,60 di volume) → usage.costUnits. */
 const HIKER_USD_PER_REQUEST = 0.001;

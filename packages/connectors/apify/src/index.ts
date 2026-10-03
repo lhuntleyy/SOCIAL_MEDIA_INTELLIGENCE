@@ -2,6 +2,7 @@
 // Actor penerbit `apidojo` TIDAK dipakai (keputusan pemilik 2026-09-29: batas run bulanan plan FREE).
 import { ApifyActorConnector } from "./actor";
 import { FACEBOOK_SCRAPERONE } from "./facebook-scraperone";
+import { FACEBOOK_SCRAPEFORGE, FACEBOOK_SILENTFLOW } from "./facebook-searchposts";
 import { INSTAGRAM_BOOLEAN } from "./instagram-boolean";
 import { INSTAGRAM_HASHTAG } from "./instagram-hashtag";
 import { THREADS_SCRAPERSDELIGHT } from "./threads-scrapersdelight";
@@ -16,6 +17,7 @@ import { YOUTUBE_STREAMERS } from "./youtube-streamers";
 export * from "./actor";
 export * from "./client";
 export * from "./facebook-scraperone";
+export * from "./facebook-searchposts";
 export * from "./instagram-boolean";
 export * from "./instagram-hashtag";
 export * from "./threads-scrapersdelight";
@@ -35,6 +37,8 @@ export const APIFY_SPECS = [
   INSTAGRAM_BOOLEAN,
   INSTAGRAM_HASHTAG,
   FACEBOOK_SCRAPERONE,
+  FACEBOOK_SILENTFLOW,
+  FACEBOOK_SCRAPEFORGE,
   TIKTOK_CLOCKWORKS,
   TIKTOK_XMOLODTSOV,
   YOUTUBE_STREAMERS,

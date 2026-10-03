@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-03T11:27:00.091Z",
+  "connector": "apify.facebook.scrapeforge",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "pancasila",
+  "window_hours": 72,
+  "max_items": 10,
+  "samples": 2,
+  "items_valid": 0,
+  "items_invalid": 0,
+  "usage_results_returned": 0,
+  "cost_usd": 0.00005,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 0,
+    "metrics.comments": 0
+  },
+  "latency_ms": {
+    "samples": [
+      5272,
+      2746
+    ],
+    "p50": 2746,
+    "p95": 5272
+  },
+  "status": "failed",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

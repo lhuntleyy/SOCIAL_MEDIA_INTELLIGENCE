@@ -409,3 +409,21 @@ Provider per-request yang dievaluasi (belum dipakai — butuh akun berbayar pemi
 - **Facebook** keyword: tidak ada API per-request yang murah (AnyAPI search $30/1K request; ScrapeCreators tanpa pencarian keyword).
   Actor Apify termurah dengan mode terbaru: `silentflow/facebook-search-scraper` ($2,3/1K), `scrapeforge/facebook-search-posts`
   ($2,59/1K) vs `scraper_one` sekarang ($4/1K, mode `latest`, sudah adaptif). Pengungkit terbesar FB = lantai post & jadwal.
+
+### 12.5 Update 2026-10-03 (malam): Facebook → silentflow, sumber mahal dimatikan, CaptAPI
+**Facebook → Apify `silentflow/facebook-search-scraper`** (`apify.facebook.silentflow`, VERIFIED 20 post). Tagihan run nyata:
+1 start + 10 item = **$0,023 → ± $0,0023/post** (vs `scraper_one` $0,004/post, **−42%**). `recent_posts: true` → terurut terbaru →
+maxItems adaptif berlaku. Satu-satunya sumber FB; `scrapeforge` gagal verify (0 item dengan filter tanggal) → mati.
+
+**Dimatikan (permintaan pemilik "API mahal dimatikan dulu"):** YouTube Apify `streamers` (YouTube cukup API resmi gratis), Threads
+`scrapersdelight` (filter per hari → tagihan berulang), X `scraper_one`, Facebook `scraper_one` & `scrapeforge`. Cadangan yang tetap
+hidup hanya yang murah: X `kaito` ($0,25/1K). Akibatnya FB & Threads tanpa cadangan — bila sumber utama gagal, platform itu kosong
+sampai pulih (lebih baik daripada diam-diam pindah ke actor 2× lebih mahal).
+
+**CaptAPI (captapi.com) — dievaluasi, tidak dipakai:** ± $0,009/request (2 kredit × ± $0,0045; Starter $9/2.000 kredit/bln, Business
+$90/20.000). Per request **9× lebih mahal** dari HikerAPI/LamaTok ($0,001). Facebook hanya Marketplace (**tidak ada pencarian post
+keyword**), X hanya community search. Threads search (`orderBy=post_dated`, ≤ 200 post/request) layak teknis tapi ScrapeCreators
+lebih murah ($0,002/request). Cakupan platformnya lebar, tapi untuk kebutuhan SMIP (pencarian post keyword terbaru) hanya Threads yang
+terpakai → tidak menggantikan provider sekarang.
+
+Dampak paket (10 topik campuran, perkiraan): bagian Facebook turun ± 40% di semua paket; Real-time ± Rp 52 jt/kantor (dari Rp 56 jt).

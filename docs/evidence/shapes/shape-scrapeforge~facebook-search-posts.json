@@ -1,0 +1,271 @@
+{
+  "date": "2026-10-03T11:25:06.846Z",
+  "actor": "scrapeforge/facebook-search-posts",
+  "build": "1.0.26",
+  "input": {
+    "query": "pancasila",
+    "search_type": "posts",
+    "max_results": 8,
+    "recent_posts": true
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 6472,
+  "items": 5,
+  "cost_usd": 0.00005,
+  "charged_events": {
+    "apify-actor-start": 1,
+    "apify-default-dataset-item": 0
+  },
+  "account_usage_usd": {
+    "before": 3.9944265117895386,
+    "after": 3.9944265117895386,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "query": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "The keyword or phrase to search for on Facebook."
+    },
+    "search_type": {
+      "type": "string",
+      "editor": "select",
+      "enum": [
+        "posts",
+        "pages",
+        "groups",
+        "people",
+        "videos",
+        "events"
+      ],
+      "description": "What type of Facebook content to search for."
+    },
+    "max_results": {
+      "type": "integer",
+      "editor": "number",
+      "description": "Maximum number of unique results to return. The actor automatically deduplicates results. 5 is a quick sample for testing — for real analysis use 50 to 200. Costs $0.0026 per result. Free Apify plans "
+    },
+    "start_date": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Filter results from this date (format: YYYY-MM-DD). Leave empty for no date filter."
+    },
+    "end_date": {
+      "type": "string",
+      "editor": "datepicker",
+      "description": "Filter results until this date (format: YYYY-MM-DD). Leave empty for no date filter."
+    },
+    "recent_posts": {
+      "type": "boolean",
+      "description": "Sort results by most recent instead of relevance. May return less relevant results."
+    },
+    "location_uid": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Facebook location UID to filter results by geographic area. Leave empty for global search."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "album_preview": [
+      "array(…)",
+      "null"
+    ],
+    "album_preview[]": [
+      "object"
+    ],
+    "album_preview[].id": [
+      "string:numeric-id"
+    ],
+    "album_preview[].image_file_uri": [
+      "string:url"
+    ],
+    "album_preview[].type": [
+      "string"
+    ],
+    "album_preview[].url": [
+      "string:url"
+    ],
+    "associated_group": [
+      "object"
+    ],
+    "associated_group.group_id": [
+      "string:numeric-id"
+    ],
+    "associated_group.is_multi_company_group": [
+      "boolean"
+    ],
+    "associated_group.name": [
+      "string"
+    ],
+    "associated_group.url": [
+      "string:url"
+    ],
+    "associated_group.work_foreign_entity_info": [
+      "null"
+    ],
+    "associated_group.work_official_status": [
+      "string"
+    ],
+    "associated_group_id": [
+      "string:numeric-id"
+    ],
+    "attached_event": [
+      "null"
+    ],
+    "attached_group": [
+      "null"
+    ],
+    "attached_post": [
+      "null"
+    ],
+    "attached_post_url": [
+      "null"
+    ],
+    "author": [
+      "object"
+    ],
+    "author.delegate_page_id": [
+      "null",
+      "string:numeric-id"
+    ],
+    "author.id": [
+      "string"
+    ],
+    "author.name": [
+      "string"
+    ],
+    "author.profile_picture_url": [
+      "string:url"
+    ],
+    "author.url": [
+      "string:url"
+    ],
+    "author_title": [
+      "null"
+    ],
+    "authors": [
+      "array(…)"
+    ],
+    "authors[]": [
+      "object"
+    ],
+    "authors[].delegate_page_id": [
+      "null",
+      "string:numeric-id"
+    ],
+    "authors[].id": [
+      "string"
+    ],
+    "authors[].name": [
+      "string"
+    ],
+    "authors[].profile_picture_url": [
+      "string:url"
+    ],
+    "authors[].url": [
+      "string:url"
+    ],
+    "comments_count": [
+      "int"
+    ],
+    "comments_id": [
+      "string:numeric-id"
+    ],
+    "external_url": [
+      "null",
+      "string:url"
+    ],
+    "image": [
+      "null",
+      "object"
+    ],
+    "image.height": [
+      "int"
+    ],
+    "image.id": [
+      "string:numeric-id"
+    ],
+    "image.uri": [
+      "string:url"
+    ],
+    "image.width": [
+      "int"
+    ],
+    "images_count": [
+      "int",
+      "null"
+    ],
+    "message": [
+      "string"
+    ],
+    "message_rich": [
+      "string"
+    ],
+    "post_id": [
+      "string:numeric-id"
+    ],
+    "reactions": [
+      "object"
+    ],
+    "reactions.angry": [
+      "int"
+    ],
+    "reactions.care": [
+      "int"
+    ],
+    "reactions.haha": [
+      "int"
+    ],
+    "reactions.like": [
+      "int"
+    ],
+    "reactions.love": [
+      "int"
+    ],
+    "reactions.sad": [
+      "int"
+    ],
+    "reactions.wow": [
+      "int"
+    ],
+    "reactions_count": [
+      "int"
+    ],
+    "reshare_count": [
+      "int"
+    ],
+    "shares_id": [
+      "string:numeric-id"
+    ],
+    "text_format_metadata": [
+      "null"
+    ],
+    "timestamp": [
+      "int:epoch-s?"
+    ],
+    "top_comments": [
+      "array(empty)"
+    ],
+    "type": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "video": [
+      "null"
+    ],
+    "video_files": [
+      "null"
+    ],
+    "video_thumbnail": [
+      "null"
+    ],
+    "video_view_count": [
+      "null"
+    ]
+  }
+}

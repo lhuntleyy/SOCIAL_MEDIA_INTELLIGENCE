@@ -144,6 +144,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-03 | FB murah + API mahal mati | Facebook → silentflow ($0,0023/post, terurut terbaru, adaptif; VERIFIED). Dimatikan: YouTube Apify, Threads scrapersdelight, X/FB scraper_one, FB scrapeforge. CaptAPI dievaluasi (9× lebih mahal per request, tanpa FB keyword) → tidak dipakai. 499 test |
 | 2026-10-03 | Threads murah + Psikografi | Threads → themineworks (terurut terbaru, adaptif; Real-time Rp 221 jt → 56 jt/kantor). Batas & jadwal disederhanakan (4 paket). Psikografi A-08/A-09/D-04/U-06 jalur LLM. Riset provider: ScrapeCreators/CaptAPI (Threads per-request), FB tanpa API per-request murah |
 | 2026-10-03 | Komentar + Batas & jadwal | Keputusan pemilik: ambil komentar post teratas; semua batas/jadwal di Pengaturan (owner). Run `comments` (0026) + planner + YouTube commentThreads (VERIFIED) + pipeline tanpa cocok keyword; interval per platform (0025/0028), system_settings (0025/0027). Live: 453 komentar YouTube/run. Uji stream 2 kantor → 1 stream. COST_MODEL §12 lengkap. 470+ test |
 | 2026-10-03 | Audit + key di Pengaturan | Audit live: IG & TikTok mati sejak 01-10 karena **saldo HikerAPI & LamaTok $0** (402) — perlu isi ulang oleh pemilik; kini terlihat di UI (cooldown + alasan). Kelola API key provider dari Pengaturan. Fix biaya HikerAPI (maks 8 hashtag/run). Audit UI Playwright di localhost: 13 halaman + drill-down tanpa error JS/API. 461+ test lulus |

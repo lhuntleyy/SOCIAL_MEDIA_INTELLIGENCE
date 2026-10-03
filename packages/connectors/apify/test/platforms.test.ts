@@ -8,7 +8,9 @@ import {
   type ActorSpec,
   ApifyActorConnector,
   clockworksDateFilter,
+  FACEBOOK_SCRAPEFORGE,
   FACEBOOK_SCRAPERONE,
+  FACEBOOK_SILENTFLOW,
   fbHandle,
   INSTAGRAM_BOOLEAN,
   INSTAGRAM_HASHTAG,
@@ -259,6 +261,70 @@ const FIXTURES: Record<string, { spec: ActorSpec; items: unknown[]; expectCount:
       { post_id: "3700000000000000002", text: "balasan", posted_at: IN, username: "tm2", is_reply: true, like_count: 0 },
       { post_id: "3700000000000000003", text: "terlalu lama", posted_at: "2026-05-01T00:00:00Z", username: "tm3" },
       { _type: "summary", delivered: 3, message: "selesai" },
+    ],
+  },
+  facebook_silentflow: {
+    spec: FACEBOOK_SILENTFLOW,
+    expectCount: 2,
+    items: [
+      {
+        post_id: "1100000000000000001",
+        url: "https://www.facebook.com/desa.a/posts/1100000000000000001",
+        message: "rapat koperasi #kopdes di balai desa",
+        timestamp: Math.floor(Date.parse(IN) / 1000),
+        author: {
+          id: "8001",
+          name: "Desa A",
+          url: "https://www.facebook.com/desa.a",
+          profile_picture_url: "https://p.example.invalid/a.jpg",
+        },
+        reactions_count: 12,
+        comments_count: 3,
+        reshare_count: 1,
+        video: "https://v.example.invalid/f.mp4",
+        video_thumbnail: "https://v.example.invalid/f.jpg",
+        video_view_count: 90,
+      },
+      {
+        post_id: "1100000000000000002",
+        message: "profil tanpa username",
+        timestamp: Math.floor(Date.parse(IN) / 1000),
+        author: { id: "8002", name: "Budi", url: "https://www.facebook.com/profile.php?id=8002" },
+        reactions_count: 0,
+      },
+      { post_id: "1100000000000000003", message: "lama", timestamp: Math.floor(Date.parse(OUT) / 1000), author: { id: "8003", url: null } },
+    ],
+  },
+  facebook_scrapeforge: {
+    spec: FACEBOOK_SCRAPEFORGE,
+    expectCount: 2,
+    items: [
+      {
+        post_id: "1100000000000000001",
+        url: "https://www.facebook.com/desa.a/posts/1100000000000000001",
+        message: "rapat koperasi #kopdes di balai desa",
+        timestamp: Math.floor(Date.parse(IN) / 1000),
+        author: {
+          id: "8001",
+          name: "Desa A",
+          url: "https://www.facebook.com/desa.a",
+          profile_picture_url: "https://p.example.invalid/a.jpg",
+        },
+        reactions_count: 12,
+        comments_count: 3,
+        reshare_count: 1,
+        video: "https://v.example.invalid/f.mp4",
+        video_thumbnail: "https://v.example.invalid/f.jpg",
+        video_view_count: 90,
+      },
+      {
+        post_id: "1100000000000000002",
+        message: "profil tanpa username",
+        timestamp: Math.floor(Date.parse(IN) / 1000),
+        author: { id: "8002", name: "Budi", url: "https://www.facebook.com/profile.php?id=8002" },
+        reactions_count: 0,
+      },
+      { post_id: "1100000000000000003", message: "lama", timestamp: Math.floor(Date.parse(OUT) / 1000), author: { id: "8003", url: null } },
     ],
   },
   facebook: {
@@ -580,6 +646,31 @@ describe("detail normalizer & input", () => {
       maxPosts: 20,
     });
     expect(THREADS_MINEWORKS.operations.search_keyword?.resultOrder).toBe("desc"); // → maxItems adaptif berlaku
+  });
+
+  test("Facebook silentflow/scrapeforge: terbaru (recent_posts), epoch detik, handle dari author.url, reaksi = likes, video", async () => {
+    const [a, b] = await fetchOf(FACEBOOK_SILENTFLOW);
+    expect(a).toMatchObject({
+      platform_post_id: "1100000000000000001",
+      published_at: IN,
+      author: { platform_user_id: "8001", handle: "desa.a", display_name: "Desa A" },
+      metrics: { likes: 12, comments: 3, shares: 1, views: 90 },
+      media: [{ type: "video" }],
+      hashtags: ["kopdes"],
+    });
+    expect(b!.author.handle).toBe("8002");
+    expect(bodies["silentflow~facebook-search-scraper"]).toMatchObject({
+      query: "koperasi merah putih",
+      search_type: "posts",
+      recent_posts: true,
+      max_posts: 20,
+    });
+    expect(
+      bodies["scrapeforge~facebook-search-posts"] ?? (await fetchOf(FACEBOOK_SCRAPEFORGE), bodies["scrapeforge~facebook-search-posts"]),
+    ).toMatchObject({
+      recent_posts: true,
+      max_results: 20,
+    });
   });
 
   test("Facebook: handle dari profileUrl (username / profile.php?id), reaksi = likes, hashtag dari teks", async () => {
