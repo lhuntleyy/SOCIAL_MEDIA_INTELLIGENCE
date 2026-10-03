@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { ApiError } from "../errors";
+import { type Cell, toCsv, toXlsx } from "../exports/files";
 import { requireRole } from "../middleware/auth";
 import { parseJson } from "../validate";
 import { requireScope } from "./topics";
@@ -114,6 +115,110 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
     };
     const [items, total] = await Promise.all([A.feed(d.ch, f, o), q.count === "1" ? A.feedCount(d.ch, f, o) : undefined]);
     return c.json({ data: items, meta: { ...meta(c), ...(total !== undefined ? { total } : {}) } });
+  });
+  // O-06 export CSV/XLSX (API_SPEC §8): post untuk filter yang sama dengan feed, langsung diunduh (maks. EXPORT_MAX_ROWS, terbaru
+  // dulu; X-SMIP-Truncated bila terpotong). Dicatat di tabel exports + audit. Tanpa demografi individu (SEC-09).
+  r.get("/exports/posts", requireRole("analyst"), requireScope("exports:write"), async (c) => {
+    const fmt = z.enum(["csv", "xlsx"]).catch("xlsx").parse(c.req.query("format"));
+    const { f, q } = await filter(c);
+    const o = {
+      sentiment: q.sentiment,
+      emotion: q.emotion,
+      hashtag: q.hashtag,
+      issue: q.issue,
+      authorId: q.author_id,
+      region: q.region,
+      contentType: q.content_type,
+    };
+    const rows = await A.exportRows(d.ch, f, o, A.EXPORT_MAX_ROWS + 1);
+    const truncated = rows.length > A.EXPORT_MAX_ROWS;
+    const data = rows.slice(0, A.EXPORT_MAX_ROWS);
+    const SENT: Record<string, string> = { negative: "Negatif", neutral: "Netral", positive: "Positif" };
+    const EMO: Record<string, string> = {
+      anger: "Marah",
+      anticipation: "Antisipasi",
+      disgust: "Jijik",
+      trust: "Percaya",
+      joy: "Senang",
+      sadness: "Sedih",
+      surprise: "Terkejut",
+      fear: "Takut",
+      unknown: "Tidak jelas",
+    };
+    const wib = (s: string) =>
+      new Date(`${s.replace(" ", "T")}Z`).toLocaleString("sv-SE", { timeZone: "Asia/Jakarta", hour12: false }).slice(0, 16);
+    const num = (v: string | null) => (v === null || v === undefined ? null : Number(v));
+    const header = [
+      "Waktu (WIB)",
+      "Platform",
+      "Jenis",
+      "Akun",
+      "Nama",
+      "Pengikut",
+      "Teks",
+      "URL",
+      "Suka",
+      "Komentar",
+      "Bagikan",
+      "Tayang",
+      "Engagement",
+      "Sentimen",
+      "Emosi",
+      "Isu",
+      "Hashtag",
+    ];
+    const body: Cell[][] = data.map((x) => [
+      wib(x.published_at),
+      x.platform,
+      x.content_type,
+      x.author_handle,
+      x.author_name,
+      num(x.author_followers),
+      x.text,
+      x.url,
+      num(x.likes),
+      num(x.comments),
+      num(x.shares),
+      num(x.views),
+      x.engagement_known ? Number(x.engagement) : null,
+      SENT[x.sentiment] ?? x.sentiment,
+      EMO[x.emotion] ?? x.emotion,
+      (x.issues ?? []).join("; "),
+      (x.hashtags ?? []).map((h) => `#${h}`).join(" "),
+    ]);
+    const [topic] = (await withSystem(d.db, (tx) => tx.execute(sql`select name from topics where id = ${f.topicId}`))) as unknown as {
+      name: string;
+    }[];
+    const a = c.get("auth") as { sub: string; tid: string };
+    const exportId = Bun.randomUUIDv7();
+    await withSystem(d.db, async (tx) => {
+      await tx.execute(sql`insert into exports (id, tenant_id, requested_by, kind, params, status, row_count)
+        values (${exportId}, ${f.tenantId}, ${a.sub}, ${fmt}::e_export_kind, ${jsonbValue({ topic_id: f.topicId, from: f.from.toISOString(), to: f.to.toISOString(), platforms: f.platforms ?? null, ...o, truncated })},
+                'done', ${data.length})`);
+      await tx.execute(sql`insert into audit_logs (id, tenant_id, actor_type, actor_id, action, target_type, target_id, after, request_id)
+        values (${Bun.randomUUIDv7()}, ${f.tenantId}, 'user', ${a.sub}, 'export.download', 'topic', ${f.topicId},
+                ${jsonbValue({ export_id: exportId, format: fmt, rows: data.length, truncated })}, ${c.get("requestId") as string})`);
+    });
+    const slug =
+      (topic?.name ?? "topik")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 40) || "topik";
+    const file = `smip-${slug}-${f.from.toISOString().slice(0, 10)}_${f.to.toISOString().slice(0, 10)}.${fmt}`;
+    const bytes =
+      fmt === "csv"
+        ? toCsv(header, body)
+        : toXlsx(topic?.name ?? "Data", header, body, [17, 10, 9, 18, 18, 10, 60, 30, 8, 9, 8, 9, 11, 9, 10, 30, 24]);
+    return new Response(bytes, {
+      headers: {
+        "content-type": fmt === "csv" ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "content-disposition": `attachment; filename="${file}"`,
+        "x-smip-rows": String(data.length),
+        "x-smip-truncated": String(truncated),
+        "cache-control": "no-store",
+      },
+    });
   });
   // A-05 (API_SPEC §6): koreksi sentimen manual → −1/+1 di ClickHouse + sentiment_overrides (dataset training) + audit
   r.patch("/posts/:platform/:post_id/sentiment", requireRole("analyst"), requireScope("posts:write"), async (c) => {

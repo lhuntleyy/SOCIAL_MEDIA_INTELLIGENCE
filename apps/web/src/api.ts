@@ -103,6 +103,32 @@ export async function apiFull<T>(
   return { data: body.data as T, meta: body.meta ?? {} };
 }
 
+/** Unduh file dari API (auth header ikut) → disimpan browser dengan nama dari Content-Disposition. */
+export async function apiDownload(path: string, retry = true): Promise<{ rows: number; truncated: boolean }> {
+  const headers = new Headers();
+  if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
+  if (viewAs) {
+    headers.set("x-tenant-id", viewAs.tenantId);
+    headers.set("x-impersonation-reason", viewAs.reason);
+  }
+  const res = await fetch(`/v1${path}`, { headers, credentials: "same-origin" });
+  if (res.status === 401 && retry && (await refreshSession())) return apiDownload(path, false);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: { code: string; message: string } };
+    throw new ApiError(res.status, body.error?.code ?? "HTTP", body.error?.message ?? `HTTP ${res.status}`);
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "smip-export";
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  return { rows: Number(res.headers.get("x-smip-rows") ?? 0), truncated: res.headers.get("x-smip-truncated") === "true" };
+}
+
 export interface Me {
   user: { id: string; name: string; email: string; is_platform_operator: boolean; mfa_enabled: boolean };
   current_tenant: { id: string; role: "owner" | "admin" | "analyst" | "viewer" };

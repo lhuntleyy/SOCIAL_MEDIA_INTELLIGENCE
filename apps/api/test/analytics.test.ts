@@ -257,6 +257,80 @@ describe.skipIf(!up)("D-01 analytics", () => {
     expect((await get(`/analytics/psychography?topic_id=${TP}`, tb)).status).toBe(404);
   });
 
+  test("O-06 export CSV/XLSX: kolom + metrik terakhir, anti formula injection, analis saja, tenant lain 404, tercatat", async () => {
+    await h.sql`insert into users (id, email, name, password_hash) values (${UA}, 'ua@a.id', 'UA', 'x') on conflict do nothing`;
+    const now = Date.now();
+    const ts = (ms: number) => new Date(ms).toISOString().replace("T", " ").slice(0, 23);
+    await ch.insert({
+      table: "posts",
+      format: "JSONEachRow",
+      values: [
+        {
+          platform: "x",
+          post_id: "p1",
+          text: '=HYPERLINK("http://jahat")',
+          published_at: ts(now - 7_200_000),
+          author_id: "a1",
+          author_handle: "akun1",
+          hashtags: [],
+          mentions: [],
+          media: "[]",
+          matched: 1,
+          source_connector: "fake.x",
+          raw_ref: "",
+          ingested_at: ts(now),
+          version: 1,
+          content_type: "post",
+          lang: "id",
+        },
+      ],
+    });
+    await ch.insert({
+      table: "engagement_snapshots",
+      format: "JSONEachRow",
+      values: [
+        {
+          platform: "x",
+          post_id: "p0",
+          captured_at: ts(now - 60_000),
+          likes: 3,
+          comments: 1,
+          shares: 0,
+          views: 50,
+          source_connector: "fake.x",
+        },
+        { platform: "x", post_id: "p0", captured_at: ts(now), likes: 7, comments: 2, shares: 1, views: 90, source_connector: "fake.x" },
+      ],
+    });
+    const csv = await h.call("GET", `/exports/posts?topic_id=${TA}&format=csv`, { token: ta });
+    expect(csv.status).toBe(200);
+    expect(csv.headers.get("content-disposition")).toMatch(/^attachment; filename="smip-kdmp-\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv"$/);
+    expect(csv.headers.get("x-smip-rows")).toBe("3");
+    const raw = new Uint8Array(await csv.arrayBuffer());
+    expect([...raw.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]); // BOM → Excel membaca UTF-8
+    const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(raw);
+    const lines = text.slice(1).trim().split("\r\n");
+    expect(lines[0]).toBe(
+      "Waktu (WIB),Platform,Jenis,Akun,Nama,Pengikut,Teks,URL,Suka,Komentar,Bagikan,Tayang,Engagement,Sentimen,Emosi,Isu,Hashtag",
+    );
+    expect(lines).toHaveLength(4);
+    expect(lines[1]).toContain(",akun0,,,kopdes gaji belum cair,,7,2,1,90,10,Negatif,Marah,gaji kopdes,#kopdes");
+    expect(lines[2]).toContain(`"'=HYPERLINK(""http://jahat"")"`); // dinetralkan
+    const x = await h.call("GET", `/exports/posts?topic_id=${TA}&format=xlsx&sentiment=negative`, { token: ta });
+    expect(x.headers.get("content-type")).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const bin = new Uint8Array(await x.arrayBuffer());
+    expect([bin[0], bin[1]]).toEqual([0x50, 0x4b]); // ZIP "PK"
+    expect(x.headers.get("x-smip-rows")).toBe("2");
+    const viewer = await h.token({ sub: UA, tid: A, role: "viewer" });
+    expect((await h.call("GET", `/exports/posts?topic_id=${TA}`, { token: viewer })).status).toBe(403);
+    expect((await h.call("GET", `/exports/posts?topic_id=${TA}`, { token: tb })).status).toBe(404);
+    const rec = await h.sql`select kind, row_count, status from exports where tenant_id = ${A} order by created_at`;
+    expect(rec.map((r) => [r.kind, r.row_count, r.status])).toEqual([
+      ["csv", 3, "done"],
+      ["xlsx", 2, "done"],
+    ]);
+  });
+
   test("SEC-01: topik tenant lain → 404; parameter tidak valid → 400", async () => {
     expect((await get(`/analytics/sentiment/proportion?topic_id=${TA}`, tb)).status).toBe(404);
     expect((await get(`/posts?topic_id=${TA}`, tb)).status).toBe(404);

@@ -4,7 +4,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import ReactECharts from "echarts-for-react";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
-import { api, apiFull } from "./api";
+import { api, apiDownload, apiFull } from "./api";
 import { useAuth } from "./auth";
 import type { TopicSummary } from "./types";
 import { Badge, Button, Card, Empty, fmtTime, Modal, PLATFORM_LABEL, Select } from "./ui";
@@ -252,8 +252,60 @@ export function FilterBar({ f, title }: { f: Filters; title: string }) {
           </option>
         ))}
       </Select>
+      <ExportButton f={f} />
       <RefreshControl key={f.topic} f={f} />
     </div>
+  );
+}
+
+/**
+ * O-06 "Unduh data": post topik untuk filter yang sedang dipakai (rentang, platform; + filter drill-down bila ada) sebagai Excel/CSV.
+ * Analis ke atas (sama dengan izin API); maks. 50.000 post terbaru.
+ */
+export function ExportButton({
+  f,
+  extra,
+  from,
+  to,
+  label = "⬇ Unduh data",
+}: {
+  f: Filters;
+  extra?: Record<string, string | undefined>;
+  from?: Date;
+  to?: Date;
+  label?: string;
+}) {
+  const { me } = useAuth();
+  const role = me?.current_tenant.role;
+  const can = !!me?.user.is_platform_operator || ["owner", "admin", "analyst"].includes(role ?? "");
+  const [msg, setMsg] = useState<string | null>(null);
+  const dl = useMutation({
+    mutationFn: (format: "xlsx" | "csv") => {
+      const qs = new URLSearchParams({ topic_id: f.topic, from: (from ?? f.from).toISOString(), to: (to ?? f.to).toISOString(), format });
+      if (f.platform) qs.set("platforms", f.platform);
+      for (const [k, v] of Object.entries(extra ?? {})) if (v) qs.set(k, v);
+      return apiDownload(`/exports/posts?${qs}`);
+    },
+    onSuccess: (r) =>
+      setMsg(r.truncated ? `Hanya ${r.rows.toLocaleString("id-ID")} post terbaru (batas) — persempit rentang untuk sisanya.` : null),
+    onError: (e) => setMsg((e as Error).message),
+  });
+  if (!can || !f.topic) return null;
+  return (
+    <span className="flex items-center gap-1 print:hidden" title="Unduh post sesuai filter (rentang, platform) — maks. 50.000 post terbaru">
+      <Select
+        value=""
+        disabled={dl.isPending}
+        onChange={(e) => e.target.value && dl.mutate(e.target.value as "xlsx" | "csv")}
+        className="py-1.5 text-sm"
+        aria-label="Unduh data"
+      >
+        <option value="">{dl.isPending ? "Menyiapkan…" : label}</option>
+        <option value="xlsx">Excel (.xlsx)</option>
+        <option value="csv">CSV</option>
+      </Select>
+      {msg && <span className="text-xs text-amber-700">{msg}</span>}
+    </span>
   );
 }
 
@@ -401,6 +453,7 @@ function PostsModal({ f, d, onClose }: { f: Filters; d: Drill; onClose: () => vo
               </button>
             ))}
           </div>
+          <ExportButton f={f} extra={d.params} from={d.from} to={d.to} label="⬇ Unduh" />
           {af && (
             <Button
               onClick={() => {

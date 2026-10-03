@@ -396,6 +396,7 @@ Client merespons dengan invalidasi query TanStack terkait (tidak mengirim data b
 | GET/POST | `/notification-channels` (secret write-only) · PATCH/DELETE `/notification-channels/{id}` · POST `/notification-channels/{id}/test` — admin+; `kind` telegram (`config.chat_id`, `secret` = token bot, wajib) / webhook (`config.url` HTTPS publik, `secret` = kunci HMAC opsional) |
 | POST | `/exports` → 202 `{ "export_id": "…", "status": "queued" }` |
 | GET | `/exports/{id}` → `{ "status": "done", "download_url": "<presigned, 24h>" }` |
+| GET | `/exports/posts?topic_id&from&to&platforms&sentiment&emotion&issue&hashtag&author_id&region&content_type&format=xlsx\|csv` — **implementasi O-06 (2026-10-04)**: file langsung diunduh (`Content-Disposition`), maks. 50.000 post terbaru (`X-SMIP-Rows`, `X-SMIP-Truncated`), analis+ / scope `exports:write`, dicatat di `exports` (status `done`, tanpa file tersimpan) + audit `export.download`. Varian asinkron `POST /exports` + presigned belum dibutuhkan pada volume ini |
 
 Implementasi O-05 (2026-10-04): `type` = `negative_ratio` `{window_hours 1–72 (3), threshold_pct 5–100 (50), min_posts (20)}` ·
 `volume_spike` `{window_hours (1), factor 1,5–50 (3), min_posts (30)}` · `new_issue` `{window_hours (6), min_mentions (10)}`; `cooldown_sec`

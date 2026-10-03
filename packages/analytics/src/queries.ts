@@ -390,6 +390,61 @@ export async function feed(ch: ClickHouseClient, f: AnalyticsFilter, o: FeedOpti
   }));
 }
 
+/** Batas baris export (O-06) — lebih dari ini dipotong (terbaru dulu) dan ditandai `truncated`. */
+export const EXPORT_MAX_ROWS = 50_000;
+
+/**
+ * O-06 export: post match topik untuk filter yang sama dengan feed (terbaru dulu) + teks/URL + metrik terakhir (engagement_snapshots).
+ * Tanpa demografi individu (SEC-09). Mengembalikan maks. `limit` baris.
+ */
+export async function exportRows(
+  ch: ClickHouseClient,
+  f: AnalyticsFilter,
+  o: Omit<FeedOptions, "limit" | "offset">,
+  limit = EXPORT_MAX_ROWS,
+) {
+  const w = feedWhere(f, { ...o, limit, offset: 0 });
+  return q<{
+    platform: string;
+    post_id: string;
+    published_at: string;
+    content_type: string;
+    author_handle: string;
+    author_name: string | null;
+    author_followers: string | null;
+    text: string | null;
+    url: string | null;
+    likes: string | null;
+    comments: string | null;
+    shares: string | null;
+    views: string | null;
+    engagement: string;
+    engagement_known: number;
+    sentiment: string;
+    emotion: string;
+    issues: string[];
+    hashtags: string[];
+  }>(
+    ch,
+    `SELECT m.platform AS platform, m.post_id AS post_id, toString(m.published_at) AS published_at, m.content_type AS content_type,
+            m.author_handle AS author_handle, p.author_name AS author_name, p.author_followers AS author_followers, p.text AS text, p.url AS url,
+            e.likes AS likes, e.comments AS comments, e.shares AS shares, e.views AS views,
+            m.engagement AS engagement, m.engagement_known AS engagement_known, toString(m.sentiment) AS sentiment, toString(m.emotion) AS emotion,
+            m.issues AS issues, m.hashtags AS hashtags
+     FROM (SELECT * FROM topic_matches FINAL WHERE ${w.where} ORDER BY published_at DESC LIMIT {lim:UInt32}) AS m
+     LEFT JOIN (SELECT platform, post_id, text, url, author_name, author_followers FROM posts FINAL
+                WHERE post_id IN (SELECT post_id FROM topic_matches FINAL WHERE ${w.where})) AS p
+       ON p.platform = m.platform AND p.post_id = m.post_id
+     LEFT JOIN (SELECT platform, post_id, argMax(likes, captured_at) AS likes, argMax(comments, captured_at) AS comments,
+                       argMax(shares, captured_at) AS shares, argMax(views, captured_at) AS views
+                FROM engagement_snapshots WHERE post_id IN (SELECT post_id FROM topic_matches FINAL WHERE ${w.where})
+                GROUP BY platform, post_id) AS e
+       ON e.platform = m.platform AND e.post_id = m.post_id
+     ORDER BY m.published_at DESC`,
+    { ...w.params, lim: limit },
+  );
+}
+
 /** Jumlah post untuk filter feed yang sama (untuk "N post" di popup drill-down). */
 export async function feedCount(ch: ClickHouseClient, f: AnalyticsFilter, o: FeedOptions) {
   const w = feedWhere(f, o);
