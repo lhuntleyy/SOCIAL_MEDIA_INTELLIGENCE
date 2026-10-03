@@ -45,3 +45,4 @@ if (findings.length) {
   process.exit(1);
 }
 console.log(`secret-scan: bersih (${history ? "seluruh riwayat git" : "file dilacak"})`);
+export {};
