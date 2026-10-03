@@ -35,7 +35,7 @@ function buckets(f: AnalyticsFilter, g: Granularity): string[] {
     g === "1h" ? Math.floor(f.from.getTime() / step) * step : Date.UTC(f.from.getUTCFullYear(), f.from.getUTCMonth(), f.from.getUTCDate());
   const out: string[] = [];
   for (let t = start; t <= f.to.getTime() && out.length < 2000; t += step)
-    out.push(g === "1h" ? new Date(t).toISOString().slice(0, 13) + ":00:00Z" : new Date(t).toISOString().slice(0, 10));
+    out.push(g === "1h" ? `${new Date(t).toISOString().slice(0, 13)}:00:00Z` : new Date(t).toISOString().slice(0, 10));
   return out;
 }
 const keyOf = (b: string, g: Granularity) => (g === "1h" ? `${b.replace(" ", "T").slice(0, 13)}:00:00Z` : b.slice(0, 10));

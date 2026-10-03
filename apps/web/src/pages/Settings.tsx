@@ -26,10 +26,6 @@ interface Account {
   attention_reason: string | null;
   tenant_id: string | null;
 }
-interface PlatformSetting {
-  code: string;
-  max_items_per_run: number | null;
-}
 interface Quota {
   id: string;
   scope_type: string;
@@ -290,10 +286,6 @@ function Sources() {
   const usage = useQuery({
     queryKey: ["admin-usage", from],
     queryFn: () => api<Usage[]>(`/admin/usage?group_by=connector&from=${from}&to=${new Date(Date.now() + 60_000).toISOString()}`),
-  });
-  const platformSettings = useQuery({
-    queryKey: ["admin-platforms"],
-    queryFn: () => api<PlatformSetting[]>("/admin/platforms"),
   });
   const quotas = useQuery({ queryKey: ["admin-quotas"], queryFn: () => api<Quota[]>("/admin/quotas") });
   const accounts = useQuery({ queryKey: ["admin-accounts"], queryFn: () => api<Account[]>("/admin/accounts") });

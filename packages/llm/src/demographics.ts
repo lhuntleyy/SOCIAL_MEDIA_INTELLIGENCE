@@ -98,6 +98,7 @@ export function demographicsDecision(l: DemoLabel | null): {
   if (!l) return { gender: "unknown", gender_conf: 0, age_range: "unknown", age_conf: 0, minorSuppressed: false };
   const gender = l.gender !== "unknown" && l.gender_confidence >= TAU_GENDER ? l.gender : "unknown";
   const minor = l.age_range === "below_18";
-  const age = !minor && l.age_range !== "unknown" && l.age_confidence >= TAU_AGE ? (l.age_range as Exclude<AgeLabel, "below_18">) : "unknown";
+  const age =
+    !minor && l.age_range !== "unknown" && l.age_confidence >= TAU_AGE ? (l.age_range as Exclude<AgeLabel, "below_18">) : "unknown";
   return { gender, gender_conf: l.gender_confidence, age_range: age, age_conf: minor ? 0 : l.age_confidence, minorSuppressed: minor };
 }

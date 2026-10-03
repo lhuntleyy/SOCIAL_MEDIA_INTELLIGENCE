@@ -177,6 +177,15 @@ export function topicRoutes(svc: TopicService) {
       );
     return c.json({ data: await svc.runs(actor(c), id(c), q.data), meta: meta(c) });
   });
+  // kontrol "Update data" di Dashboard: interval_sec null = jeda; angka = kecepatan pengambilan topik
+  r.put("/topics/:id/speed", requireRole("analyst"), write, async (c) => {
+    const b = await parseJson(c, z.strictObject({ interval_sec: z.union([Interval.min(300), z.null()]) }));
+    const { warnings, ...data } = await svc.setSpeed(actor(c), id(c), b.interval_sec);
+    return c.json({ data, ...(warnings?.length ? { warnings } : {}), meta: meta(c) });
+  });
+  r.post("/topics/:id/fetch-now", requireRole("analyst"), write, async (c) =>
+    c.json({ data: await svc.fetchNow(actor(c), id(c)), meta: meta(c) }, 202),
+  );
   r.post("/topics/:id/pause", requireRole("analyst"), write, async (c) =>
     c.json({ data: await svc.setStatus(actor(c), id(c), "paused", ifMatch(c.req.header("if-match"))), meta: meta(c) }),
   );

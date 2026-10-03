@@ -427,3 +427,8 @@ lebih murah ($0,002/request). Cakupan platformnya lebar, tapi untuk kebutuhan SM
 terpakai → tidak menggantikan provider sekarang.
 
 Dampak paket (10 topik campuran, perkiraan): bagian Facebook turun ± 40% di semua paket; Real-time ± Rp 52 jt/kantor (dari Rp 56 jt).
+
+**Paket = batas atas biaya** (2026-10-03): kecepatan kini dipilih per topik di Dashboard ("Update data"); paket owner hanya kecepatan
+**tercepat** per platform. Angka paket di §12.4 = biaya bila semua topik memilih tercepat. Topik yang diatur 1 jam ≈ biaya paket
+Standar untuk topik itu; topik **Mati** = $0 (data lama tetap terlihat). "Ambil sekarang" = satu pengambilan tambahan per platform
+(jeda 5 menit, adaptif → biasanya < $0,01 per klik).

@@ -144,6 +144,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-03 | Update data = satu kontrol | Auto-refresh Dashboard diganti "Update data" per topik = kecepatan pengambilan server (Mati = jeda, tanpa biaya); paket owner = kecepatan tercepat per platform; tombol Ambil sekarang (cooldown 5 menit). `PUT /topics/{id}/speed`, `POST /topics/{id}/fetch-now`. 500 test + Playwright |
 | 2026-10-03 | FB murah + API mahal mati | Facebook → silentflow ($0,0023/post, terurut terbaru, adaptif; VERIFIED). Dimatikan: YouTube Apify, Threads scrapersdelight, X/FB scraper_one, FB scrapeforge. CaptAPI dievaluasi (9× lebih mahal per request, tanpa FB keyword) → tidak dipakai. 499 test |
 | 2026-10-03 | Threads murah + Psikografi | Threads → themineworks (terurut terbaru, adaptif; Real-time Rp 221 jt → 56 jt/kantor). Batas & jadwal disederhanakan (4 paket). Psikografi A-08/A-09/D-04/U-06 jalur LLM. Riset provider: ScrapeCreators/CaptAPI (Threads per-request), FB tanpa API per-request murah |
 | 2026-10-03 | Komentar + Batas & jadwal | Keputusan pemilik: ambil komentar post teratas; semua batas/jadwal di Pengaturan (owner). Run `comments` (0026) + planner + YouTube commentThreads (VERIFIED) + pipeline tanpa cocok keyword; interval per platform (0025/0028), system_settings (0025/0027). Live: 453 komentar YouTube/run. Uji stream 2 kantor → 1 stream. COST_MODEL §12 lengkap. 470+ test |

@@ -6,7 +6,7 @@ import { createContext, type ReactNode, useContext, useEffect, useState } from "
 import { useSearchParams } from "react-router";
 import { api, apiFull } from "./api";
 import { useAuth } from "./auth";
-import type { TopicSummary } from "./types";
+import type { TopicDetail, TopicSummary } from "./types";
 import { Badge, Button, Card, Empty, fmtTime, Modal, PLATFORM_LABEL, Select } from "./ui";
 
 export const SENT_COLOR: Record<string, string> = { negative: "#b91c1c", neutral: "#52525b", positive: "#1d4ed8" };
@@ -54,14 +54,23 @@ const RANGES = [
   { id: "7d", label: "7 hari", ms: 7 * 86_400_000 },
   { id: "30d", label: "30 hari", ms: 30 * 86_400_000 },
 ];
-const REFRESH = [
-  { id: "off", label: "Off", ms: 0 },
-  { id: "5m", label: "5 menit", ms: 300_000 },
-  { id: "15m", label: "15 menit", ms: 900_000 },
-  { id: "30m", label: "30 menit", ms: 1_800_000 },
-  { id: "1h", label: "1 jam", ms: 3_600_000 },
+// Kontrol tunggal "Update data" (keputusan pemilik 2026-10-03): kecepatan PENGAMBILAN data topik di server — tersimpan di topik,
+// sama untuk semua pengguna kantor, dibatasi kecepatan tercepat paket owner per platform. Tampilan ikut memuat data baru
+// otomatis; tidak ada lagi "auto-refresh" terpisah. 0 = Mati (topik dijeda → tidak ada pengambilan, tidak ada biaya).
+export const SPEEDS = [
+  { sec: 0, label: "Mati (jeda)" },
+  { sec: 300, label: "Tiap 5 menit" },
+  { sec: 900, label: "Tiap 15 menit" },
+  { sec: 1800, label: "Tiap 30 menit" },
+  { sec: 3600, label: "Tiap 1 jam" },
+  { sec: 10_800, label: "Tiap 3 jam" },
+  { sec: 21_600, label: "Tiap 6 jam" },
+  { sec: 86_400, label: "Tiap 24 jam" },
 ];
-// `refresh` sengaja TIDAK di sini: auto-refresh disimpan per topik (lihat REFRESH_KEY), bukan satu nilai global.
+export const fmtInterval = (sec: number) =>
+  sec % 86_400 === 0 ? `${sec / 86_400} hari` : sec % 3600 === 0 ? `${sec / 3600} jam` : `${Math.round(sec / 60)} menit`;
+/** Tampilan dimuat ulang tiap min(kecepatan, 5 menit) — data baru & label AI muncul tanpa menunggu satu interval penuh (gratis: baca DB). */
+const VIEW_REFRESH_MAX_MS = 300_000;
 const PARAM_KEYS = ["topic", "range", "from", "to", "platform"];
 
 export interface Series {
@@ -104,24 +113,6 @@ function saveStored(v: Record<string, string>) {
     /* storage tidak tersedia → hanya URL */
   }
 }
-// Auto-refresh per topik: { [topicId]: "off" | "5m" | … } — mematikan di satu topik tidak ikut mematikan topik lain.
-const REFRESH_KEY = "smip.refresh";
-const DEFAULT_REFRESH = "15m";
-function loadRefresh(): Record<string, string> {
-  try {
-    return JSON.parse(localStorage.getItem(REFRESH_KEY) ?? "{}") as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-function saveRefresh(topic: string, id: string) {
-  try {
-    localStorage.setItem(REFRESH_KEY, JSON.stringify({ ...loadRefresh(), [topic]: id }));
-  } catch {
-    /* storage tidak tersedia → hanya berlaku di sesi ini */
-  }
-}
-
 function effectiveParams(sp: URLSearchParams) {
   const stored = loadStored();
   const out: Record<string, string> = {};
@@ -147,15 +138,11 @@ export function useFilters() {
   // topik tersimpan bisa milik kantor lain (mis. setelah "lihat data") → hanya dipakai bila ada di daftar
   const topic = (p.topic && (!list || list.some((t) => t.id === p.topic)) ? p.topic : list?.[0]?.id) ?? "";
   const platform = p.platform ?? "";
-  const [refreshMap, setRefreshMap] = useState(loadRefresh);
-  // topik dijeda di menu Topik → tidak ada data baru → auto-refresh ikut mati (pilihan per topik kembali saat dilanjutkan)
-  const paused = list?.find((t) => t.id === topic)?.status === "paused";
-  const refresh = paused ? REFRESH[0]! : (REFRESH.find((r) => r.id === (refreshMap[topic] ?? DEFAULT_REFRESH)) ?? REFRESH[2]!);
-  const setRefresh = (id: string) => {
-    if (!topic || paused) return;
-    saveRefresh(topic, id);
-    setRefreshMap((m) => ({ ...m, [topic]: id }));
-  };
+  const current = list?.find((t) => t.id === topic);
+  // topik dijeda (Update data = Mati) → tidak ada data baru → tampilan juga tidak perlu dimuat ulang
+  const paused = current?.status === "paused";
+  const speedSec = paused ? 0 : (current?.default_interval_sec ?? 3600);
+  const refresh = { ms: current && !paused ? Math.min(speedSec * 1000, VIEW_REFRESH_MAX_MS) : 0 };
   const custom = p.range === "custom" && p.from && p.to;
   const range = custom ? null : (RANGES.find((r) => r.id === p.range) ?? RANGES[1]!);
   // jangkar waktu dibulatkan ke 5 menit → query key stabil antar render, bergeser sendiri tiap 5 menit
@@ -163,7 +150,7 @@ export function useFilters() {
   const from = custom ? new Date(p.from!) : new Date(to.getTime() - range!.ms);
   const set = (kv: Record<string, string | null>) => {
     const n = new URLSearchParams(sp);
-    n.delete("refresh"); // parameter lama (global) — kini per topik
+    n.delete("refresh"); // parameter lama — kini kecepatan "Update data" topik
     const stored: Record<string, string> = { ...p, topic };
     for (const [k, v] of Object.entries(kv)) {
       if (v === null || v === "") {
@@ -184,7 +171,7 @@ export function useFilters() {
     if (snapshot !== JSON.stringify(loadStored())) saveStored(JSON.parse(snapshot) as Record<string, string>);
   }, [snapshot]);
   const qs = `topic_id=${topic}&from=${from.toISOString()}&to=${to.toISOString()}${platform ? `&platforms=${platform}` : ""}`;
-  return { topics, list, topic, platform, range, custom: !!custom, from, to, refresh, paused, setRefresh, set, qs };
+  return { topics, list, topic, current, platform, range, custom: !!custom, from, to, refresh, paused, speedSec, set, qs };
 }
 export type Filters = ReturnType<typeof useFilters>;
 
@@ -249,27 +236,112 @@ export function FilterBar({ f, title }: { f: Filters; title: string }) {
           </option>
         ))}
       </Select>
-      <div
-        className="ml-auto flex items-center gap-2 text-sm text-zinc-600"
-        title={
-          f.paused
-            ? "Topik ini sedang dijeda di menu Topik — tidak ada data baru, auto-refresh dimatikan. Lanjutkan topik untuk mengaktifkannya lagi."
-            : "Seberapa sering tampilan topik ini memuat data terbaru (diingat per topik). Pengambilan data dari media sosial tetap berjalan otomatis di server."
-        }
-      >
-        <label htmlFor="smip-refresh">⏱ Auto-refresh</label>
-        {f.paused && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800">topik dijeda</span>}
-        <Select id="smip-refresh" value={f.refresh.id} onChange={(e) => f.setRefresh(e.target.value)} disabled={f.paused} className="py-1">
-          {REFRESH.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.label}
-            </option>
-          ))}
-        </Select>
-      </div>
+      <UpdateControl key={f.topic} f={f} />
     </div>
   );
 }
+
+/**
+ * "Update data": satu kontrol untuk seberapa sering data topik diambil dari media sosial (server, berbayar per provider) — tampilan
+ * ikut memuat data baru otomatis. Analis ke atas bisa mengubah & "Ambil sekarang"; viewer hanya melihat.
+ */
+function UpdateControl({ f }: { f: Filters }) {
+  const { me } = useAuth();
+  const qc = useQueryClient();
+  const role = me?.current_tenant.role;
+  const canEdit = !!me?.user.is_platform_operator || ["owner", "admin", "analyst"].includes(role ?? "");
+  const [msg, setMsg] = useState<string | null>(null);
+  const detail = useQuery({
+    queryKey: ["topic", f.topic],
+    queryFn: () => api<TopicDetail>(`/topics/${f.topic}`),
+    enabled: !!f.topic,
+    staleTime: 60_000,
+  });
+  const refreshTopics = () => {
+    void qc.invalidateQueries({ queryKey: ["topics"] });
+    void qc.invalidateQueries({ queryKey: ["topic", f.topic] });
+  };
+  const speed = useMutation({
+    mutationFn: (sec: number) => api(`/topics/${f.topic}/speed`, { method: "PUT", json: { interval_sec: sec || null } }),
+    onSuccess: (_, sec) => {
+      setMsg(sec ? null : "Topik dijeda — tidak ada pengambilan data baru (tanpa biaya). Pilih kecepatan untuk melanjutkan.");
+      refreshTopics();
+    },
+    onError: (e) => setMsg((e as Error).message),
+  });
+  const now = useMutation({
+    mutationFn: () => api<{ platforms: string[]; cooldown_until: string | null }>(`/topics/${f.topic}/fetch-now`, { method: "POST" }),
+    onSuccess: (r) => {
+      setMsg(
+        r.platforms.length
+          ? `Sedang mengambil data ${r.platforms.map((p) => PLATFORM_LABEL[p] ?? p).join(", ")} — muncul di layar ± 1–3 menit.`
+          : `Data baru saja diambil. "Ambil sekarang" bisa dipakai lagi ${r.cooldown_until ? `setelah ${new Date(r.cooldown_until).toLocaleTimeString("id-ID", { timeStyle: "short" })}` : "sebentar lagi"}.`,
+      );
+      setTimeout(() => {
+        refreshTopics();
+        void qc.invalidateQueries();
+      }, 90_000);
+    },
+    onError: (e) => setMsg((e as Error).message),
+  });
+  const t = f.current;
+  const options = SPEEDS.some((o) => o.sec === f.speedSec)
+    ? SPEEDS
+    : [...SPEEDS, { sec: f.speedSec, label: `Tiap ${fmtInterval(f.speedSec)}` }];
+  // platform yang lebih lambat dari pilihan topik (batas paket / batas sumber)
+  const slower = f.paused ? [] : (detail.data?.platforms ?? []).filter((p) => p.enabled && p.effective_interval_sec > f.speedSec);
+  const tip = [
+    "Seberapa sering data topik ini diambil dari media sosial — berlaku untuk semua pengguna kantor. Tampilan ikut memuat data baru otomatis.",
+    "Mati = topik dijeda: tidak ada pengambilan & tidak ada biaya; dashboard tetap menampilkan data yang sudah ada.",
+    ...(slower.length
+      ? [
+          `Mengikuti batas paket: ${slower.map((p) => `${PLATFORM_LABEL[p.code] ?? p.code} tiap ${fmtInterval(p.effective_interval_sec)}`).join(", ")}.`,
+        ]
+      : []),
+    ...(canEdit ? [] : ["Hanya analis/admin yang bisa mengubah."]),
+  ].join("\n");
+  return (
+    <div className="ml-auto flex flex-col items-end gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-2 text-sm text-zinc-600" title={tip}>
+        <label htmlFor="smip-speed">🔄 Update data</label>
+        <Select
+          id="smip-speed"
+          value={String(f.speedSec)}
+          onChange={(e) => speed.mutate(Number(e.target.value))}
+          disabled={!t || !canEdit || speed.isPending}
+          className={`py-1 ${f.paused ? "border-amber-300 bg-amber-50 text-amber-800" : ""}`}
+        >
+          {options.map((o) => (
+            <option key={o.sec} value={o.sec}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+        {canEdit && t && !f.paused && (
+          <Button variant="ghost" className="py-1" onClick={() => now.mutate()} disabled={now.isPending}>
+            {now.isPending ? "…" : "Ambil sekarang"}
+          </Button>
+        )}
+      </div>
+      {(msg || t?.last_run_at || slower.length > 0) && (
+        <p className="max-w-md text-right text-xs text-zinc-500">
+          {msg ??
+            [
+              t?.last_run_at ? `Terakhir diambil ${agoText(t.last_run_at)}` : null,
+              slower.length ? `${slower.map((p) => PLATFORM_LABEL[p.code] ?? p.code).join(", ")} mengikuti batas paket` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const agoText = (iso: string) => {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  return m < 1 ? "baru saja" : m < 60 ? `${m} menit lalu` : m < 1440 ? `${Math.round(m / 60)} jam lalu` : fmtTime(iso);
+};
 
 // ---------------------------------------------------------------- drill-down
 

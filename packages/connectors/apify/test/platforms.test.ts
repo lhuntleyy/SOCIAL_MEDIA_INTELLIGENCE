@@ -665,9 +665,8 @@ describe("detail normalizer & input", () => {
       recent_posts: true,
       max_posts: 20,
     });
-    expect(
-      bodies["scrapeforge~facebook-search-posts"] ?? (await fetchOf(FACEBOOK_SCRAPEFORGE), bodies["scrapeforge~facebook-search-posts"]),
-    ).toMatchObject({
+    await fetchOf(FACEBOOK_SCRAPEFORGE);
+    expect(bodies["scrapeforge~facebook-search-posts"]).toMatchObject({
       recent_posts: true,
       max_results: 20,
     });

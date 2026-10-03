@@ -7,6 +7,10 @@ export interface TopicSummary {
   status: "active" | "paused" | "archived";
   platforms: string[];
   author: { id: string; name: string } | null;
+  /** kecepatan "Update data" (detik); paket owner bisa memperlambat per platform → TopicDetail.platforms[].effective_interval_sec */
+  default_interval_sec?: number;
+  /** pengambilan terakhir (plan mana pun) */
+  last_run_at?: string | null;
   updated_at: string;
 }
 export interface TopicDetail extends Omit<TopicSummary, "platforms"> {

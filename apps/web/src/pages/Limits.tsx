@@ -1,9 +1,10 @@
 // Pengaturan → Batas & jadwal (owner): SEMUA angka yang memengaruhi volume & biaya di satu tempat —
-//   jadwal pengambilan + maks. post per platform, scrape awal topik, komentar, dan batas tiap sumber (config connector).
+//   batas kecepatan tercepat + maks. post per platform, scrape awal topik, komentar, dan batas tiap sumber (config connector).
+//   Kecepatan per topik dipilih di Dashboard ("Update data"); paket di sini = batas tercepat yang boleh dipakai topik.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Badge, Button, Card, ErrorText, Input, PLATFORM_LABEL, Select, Switch } from "../ui";
+import { Badge, Button, Card, ErrorText, PLATFORM_LABEL, Select, Switch } from "../ui";
 
 interface PlatformRow {
   code: string;
@@ -84,7 +85,7 @@ function PlatformRowEdit({ p }: { p: PlatformRow }) {
           value={p.crawl_interval_sec ?? ""}
           onChange={(e) => save.mutate({ crawl_interval_sec: e.target.value ? Number(e.target.value) : null })}
         >
-          <option value="">bawaan (1 jam)</option>
+          <option value="">tanpa batas (ikut topik)</option>
           {INTERVALS.map((i) => (
             <option key={i.v} value={i.v}>
               tiap {i.l}
@@ -181,7 +182,7 @@ function GlobalSettings() {
       <Card title="Pengambilan">
         <NumField
           label="Scrape awal saat topik dibuat (hari ke belakang)"
-          hint="Topik baru / platform yang baru dicentang langsung diambil datanya sejauh ini, lalu mengikuti jadwal platform. 0 = mati."
+          hint="Topik baru / platform yang baru dicentang langsung diambil datanya sejauh ini, lalu diperbarui sesuai pilihan Update data topik. 0 = mati."
           value={num("topics.initial_backfill_days")}
           def={Number(d["topics.initial_backfill_days"])}
           min={0}
@@ -380,12 +381,12 @@ function Concurrency() {
   );
 }
 
-/** Paket kecepatan: jadwal pengambilan per platform (detik). Biaya = perkiraan COST_MODEL §12 (kantor 10 topik campuran, kurs Rp 16.500). */
+/** Paket = kecepatan TERCEPAT per platform (detik). Biaya = perkiraan COST_MODEL §12 bila semua topik memakai kecepatan tercepat (kantor 10 topik campuran, kurs Rp 16.500). */
 const PRESETS: { id: string; name: string; desc: string; iv: Record<string, number>; office: string; topic: string }[] = [
   {
     id: "hemat",
     name: "Hemat",
-    desc: "Semua platform tiap 3 jam",
+    desc: "Paling cepat: semua platform tiap 3 jam",
     iv: { x: 10800, tiktok: 10800, instagram: 10800, threads: 10800, facebook: 10800, youtube: 10800 },
     office: "± Rp 8 jt",
     topic: "± Rp 0,8 jt",
@@ -393,7 +394,7 @@ const PRESETS: { id: string; name: string; desc: string; iv: Record<string, numb
   {
     id: "standar",
     name: "Standar",
-    desc: "X/TikTok/IG tiap 15 menit · Threads/FB tiap 1 jam · YouTube tiap 3 jam",
+    desc: "Paling cepat: X/TikTok/IG 15 menit · Threads/FB 1 jam · YouTube 3 jam",
     iv: { x: 900, tiktok: 900, instagram: 900, threads: 3600, facebook: 3600, youtube: 10800 },
     office: "± Rp 13 jt",
     topic: "± Rp 1,3 jt",
@@ -401,7 +402,7 @@ const PRESETS: { id: string; name: string; desc: string; iv: Record<string, numb
   {
     id: "plus",
     name: "Plus",
-    desc: "X/TikTok/IG tiap 5 menit · Threads/FB tiap 15 menit · YouTube tiap 1 jam",
+    desc: "Paling cepat: X/TikTok/IG 5 menit · Threads/FB 15 menit · YouTube 1 jam",
     iv: { x: 300, tiktok: 300, instagram: 300, threads: 900, facebook: 900, youtube: 3600 },
     office: "± Rp 28 jt",
     topic: "± Rp 2,8 jt",
@@ -409,7 +410,7 @@ const PRESETS: { id: string; name: string; desc: string; iv: Record<string, numb
   {
     id: "realtime",
     name: "Real-time",
-    desc: "Semua tiap 5 menit · YouTube tiap 1 jam (batas kuota Google)",
+    desc: "Paling cepat: semua 5 menit · YouTube 1 jam (batas kuota Google)",
     iv: { x: 300, tiktok: 300, instagram: 300, threads: 300, facebook: 300, youtube: 3600 },
     office: "± Rp 56 jt",
     topic: "± Rp 5,7 jt",
@@ -436,21 +437,21 @@ function Simple({ platforms }: { platforms: PlatformRow[] }) {
   const v = settings.data?.values;
   return (
     <>
-      <Card title="Apa bedanya?">
+      <Card title="Cara kerja update data">
         <div className="grid gap-3 text-sm md:grid-cols-2">
           <div className="rounded-lg bg-brand-50 p-3">
-            <div className="font-semibold">Kecepatan update data (di sini)</div>
-            Seberapa sering <b>server</b> mengecek Instagram, TikTok, X, dll. untuk post <b>baru</b>. Berlaku untuk semua topik semua
-            kantor. Makin sering = data makin cepat masuk, tapi <b>biaya makin besar</b>.
+            <div className="font-semibold">🔄 Update data (di Dashboard, per topik)</div>
+            Analis memilih seberapa sering data topik diambil dari Instagram, TikTok, X, dll. — tiap 5 menit sampai 24 jam, atau <b>Mati</b>{" "}
+            (topik dijeda, tanpa biaya). Layar dashboard ikut memuat data baru otomatis. Ada tombol <b>Ambil sekarang</b>.
           </div>
           <div className="rounded-lg bg-zinc-50 p-3">
-            <div className="font-semibold">Auto-refresh (di dashboard)</div>
-            Seberapa sering <b>layar dashboard</b> memuat ulang data yang sudah ada di server. Tidak mengambil data baru dari media sosial
-            dan <b>tidak menambah biaya</b>. Diatur masing-masing pengguna.
+            <div className="font-semibold">Batas kecepatan (di sini, owner)</div>
+            Paket menentukan kecepatan <b>tercepat</b> yang boleh dipakai topik di tiap platform. Topik yang memilih lebih cepat otomatis
+            mengikuti batas ini. Perkiraan biaya di bawah = bila <b>semua</b> topik memakai kecepatan tercepat.
           </div>
         </div>
       </Card>
-      <Card title="Kecepatan update data">
+      <Card title="Batas kecepatan (paket)">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {PRESETS.map((pr) => (
             <button
@@ -474,8 +475,9 @@ function Simple({ platforms }: { platforms: PlatformRow[] }) {
           ))}
         </div>
         <p className="mt-3 text-xs text-zinc-500">
-          {active ? "" : "Saat ini memakai jadwal kustom (lihat Pengaturan lanjutan). "}
-          Perkiraan sudah termasuk AI & komentar; biaya nyata tergantung ramainya topik — pantau di Sumber data.
+          {active ? "" : "Saat ini memakai batas kustom (lihat Pengaturan lanjutan). "}
+          Perkiraan = biaya maksimum (semua topik tercepat), sudah termasuk AI & komentar; topik yang diatur lebih lambat atau dimatikan
+          lebih murah. Biaya nyata tergantung ramainya topik — pantau di Sumber data.
         </p>
         <ErrorText error={apply.error} />
       </Card>
@@ -534,16 +536,16 @@ export default function Limits() {
       <Simple platforms={enabled} />
       <details className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-600">
-          Pengaturan lanjutan — jadwal per platform, batas post, detail komentar, batas tiap sumber
+          Pengaturan lanjutan — batas kecepatan per platform, batas post, detail komentar, batas tiap sumber
         </summary>
         <div className="mt-4 space-y-4">
-          <Card title="Jadwal & volume per platform (kustom)">
+          <Card title="Batas kecepatan & volume per platform (kustom)">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead className="text-left text-xs uppercase text-zinc-500">
                   <tr>
                     <th className="py-2">Platform</th>
-                    <th>Kecepatan update</th>
+                    <th>Kecepatan tercepat</th>
                     <th>Maks. post per pengambilan</th>
                     <th />
                   </tr>

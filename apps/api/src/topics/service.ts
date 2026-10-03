@@ -275,19 +275,22 @@ export class TopicService {
     const warnings: { code: string; platform: string; reason: string }[] = [];
     const out = platforms.map((p) => {
       const ops = p.operations?.length ? [...new Set(p.operations)] : ["search_keyword"];
-      // interval platform dari Pengaturan (owner) menang atas bawaan topik; interval eksplisit per topik tetap dihormati
-      const requested = p.interval_sec ?? platformInterval?.get(p.code) ?? defaultInterval;
-      const floors = ops.map((op) => view.get(`${p.code}|${op}`)?.minInterval);
+      // kecepatan = pilihan topik ("Update data" di Dashboard; interval eksplisit per platform via API tetap dihormati), dibatasi
+      // KECEPATAN TERCEPAT platform dari Pengaturan (owner) + batas connector: topik tidak pernah lebih cepat dari paket owner
+      const requested = p.interval_sec ?? defaultInterval;
+      const ownerMax = platformInterval?.get(p.code);
+      const floors = [ownerMax, ...ops.map((op) => view.get(`${p.code}|${op}`)?.minInterval)];
       if (ops.every((op) => !view.has(`${p.code}|${op}`))) {
         warnings.push({ code: "NO_ACTIVE_CONNECTOR", platform: p.code, reason: "belum ada connector verified pada routing policy" });
       }
       const { effective, clamped } = clampInterval(requested, [planMin, ...floors]);
       if (clamped) {
         const byPlan = planMin !== undefined && planMin > requested && !floors.some((f) => f !== undefined && f >= planMin);
+        const byOwner = !byPlan && ownerMax !== undefined && ownerMax === effective;
         warnings.push({
           code: "INTERVAL_CLAMPED",
           platform: p.code,
-          reason: byPlan ? "plan_min_interval" : "min_interval_of_available_connectors",
+          reason: byPlan ? "plan_min_interval" : byOwner ? "platform_max_speed" : "min_interval_of_available_connectors",
         });
       }
       return { code: p.code, requested, effective, operations: ops, enabled: p.enabled ?? true };
@@ -421,6 +424,8 @@ export class TopicService {
         tx,
         sql`select t.id, t.kind, t.name, t.description, t.status, t.version, t.created_at, t.updated_at,
                    (select coalesce(array_agg(tp.platform_code order by tp.platform_code), '{}') from topic_platforms tp where tp.topic_id = t.id and tp.enabled) as platforms,
+                   t.default_interval_sec,
+                   (select max(cp.last_run_at) from crawl_plans cp where cp.topic_id = t.id and cp.status <> 'disabled') as last_run_at,
                    u.id as author_id, u.name as author_name
             from topics t left join users u on u.id = t.author_user_id
             where ${where} order by ${order} limit ${q.limit} offset ${q.offset}`,
@@ -438,6 +443,9 @@ export class TopicService {
       description: r.description,
       status: r.status,
       platforms: r.platforms,
+      /** kecepatan "Update data" topik (detik); paket owner bisa memperlambat per platform (lihat detail topik) */
+      default_interval_sec: r.default_interval_sec,
+      last_run_at: r.last_run_at ?? null,
       author: r.author_id ? { id: r.author_id, name: r.author_name } : null,
       version: r.version,
       created_at: r.created_at,
@@ -757,7 +765,8 @@ export class TopicService {
         b.platforms ??
         existing.platforms.map((p) => ({
           code: String(p.code),
-          interval_sec: Number(p.interval_sec),
+          // kecepatan topik diganti → berlaku ke semua platform (interval lama per platform dilepas)
+          interval_sec: b.default_interval_sec !== undefined ? undefined : Number(p.interval_sec),
           operations: p.operations as string[],
           enabled: Boolean(p.enabled),
         }));
@@ -834,6 +843,69 @@ export class TopicService {
       await writeOutbox(tx, { aggregate: "topic", aggregateId: id, eventType: `topic.${status}` });
       await this.audit(tx, a, `topic.${status === "active" ? "resume" : status === "paused" ? "pause" : "archive"}`, id);
       return status === "archived" ? { id, status } : this.load(tx, id);
+    });
+  }
+
+  /**
+   * Kontrol tunggal "Update data" (Dashboard, keputusan pemilik 2026-10-03): `null` = jeda topik (tidak ada pengambilan → tidak
+   * ada biaya); angka = kecepatan pengambilan topik untuk semua platform, dibatasi kecepatan tercepat paket owner per platform.
+   * Topik yang dijeda otomatis dilanjutkan saat kecepatan dipilih.
+   */
+  async setSpeed(a: Actor, id: string, intervalSec: number | null) {
+    if (intervalSec === null) return { ...(await this.setStatus(a, id, "paused")), warnings: [] };
+    const out = await this.update(a, id, { default_interval_sec: intervalSec });
+    if (out.status === "paused") return { ...(await this.setStatus(a, id, "active")), warnings: out.warnings };
+    return out;
+  }
+
+  /** Jeda minimal antar "Ambil sekarang" per plan — mencegah klik berulang menjadi tagihan berulang. */
+  static readonly FETCH_NOW_COOLDOWN_SEC = 300;
+
+  /**
+   * "Ambil sekarang": plan aktif topik (dan collection stream yang melayaninya) dijadwalkan segera, kecuali yang baru diambil
+   * < FETCH_NOW_COOLDOWN_SEC lalu. Biaya = satu pengambilan tambahan per platform; jadwal rutin berlanjut setelahnya.
+   */
+  async fetchNow(a: Actor, id: string) {
+    const cd = TopicService.FETCH_NOW_COOLDOWN_SEC;
+    return withSystem(this.db, async (tx) => {
+      const [t] = await rows<{ status: string }>(
+        tx,
+        sql`select status from topics where id = ${id} and tenant_id = ${a.tenantId} and deleted_at is null`,
+      );
+      if (!t) throw new ApiError("NOT_FOUND", "Topik tidak ditemukan");
+      if (t.status !== "active") throw new ApiError("CONFLICT", "Topik sedang dijeda — pilih kecepatan update dulu");
+      const due = await rows<{ platform_code: string }>(
+        tx,
+        sql`update crawl_plans set next_run_at = now(), updated_at = now()
+            where topic_id = ${id} and tenant_id = ${a.tenantId} and status in ('active', 'error_backoff')
+              and (last_run_at is null or last_run_at < now() - make_interval(secs => ${cd}))
+            returning platform_code`,
+      );
+      await tx.execute(sql`update collection_streams s set next_run_at = now(), updated_at = now()
+        where s.enabled and (s.last_run_at is null or s.last_run_at < now() - make_interval(secs => ${cd}))
+          and exists (select 1 from stream_topic_links l join topic_queries q on q.id = l.topic_query_id
+                      where l.stream_id = s.id and q.topic_id = ${id} and l.tenant_id = ${a.tenantId})`);
+      const [w] = await rows<{ next: Date | string | null }>(
+        tx,
+        sql`select min(last_run_at) + make_interval(secs => ${cd}) as next from crawl_plans
+            where topic_id = ${id} and status in ('active', 'error_backoff') and last_run_at >= now() - make_interval(secs => ${cd})`,
+      );
+      await tx.insert(auditLogs).values({
+        id: Bun.randomUUIDv7(),
+        tenantId: a.tenantId,
+        actorType: "user",
+        actorId: a.userId,
+        action: "topic.fetch_now",
+        targetType: "topic",
+        targetId: id,
+        after: { platforms: [...new Set(due.map((d) => d.platform_code))] },
+        ip: a.ip ?? null,
+      });
+      return {
+        platforms: [...new Set(due.map((d) => d.platform_code))].sort(),
+        /** platform yang baru diambil (< 5 menit) dilewati; bisa diulang setelah waktu ini */
+        cooldown_until: due.length ? null : w?.next ? new Date(w.next).toISOString() : null,
+      };
     });
   }
 
