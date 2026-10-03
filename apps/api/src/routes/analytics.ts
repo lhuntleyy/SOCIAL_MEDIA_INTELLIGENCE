@@ -40,8 +40,47 @@ const Common = z.object({
   media_type: z.enum(["image", "video"]).optional(),
 });
 
-export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
+/** Redis cache (subset perintah) — H-01: respons analitik dicache per versi data topik. */
+export interface AnalyticsCache {
+  send(cmd: string, args: string[]): Promise<unknown>;
+}
+export const topicVersionKey = (tenantId: string, topicId: string) => `rt:ver:${tenantId}:${topicId}`;
+/** Data topik berubah (sink / koreksi sentimen) → versi naik → cache lama tidak terpakai lagi. */
+export async function bumpTopicVersion(cache: AnalyticsCache | undefined, tenantId: string, topicId: string) {
+  if (!cache) return;
+  try {
+    const k = topicVersionKey(tenantId, topicId);
+    await cache.send("INCR", [k]);
+    await cache.send("EXPIRE", [k, String(7 * 86_400)]);
+  } catch {
+    /* cache tidak tersedia → TTL yang membatasi basi */
+  }
+}
+const CACHE_TTL_SEC = 300;
+
+export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient; cache?: AnalyticsCache }) {
   const r = new Hono<AppEnv>();
+  /**
+   * H-01 cache respons (load test: ClickHouse jenuh ± 80 req/dtk di server 2 CPU). Kunci = kantor + topik + VERSI data topik +
+   * URL lengkap → viewer berbeda yang membuka topik/rentang sama (anchor `to` dibulatkan 5 menit di web) dilayani satu query;
+   * versi naik saat data baru masuk / dikoreksi sehingga hasil tidak basi; TTL 5 menit sebagai batas atas. Gagal cache → hitung langsung.
+   */
+  const cached = async <T>(url: string, tid: string, topic: string, compute: () => Promise<T>): Promise<T> => {
+    if (!d.cache) return compute();
+    let key = "";
+    try {
+      const ver = ((await d.cache.send("GET", [topicVersionKey(tid, topic)])) as string | null) ?? "0";
+      const u = new URL(url);
+      key = `ac:${tid}:${topic}:${ver}:${new Bun.CryptoHasher("sha1").update(u.pathname + u.search).digest("hex")}`;
+      const hit = (await d.cache.send("GET", [key])) as string | null;
+      if (hit) return JSON.parse(hit) as T;
+    } catch {
+      return compute();
+    }
+    const v = await compute();
+    d.cache.send("SET", [key, JSON.stringify(v), "EX", String(CACHE_TTL_SEC)]).catch(() => {});
+    return v;
+  };
   const read = requireScope("analytics:read");
   const filter = async (c: { req: { query: () => Record<string, string> }; get: (k: "auth") => { tid: string } }) => {
     const p = Common.safeParse(c.req.query());
@@ -71,7 +110,10 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
   };
   const meta = (c: { get: (k: "requestId") => string }) => ({ request_id: c.get("requestId") });
   const route = (path: string, fn: (x: Awaited<ReturnType<typeof filter>>) => Promise<unknown>) =>
-    r.get(path, read, async (c) => c.json({ data: await fn(await filter(c)), meta: meta(c) }));
+    r.get(path, read, async (c) => {
+      const x = await filter(c);
+      return c.json({ data: await cached(c.req.url, x.f.tenantId, x.f.topicId, () => fn(x)), meta: meta(c) });
+    });
 
   route("/analytics/summary", ({ f }) => A.summary(d.ch, f));
   // U-04 galeri: post bermedia (foto/video) untuk filter yang sama dengan feed
@@ -129,7 +171,9 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
       limit: q.limit ?? 20,
       offset: q.offset ?? 0,
     };
-    const [items, total] = await Promise.all([A.feed(d.ch, f, o), q.count === "1" ? A.feedCount(d.ch, f, o) : undefined]);
+    const [items, total] = await cached(c.req.url, f.tenantId, f.topicId, () =>
+      Promise.all([A.feed(d.ch, f, o), q.count === "1" ? A.feedCount(d.ch, f, o) : undefined]),
+    );
     return c.json({ data: items, meta: { ...meta(c), ...(total !== undefined ? { total } : {}) } });
   });
   // O-06 export CSV/XLSX (API_SPEC §8): post untuk filter yang sama dengan feed, langsung diunduh (maks. EXPORT_MAX_ROWS, terbaru
@@ -272,6 +316,7 @@ export function analyticsRoutes(d: { db: Db; ch: ClickHouseClient }) {
             ${jsonbValue({ label: r.previous, model_version: r.previousModelVersion })},
             ${jsonbValue({ label: b.label, topic_id: b.topic_id, reason: b.reason ?? null })}, ${c.get("requestId")})`);
       });
+    await bumpTopicVersion(d.cache, tid, b.topic_id); // agregat berubah → cache analitik topik ini kedaluwarsa
     return c.json({
       data: { label: b.label, source: "human", previous: r.previous, override_id: r.changed ? overrideId : null },
       meta: meta(c),

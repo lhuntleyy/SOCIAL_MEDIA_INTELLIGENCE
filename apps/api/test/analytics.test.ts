@@ -13,6 +13,17 @@ const up =
     .catch(() => false));
 const [A, B, TA, TB, UA, UB] = [1, 2, 3, 4, 5, 6].map(tid) as [string, string, string, string, string, string];
 
+/** Redis palsu (GET/SET/INCR/EXPIRE) untuk cache analitik. */
+const memStore = new Map<string, string>();
+const memCache = {
+  send: async (cmd: string, args: string[]) => {
+    if (cmd === "GET") return memStore.get(args[0]!) ?? null;
+    if (cmd === "SET") memStore.set(args[0]!, args[1]!);
+    if (cmd === "INCR") memStore.set(args[0]!, String(Number(memStore.get(args[0]!) ?? 0) + 1));
+    return "OK";
+  },
+};
+
 describe.skipIf(!up)("D-01 analytics", () => {
   let h: ApiHarness;
   const chName = `smip_an_${Date.now()}`;
@@ -29,7 +40,8 @@ describe.skipIf(!up)("D-01 analytics", () => {
     await chAdmin.command({ query: `CREATE DATABASE ${chName}` });
     ch = createClient({ url: CH_URL, database: chName });
     await chUp(ch);
-    h = await apiHarness("an", undefined, (db) => ({ analytics: { db, ch } }));
+    // cache respons aktif (H-01): semua tes di bawah juga membuktikan cache tidak menyajikan data basi (versi topik)
+    h = await apiHarness("an", undefined, (db) => ({ analytics: { db, ch, cache: memCache } }));
     await h.sql`insert into tenants (id, slug, name) values (${A}, 'a', 'A'), (${B}, 'b', 'B')`;
     await h.sql`insert into topics (id, tenant_id, name) values (${TA}, ${A}, 'KDMP'), (${TB}, ${B}, 'Lain')`;
     ta = await h.token({ sub: UA, tid: A, role: "analyst" });
@@ -147,6 +159,9 @@ describe.skipIf(!up)("D-01 analytics", () => {
       ["p1", "negative"],
     ]);
     expect(feed[0]!.text).toBe("kopdes gaji belum cair");
+    // respons tersimpan di cache per versi topik; topik kantor lain tidak pernah ikut kunci
+    expect([...memStore.keys()].some((k) => k.startsWith(`ac:${A}:${TA}:0:`))).toBe(true);
+    expect([...memStore.keys()].some((k) => k.includes(B))).toBe(false);
   });
 
   test("drill-down feed (klik widget → post): hashtag, lokasi, akun, sort engagement, total; widget tambahan", async () => {

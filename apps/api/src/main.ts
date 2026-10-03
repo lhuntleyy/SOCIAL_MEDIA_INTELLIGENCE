@@ -64,7 +64,7 @@ const app = createApp({
   llm,
   alerts,
   realtime,
-  analytics: { db, ch },
+  analytics: { db, ch, cache: redis },
   keys,
   logger,
 });

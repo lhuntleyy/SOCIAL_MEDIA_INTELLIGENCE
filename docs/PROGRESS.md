@@ -121,7 +121,8 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | H-06 | done (jadwal otomatis menunggu persetujuan) | claude | `scripts/backup.sh` · `scripts/restore.sh` · [drill](evidence/H-06/drill-2026-10-04.md) | Backup Postgres + ClickHouse tabel dasar (agregat dibangun ulang MV), checksum, rotasi 7; restore ke database baru + verifikasi baris; drill: 5 dtk, baris & agregat identik. RUNBOOK §15. Belum: jadwal otomatis (cron) & salinan di luar server — keputusan pemilik |
 | H-03 | partial (ZAP/pentest = vendor) | claude | [laporan](evidence/H-03/security-scan-2026-10-04.md) · `scripts/secret-scan.ts` | Secret scan file + seluruh riwayat git: bersih (kini di `bun run check`/CI); `bun audit`: 1 moderate dev-only (esbuild via drizzle-kit/tsx) diterima; SAST = Biome + TS strict + dependency rules; tes SEC lulus. Belum: OWASP ZAP & pentest eksternal |
 | H-07 | done | claude | [ONBOARDING_CONNECTOR](ONBOARDING_CONNECTOR.md) · RUNBOOK §13–§16 + indeks · INSTALL (operasional) · README | Panduan menambah provider (biaya/legal → probe → kode → tes → urutan deploy → verify → routing → pantau), runbook lengkap (retensi, backup, monitoring, insiden connector), README status & navigasi operasional; annotation guide sudah ada (S-20) |
-| H-01, H-02, H-05 | todo | | | |
+| H-01 | partial (API selesai; ingest NFR-01 butuh staging) | claude | [laporan](evidence/H-01/loadtest-2026-10-04.md) · `scripts/loadtest/dashboard.ts` | Load test dashboard: bottleneck CPU ClickHouse (± 80 req/dtk di demo 2 vCPU) → cache respons per versi data topik: 20 VU p95 2,9 → 0,07 dtk, 50 VU p95 0,32 dtk; terburuk (cache meleset) ≤ 10 VU memenuhi NFR-04. Belum: throughput ingest 500 topik (staging + connector fake) |
+| H-02, H-05 | todo | | | |
 
 > Saat sebuah fase dimulai, pecah baris "F-01 … F-12" menjadi satu baris per task.
 
@@ -154,6 +155,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | H-01 Load test + cache | Load test dashboard, cache analitik berversi (20 VU p95 2,9 → 0,07 dtk). |
 | 2026-10-04 | H-07 Dokumentasi | Onboarding connector, runbook terindeks, INSTALL operasional, README. |
 | 2026-10-04 | O-07 Monitoring | Metrik state + HTTP, Prometheus/Alertmanager/Grafana siap pakai (konfigurasi tervalidasi). 525 test |
 | 2026-10-04 | H-03 Pemindaian keamanan | Secret scan (file + riwayat) bersih & masuk CI, audit dependency, laporan. |

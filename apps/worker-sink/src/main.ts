@@ -83,6 +83,9 @@ const rtSub = await queue.consume(
   "realtime.notify",
   async (m) => {
     const p = m.payload;
+    // versi data topik naik → cache respons analitik API (H-01) untuk topik ini tidak terpakai lagi
+    await cache.send("INCR", [`rt:ver:${p.tenant_id}:${p.topic_id}`]);
+    await cache.send("EXPIRE", [`rt:ver:${p.tenant_id}:${p.topic_id}`, String(7 * 86_400)]);
     await cache.send("PUBLISH", [
       "smip:rt",
       JSON.stringify({
