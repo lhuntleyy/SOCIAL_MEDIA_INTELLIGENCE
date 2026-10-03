@@ -84,7 +84,7 @@ function PlatformRowEdit({ p }: { p: PlatformRow }) {
           value={p.crawl_interval_sec ?? ""}
           onChange={(e) => save.mutate({ crawl_interval_sec: e.target.value ? Number(e.target.value) : null })}
         >
-          <option value="">bawaan sistem (1 jam)</option>
+          <option value="">bawaan (1 jam)</option>
           {INTERVALS.map((i) => (
             <option key={i.v} value={i.v}>
               tiap {i.l}
@@ -178,7 +178,7 @@ function GlobalSettings() {
   const pages = num("comments.max_pages_per_post");
   return (
     <>
-      <Card title="Topik baru">
+      <Card title="Pengambilan">
         <NumField
           label="Scrape awal saat topik dibuat (hari ke belakang)"
           hint="Topik baru / platform yang baru dicentang langsung diambil datanya sejauh ini, lalu mengikuti jadwal platform. 0 = mati."
@@ -187,6 +187,15 @@ function GlobalSettings() {
           min={0}
           max={31}
           onSave={save("topics.initial_backfill_days")}
+        />
+        <NumField
+          label="Minimal post per pengambilan (sumber terurut terbaru: X scraper_one, Facebook, Threads)"
+          hint="Batas bawah jumlah post yang diminta tiap pengambilan; lebih kecil = lebih hemat. Sistem otomatis menaikkan bila post baru banyak."
+          value={num("fetch.min_items_per_run")}
+          def={Number(d["fetch.min_items_per_run"])}
+          min={1}
+          max={100}
+          onSave={save("fetch.min_items_per_run")}
         />
       </Card>
       <Card
@@ -269,7 +278,7 @@ function ConnectorLimits({ c }: { c: ConnectorRow }) {
         <span className="font-mono text-xs">{c.key}</span>
         <Badge tone={c.enabled ? "green" : "zinc"}>{c.enabled ? "aktif" : "nonaktif"}</Badge>
       </div>
-      <div className="grid gap-x-4 gap-y-1 md:grid-cols-2">
+      <div className="grid gap-x-6 gap-y-1 md:grid-cols-2">
         {props.map(([k, p]) => {
           const cur = draft[k] ?? (cfg[k] === undefined ? "" : String(cfg[k]));
           return (
@@ -289,9 +298,9 @@ function ConnectorLimits({ c }: { c: ConnectorRow }) {
                   <option value="false">tidak</option>
                 </Select>
               ) : (
-                <Input
+                <input
                   id={`cfg-${c.id}-${k}`}
-                  className="w-28 py-1 text-xs"
+                  className="w-28 shrink-0 rounded-md border border-zinc-300 px-2 py-1 text-xs"
                   inputMode="decimal"
                   placeholder={`bawaan${p.maximum != null ? ` (≤ ${p.maximum})` : ""}`}
                   value={cur}
@@ -371,59 +380,192 @@ function Concurrency() {
   );
 }
 
+/** Paket kecepatan: jadwal pengambilan per platform (detik). Biaya = perkiraan COST_MODEL §12 (kantor 10 topik campuran, kurs Rp 16.500). */
+const PRESETS: { id: string; name: string; desc: string; iv: Record<string, number>; office: string; topic: string }[] = [
+  {
+    id: "hemat",
+    name: "Hemat",
+    desc: "Semua platform tiap 3 jam",
+    iv: { x: 10800, tiktok: 10800, instagram: 10800, threads: 10800, facebook: 10800, youtube: 10800 },
+    office: "± Rp 8 jt",
+    topic: "± Rp 0,8 jt",
+  },
+  {
+    id: "standar",
+    name: "Standar",
+    desc: "X/TikTok/IG tiap 15 menit · Threads/FB tiap 1 jam · YouTube tiap 3 jam",
+    iv: { x: 900, tiktok: 900, instagram: 900, threads: 3600, facebook: 3600, youtube: 10800 },
+    office: "± Rp 13 jt",
+    topic: "± Rp 1,3 jt",
+  },
+  {
+    id: "plus",
+    name: "Plus",
+    desc: "X/TikTok/IG tiap 5 menit · Threads/FB tiap 15 menit · YouTube tiap 1 jam",
+    iv: { x: 300, tiktok: 300, instagram: 300, threads: 900, facebook: 900, youtube: 3600 },
+    office: "± Rp 28 jt",
+    topic: "± Rp 2,8 jt",
+  },
+  {
+    id: "realtime",
+    name: "Real-time",
+    desc: "Semua tiap 5 menit · YouTube tiap 1 jam (batas kuota Google)",
+    iv: { x: 300, tiktok: 300, instagram: 300, threads: 300, facebook: 300, youtube: 3600 },
+    office: "± Rp 56 jt",
+    topic: "± Rp 5,7 jt",
+  },
+];
+
+/** Tampilan sederhana: penjelasan, paket kecepatan, komentar, scrape awal — detail teknis di "Pengaturan lanjutan". */
+function Simple({ platforms }: { platforms: PlatformRow[] }) {
+  const qc = useQueryClient();
+  const settings = useQuery({ queryKey: ["admin-settings"], queryFn: () => api<SettingsResp>("/admin/settings") });
+  const apply = useMutation({
+    mutationFn: async (iv: Record<string, number>) => {
+      for (const p of platforms)
+        if (iv[p.code] !== undefined && iv[p.code] !== p.crawl_interval_sec)
+          await api(`/admin/platforms/${p.code}`, { method: "PATCH", json: { crawl_interval_sec: iv[p.code] } });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin-platforms"] }),
+  });
+  const put = useMutation({
+    mutationFn: (values: Record<string, number | boolean | null>) => api("/admin/settings", { method: "PUT", json: { values } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin-settings"] }),
+  });
+  const active = PRESETS.find((pr) => platforms.every((p) => pr.iv[p.code] === undefined || p.crawl_interval_sec === pr.iv[p.code]));
+  const v = settings.data?.values;
+  return (
+    <>
+      <Card title="Apa bedanya?">
+        <div className="grid gap-3 text-sm md:grid-cols-2">
+          <div className="rounded-lg bg-brand-50 p-3">
+            <div className="font-semibold">Kecepatan update data (di sini)</div>
+            Seberapa sering <b>server</b> mengecek Instagram, TikTok, X, dll. untuk post <b>baru</b>. Berlaku untuk semua topik semua
+            kantor. Makin sering = data makin cepat masuk, tapi <b>biaya makin besar</b>.
+          </div>
+          <div className="rounded-lg bg-zinc-50 p-3">
+            <div className="font-semibold">Auto-refresh (di dashboard)</div>
+            Seberapa sering <b>layar dashboard</b> memuat ulang data yang sudah ada di server. Tidak mengambil data baru dari media sosial
+            dan <b>tidak menambah biaya</b>. Diatur masing-masing pengguna.
+          </div>
+        </div>
+      </Card>
+      <Card title="Kecepatan update data">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {PRESETS.map((pr) => (
+            <button
+              type="button"
+              key={pr.id}
+              onClick={() => apply.mutate(pr.iv)}
+              disabled={apply.isPending}
+              className={`rounded-xl border-2 p-4 text-left transition ${active?.id === pr.id ? "border-brand-600 bg-brand-50" : "border-zinc-200 hover:border-zinc-400"}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-base font-bold">{pr.name}</span>
+                {active?.id === pr.id && <Badge tone="green">dipakai</Badge>}
+              </div>
+              <p className="mt-1 min-h-10 text-xs text-zinc-600">{pr.desc}</p>
+              <div className="mt-2 text-sm">
+                <b>{pr.office}</b>
+                <span className="text-xs text-zinc-500"> / kantor 10 topik / bln</span>
+              </div>
+              <div className="text-xs text-zinc-500">{pr.topic} per topik sedang · biaya modal, belum harga jual</div>
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-zinc-500">
+          {active ? "" : "Saat ini memakai jadwal kustom (lihat Pengaturan lanjutan). "}
+          Perkiraan sudah termasuk AI & komentar; biaya nyata tergantung ramainya topik — pantau di Sumber data.
+        </p>
+        <ErrorText error={apply.error} />
+      </Card>
+      {v && (
+        <Card title="Komentar & topik baru">
+          <div className="flex flex-wrap items-center gap-3 py-1.5 text-sm">
+            <span className="flex-1">Ambil komentar dari post paling ramai</span>
+            <Switch on={!!v["comments.enabled"]} onChange={(on) => put.mutate({ "comments.enabled": on })} disabled={put.isPending} />
+          </div>
+          {v["comments.enabled"] && (
+            <NumField
+              label="Jumlah post yang diambil komentarnya (per topik, per platform, per hari)"
+              value={Number(v["comments.top_posts_per_day"])}
+              def={20}
+              min={0}
+              max={1000}
+              onSave={(x) => put.mutate({ "comments.top_posts_per_day": x })}
+            />
+          )}
+          <NumField
+            label="Topik baru langsung mengambil data … hari ke belakang"
+            value={Number(v["topics.initial_backfill_days"])}
+            def={7}
+            min={0}
+            max={31}
+            onSave={(x) => put.mutate({ "topics.initial_backfill_days": x })}
+          />
+          <ErrorText error={put.error} />
+        </Card>
+      )}
+    </>
+  );
+}
+
 export default function Limits() {
   const platforms = useQuery({ queryKey: ["admin-platforms"], queryFn: () => api<PlatformRow[]>("/admin/platforms") });
   const connectors = useQuery({ queryKey: ["admin-connectors"], queryFn: () => api<ConnectorRow[]>("/admin/connectors") });
   const [showAll, setShowAll] = useState(false);
   const conns = (connectors.data ?? []).filter((c) => !c.key.startsWith("fake.") && (showAll || c.enabled));
+  const enabled = (platforms.data ?? []).filter((p) => p.enabled);
   return (
     <div className="space-y-4">
-      <Card title="Jadwal & volume per platform">
-        <p className="mb-2 text-sm text-zinc-600">
-          <b>Jadwal pengambilan</b> = seberapa sering server menarik data baru dari media sosial (berlaku ke semua topik & menentukan
-          biaya). Ini berbeda dengan <i>auto-refresh</i> di dashboard, yang hanya memuat ulang tampilan.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-left text-xs uppercase text-zinc-500">
-              <tr>
-                <th className="py-2">Platform</th>
-                <th>Jadwal pengambilan</th>
-                <th>Maks. post per pengambilan</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {platforms.data
-                ?.filter((p) => p.enabled)
-                .map((p) => (
-                  <PlatformRowEdit key={p.code} p={p} />
-                ))}
-            </tbody>
-          </table>
+      <Simple platforms={enabled} />
+      <details className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-zinc-600">
+          Pengaturan lanjutan — jadwal per platform, batas post, detail komentar, batas tiap sumber
+        </summary>
+        <div className="mt-4 space-y-4">
+          <Card title="Jadwal & volume per platform (kustom)">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="text-left text-xs uppercase text-zinc-500">
+                  <tr>
+                    <th className="py-2">Platform</th>
+                    <th>Kecepatan update</th>
+                    <th>Maks. post per pengambilan</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {enabled.map((p) => (
+                    <PlatformRowEdit key={p.code} p={p} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ErrorText error={platforms.error} />
+          </Card>
+          <GlobalSettings />
+          <Concurrency />
+          <Card
+            title="Batas tiap sumber data"
+            right={
+              <label className="flex items-center gap-1 text-xs text-zinc-500">
+                <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> tampilkan yang nonaktif
+              </label>
+            }
+          >
+            <p className="mb-3 text-sm text-zinc-600">
+              Kosong = bawaan connector. Menaikkan batas menambah data <b>dan</b> biaya per pengambilan.
+            </p>
+            <div className="space-y-3">
+              {conns.map((c) => (
+                <ConnectorLimits key={c.id} c={c} />
+              ))}
+            </div>
+            <ErrorText error={connectors.error} />
+          </Card>
         </div>
-        <ErrorText error={platforms.error} />
-      </Card>
-      <GlobalSettings />
-      <Concurrency />
-      <Card
-        title="Batas tiap sumber data"
-        right={
-          <label className="flex items-center gap-1 text-xs text-zinc-500">
-            <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> tampilkan yang nonaktif
-          </label>
-        }
-      >
-        <p className="mb-3 text-sm text-zinc-600">
-          Kosong = bawaan connector. Menaikkan batas menambah data <b>dan</b> biaya per pengambilan.
-        </p>
-        <div className="space-y-3">
-          {conns.map((c) => (
-            <ConnectorLimits key={c.id} c={c} />
-          ))}
-        </div>
-        <ErrorText error={connectors.error} />
-      </Card>
+      </details>
     </div>
   );
 }

@@ -25,7 +25,14 @@ const PLAN: Record<string, { rules: [string, number, number][] }> = {
   // keyword /gql/topsearch; ±$0,03/1K post vs Apify IG $2,3–10,2/1K (PROVIDER_MATRIX "Uji HikerAPI"). Actor Apify IG dinonaktifkan.
   instagram: { rules: [["hikerapi.instagram", 1, 100]] },
   facebook: { rules: [["apify.facebook.scraperone", 1, 100]] },
-  threads: { rules: [["apify.threads.scrapersdelight", 1, 100]] },
+  // themineworks terurut terbaru → maxItems adaptif memangkas tagihan ulang (VERIFIED 2026-10-03: $0,005/run + $0,001/post);
+  // scrapersdelight (filter per hari, tak terurut — tiap poll menagih ulang 24 jam) jadi cadangan
+  threads: {
+    rules: [
+      ["apify.threads.themineworks", 1, 100],
+      ["apify.threads.scrapersdelight", 2, 100],
+    ],
+  },
 };
 /** Pagar biaya internal. Keputusan pemilik 2026-10-01: **tanpa batas bulanan dulu** (`MONTHLY_CAP=false` → kuota bulanan per
  * connector dinonaktifkan, bukan dihapus; batas nyata = batas pemakaian akun Apify sendiri). Nyalakan lagi: `MONTHLY_CAP = true`.

@@ -22,6 +22,7 @@ import {
   finalizeRunIfDone,
   jsonbValue,
   type RunOwnerTable,
+  readSettings,
   settleGap,
   type Tx,
   withSystem,
@@ -423,6 +424,8 @@ export async function handleDispatch(
         hist.map((r) => ({ itemsNew: Number(r.items_new), windowMin: Number(r.window_min), maxItems: r.max_items })),
         plan.interval_sec,
         platformMax,
+        // lantai post per pengambilan (Pengaturan → Batas & jadwal → lanjutan)
+        (await readSettings(tx))["fetch.min_items_per_run"],
       );
     }
     // topik akun (menu Akun): user_timeline → username dari term `@username` di query

@@ -21,11 +21,11 @@ export const ADAPTIVE_GROWTH = 4;
  * @param history run incremental selesai terbaru dulu (maks. ±6); < 2 sampel → `platformMax` (belum ada dasar perkiraan)
  * @returns maxItems untuk run berikutnya, selalu dalam [ADAPTIVE_MIN_ITEMS, platformMax]
  */
-export function adaptiveMaxItems(history: RunSample[], intervalSec: number, platformMax: number): number {
+export function adaptiveMaxItems(history: RunSample[], intervalSec: number, platformMax: number, minItems = ADAPTIVE_MIN_ITEMS): number {
   const h = history.filter((r) => r.windowMin > 0);
   if (h.length < 2) return platformMax;
   const perMin = h.reduce((a, r) => a + r.itemsNew, 0) / h.reduce((a, r) => a + r.windowMin, 0);
-  let n = Math.max(ADAPTIVE_MIN_ITEMS, Math.ceil(ADAPTIVE_SAFETY * perMin * (intervalSec / 60)));
+  let n = Math.max(minItems, Math.ceil(ADAPTIVE_SAFETY * perMin * (intervalSec / 60)));
   const last = h[0]!;
   if (last.maxItems && last.itemsNew >= 0.8 * last.maxItems) n = Math.max(n, last.maxItems * ADAPTIVE_GROWTH);
   return Math.min(platformMax, n);

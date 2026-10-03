@@ -14,6 +14,7 @@ import {
   INSTAGRAM_HASHTAG,
   KAITO_MIN_ITEMS,
   queryToHashtags,
+  THREADS_MINEWORKS,
   THREADS_SCRAPERSDELIGHT,
   TIKTOK_CLOCKWORKS,
   TIKTOK_XMOLODTSOV,
@@ -229,6 +230,35 @@ const FIXTURES: Record<string, { spec: ActorSpec; items: unknown[]; expectCount:
         ownerId: "42",
         caption: "> 30 hari sebelum window → dibuang",
       },
+    ],
+  },
+  threads_mineworks: {
+    spec: THREADS_MINEWORKS,
+    expectCount: 2,
+    items: [
+      {
+        post_id: "3700000000000000001",
+        code: "DTm1",
+        url: "https://www.threads.com/@tm1/post/DTm1",
+        text: "kopdes jalan terus #kdmp",
+        posted_at: IN,
+        username: "tm1",
+        user_full_name: "TM Satu",
+        user_verified: true,
+        like_count: 4,
+        reply_count: 1,
+        repost_count: 0,
+        quote_count: 0,
+        hashtags: ["kdmp"],
+        mentions: [],
+        media_urls: ["https://m.example.invalid/t.jpg"],
+        media_type: "image",
+        is_reply: false,
+        is_repost: false,
+      },
+      { post_id: "3700000000000000002", text: "balasan", posted_at: IN, username: "tm2", is_reply: true, like_count: 0 },
+      { post_id: "3700000000000000003", text: "terlalu lama", posted_at: "2026-05-01T00:00:00Z", username: "tm3" },
+      { _type: "summary", delivered: 3, message: "selesai" },
     ],
   },
   facebook: {
@@ -531,6 +561,25 @@ describe("detail normalizer & input", () => {
     await expect(
       new ApifyActorConnector(INSTAGRAM_HASHTAG).fetch(req(INSTAGRAM_HASHTAG, { query: { native: '"!!"', sourceNodeIds: [] } }), ctx()),
     ).rejects.toMatchObject({ code: "INVALID_QUERY" });
+  });
+
+  test("Threads themineworks: terbaru (resultType recent), username = id penulis, baris ringkasan dibuang, reply terdeteksi", async () => {
+    const r = await fetchOf(THREADS_MINEWORKS);
+    expect(r.map((i) => [i.platform_post_id, i.content_type])).toEqual([
+      ["3700000000000000001", "post"],
+      ["3700000000000000002", "reply"],
+    ]);
+    expect(r[0]).toMatchObject({
+      author: { platform_user_id: "tm1", handle: "tm1", verified: true },
+      metrics: { likes: 4 },
+      hashtags: ["kdmp"],
+    });
+    expect(bodies["themineworks~threads-search-scraper"]).toEqual({
+      searchQuery: "koperasi merah putih",
+      resultType: "recent",
+      maxPosts: 20,
+    });
+    expect(THREADS_MINEWORKS.operations.search_keyword?.resultOrder).toBe("desc"); // → maxItems adaptif berlaku
   });
 
   test("Facebook: handle dari profileUrl (username / profile.php?id), reaksi = likes, hashtag dari teks", async () => {

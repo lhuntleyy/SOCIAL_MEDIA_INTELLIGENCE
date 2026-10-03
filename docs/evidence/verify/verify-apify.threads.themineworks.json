@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-03T10:42:44.713Z",
+  "connector": "apify.threads.themineworks",
+  "version": "0.1.0",
+  "operation": "search_keyword",
+  "query": "pancasila",
+  "window_hours": 72,
+  "max_items": 20,
+  "samples": 3,
+  "items_valid": 34,
+  "items_invalid": 0,
+  "usage_results_returned": 60,
+  "cost_usd": 0.068,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1,
+    "metrics.comments": 1
+  },
+  "latency_ms": {
+    "samples": [
+      16675,
+      21564,
+      15500
+    ],
+    "p50": 16675,
+    "p95": 21564
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}

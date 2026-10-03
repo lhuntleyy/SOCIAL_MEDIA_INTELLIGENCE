@@ -387,3 +387,25 @@ murah di sisi data; biaya tambahannya di AI (± 30–60% dari biaya AI post).
 2. **Facebook**: 15 menit–1 jam (atau provider per-request).
 3. **Berbagi pengambilan antar kantor** (collection stream, ADR-009 — diuji §12.4): keyword sama → dibayar sekali.
 4. **AI**: model sendiri dari korpus `nlp_labels` (AI_SPEC §14) → biaya AI per teks mendekati 0 setelah dilatih.
+
+### 12.4 Update 2026-10-03 (sore): Threads pindah ke actor terurut terbaru + paket di Pengaturan
+**Threads → Apify `themineworks/threads-search-scraper`** (VERIFIED: $0,005 start/run + $0,001/post, `resultType: recent`). Karena hasil
+terurut terbaru, **maxItems adaptif** berlaku → poll rapat hanya membayar ± post baru, bukan 24 jam penuh. Actor lama (scrapersdelight)
+jadi cadangan. Lantai post per pengambilan kini diatur di Pengaturan (`fetch.min_items_per_run`, bawaan 5).
+
+Biaya modal per kantor (10 topik campuran, termasuk AI + komentar) — angka ini yang tampil di Pengaturan → Batas & jadwal:
+
+| Paket | Jadwal | Lantai 5 | Lantai 2 | Harga jual / kantor (×1,2 ÷ 0,4) |
+|---|---|---:|---:|---:|
+| Hemat | semua 3 jam | Rp 8,3 jt | Rp 8,1 jt | ± Rp 25 jt |
+| Standar | X/TikTok/IG 15m · Threads/FB 1j · YouTube 3j | Rp 12,8 jt | Rp 11,8 jt | ± Rp 38 jt |
+| Plus | X/TikTok/IG 5m · Threads/FB 15m · YouTube 1j | Rp 28,3 jt | Rp 21,9 jt | ± Rp 66–85 jt |
+| Real-time | semua 5m · YouTube 1j | **Rp 56,3 jt** (dulu Rp 221 jt) | Rp 35,5 jt | ± Rp 107–169 jt |
+
+Provider per-request yang dievaluasi (belum dipakai — butuh akun berbayar pemilik):
+- **Threads — ScrapeCreators** `/v1/threads/search` ($10/5K request ≈ $0,002/request, kredit tidak kedaluwarsa; filter tanggal per hari,
+  tanpa cursor): **ditagih per request, bukan per post** → Threads 5m ± $16/topik/bln. Provider `scrapecreators` sudah terdaftar.
+- **Threads — CaptAPI** search (2 kredit/request flat, `orderBy=post_dated`, ≤ 200 post; Starter $9/2.000 kredit ≈ $0,009/request).
+- **Facebook** keyword: tidak ada API per-request yang murah (AnyAPI search $30/1K request; ScrapeCreators tanpa pencarian keyword).
+  Actor Apify termurah dengan mode terbaru: `silentflow/facebook-search-scraper` ($2,3/1K), `scrapeforge/facebook-search-posts`
+  ($2,59/1K) vs `scraper_one` sekarang ($4/1K, mode `latest`, sudah adaptif). Pengungkit terbesar FB = lantai post & jadwal.

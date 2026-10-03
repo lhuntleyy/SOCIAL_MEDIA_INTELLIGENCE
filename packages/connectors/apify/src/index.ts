@@ -5,6 +5,7 @@ import { FACEBOOK_SCRAPERONE } from "./facebook-scraperone";
 import { INSTAGRAM_BOOLEAN } from "./instagram-boolean";
 import { INSTAGRAM_HASHTAG } from "./instagram-hashtag";
 import { THREADS_SCRAPERSDELIGHT } from "./threads-scrapersdelight";
+import { THREADS_MINEWORKS } from "./threads-themineworks";
 import { TIKTOK_CLOCKWORKS } from "./tiktok-clockworks";
 import { TIKTOK_XMOLODTSOV } from "./tiktok-xmolodtsov";
 import { X_KAITO } from "./x-kaito";
@@ -18,6 +19,7 @@ export * from "./facebook-scraperone";
 export * from "./instagram-boolean";
 export * from "./instagram-hashtag";
 export * from "./threads-scrapersdelight";
+export * from "./threads-themineworks";
 export * from "./tiktok-clockworks";
 export * from "./tiktok-xmolodtsov";
 export * from "./util";
@@ -37,6 +39,7 @@ export const APIFY_SPECS = [
   TIKTOK_XMOLODTSOV,
   YOUTUBE_STREAMERS,
   THREADS_SCRAPERSDELIGHT,
+  THREADS_MINEWORKS,
 ];
 
 /** Semua connector Apify yang siap dipakai worker-fetch-bun. */

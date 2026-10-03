@@ -1,0 +1,149 @@
+{
+  "date": "2026-10-03T09:29:23.353Z",
+  "actor": "themineworks/threads-search-scraper",
+  "build": "0.1.12",
+  "input": {
+    "searchQuery": "pancasila",
+    "maxPosts": 10,
+    "resultType": "recent"
+  },
+  "status": "SUCCEEDED",
+  "duration_ms": 14748,
+  "items": 11,
+  "cost_usd": 0.005,
+  "charged_events": {
+    "post-scraped": 0,
+    "apify-actor-start": 1
+  },
+  "account_usage_usd": {
+    "before": 3.8663016794147693,
+    "after": 3.871309376982113,
+    "limit": 5
+  },
+  "input_schema_properties": {
+    "searchQuery": {
+      "type": "string",
+      "editor": "textfield",
+      "description": "Search keyword. Used when mode=search, e.g. \"web3\" or \"artificial intelligence\"."
+    },
+    "maxPosts": {
+      "type": "integer",
+      "description": "Maximum posts to return across the whole run. This is a ceiling, not a target: the actor stops as soon as it has enough or every target is exhausted. In search and hashtag mode a high value is usually"
+    },
+    "resultType": {
+      "type": "string",
+      "enum": [
+        "recent",
+        "top"
+      ],
+      "description": "For search and hashtag modes: 'recent' or 'top'."
+    },
+    "monitorMode": {
+      "type": "boolean",
+      "editor": "checkbox",
+      "description": "Run on a schedule and get ONLY posts not delivered in a previous run, so a standing keyword watch bills for new mentions instead of the whole result set every time. Keep the query the same across runs"
+    },
+    "proxyConfiguration": {
+      "type": "object",
+      "editor": "proxy",
+      "description": "Apify proxy. Defaults to datacenter with a fresh rotating session per request, which clears Threads' IP throttling. Switch to residential only if you see persistent blocks."
+    }
+  },
+  "output_shape": {
+    "": [
+      "object"
+    ],
+    "_type": [
+      "string"
+    ],
+    "code": [
+      "string"
+    ],
+    "delivered": [
+      "int"
+    ],
+    "has_media": [
+      "boolean"
+    ],
+    "hashtags": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "hashtags[]": [
+      "string"
+    ],
+    "is_reply": [
+      "boolean"
+    ],
+    "is_repost": [
+      "boolean"
+    ],
+    "like_count": [
+      "int"
+    ],
+    "media_type": [
+      "string"
+    ],
+    "media_urls": [
+      "array(empty)",
+      "array(…)"
+    ],
+    "media_urls[]": [
+      "string:url"
+    ],
+    "mentions": [
+      "array(empty)"
+    ],
+    "message": [
+      "string"
+    ],
+    "post_id": [
+      "string:numeric-id"
+    ],
+    "posted_at": [
+      "string:iso-z"
+    ],
+    "posted_at_human": [
+      "string"
+    ],
+    "quote_count": [
+      "int"
+    ],
+    "reply_count": [
+      "int"
+    ],
+    "repost_count": [
+      "int"
+    ],
+    "review_tip": [
+      "string"
+    ],
+    "schedule_tip": [
+      "string"
+    ],
+    "scraped_at": [
+      "string:iso-z"
+    ],
+    "text": [
+      "string"
+    ],
+    "url": [
+      "string:url"
+    ],
+    "urls": [
+      "array(empty)"
+    ],
+    "user_full_name": [
+      "string"
+    ],
+    "user_pic_url": [
+      "string:url"
+    ],
+    "user_verified": [
+      "boolean"
+    ],
+    "username": [
+      "string"
+    ]
+  }
+}
