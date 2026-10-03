@@ -97,7 +97,10 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | A-04 | in_progress | claude | [analytics.test](../apps/api/test/analytics.test.ts) · enrich.test | Jalur LLM: isu 0–3 frasa/post di batch sentimen (`sent-emo-iss-v2`) → `agg_issue_1h` → `/analytics/issues` (count/engagement) → word cloud Dashboard & Laporan. Belum: skor c-TF-IDF, merge sinonim, precision@5 |
 | U-04 | in_progress | claude | `apps/web/src/pages/Conversation.tsx` | Percakapan: Kronologi, **Isu** (donut teratas, perbandingan vs periode sebelumnya, cloud positif/negatif), Sentimen (+cloud isu per sentimen), Emosi, Engagement. Belum: override sentimen (A-05), Galeri, Kontributor terpisah |
 | A-05 | done | claude | [analytics.test](../apps/api/test/analytics.test.ts) P-06 · [sink.test](../apps/worker-sink/test/sink.test.ts) · CI | Override sentimen end-to-end: `@smip/analytics overrideSentiment` (salinan +1 terakhir → −1, +1 `human`), API PATCH (analyst+, scope `posts:write`, RLS topik, `sentiment_overrides`, audit jsonb), relabel/reprocess melewati label `human`, UI kartu post (analyst+). Belum: antrean kurasi admin sebelum masuk training (AI_SPEC §8), override emosi |
-| A-01, A-02, A-07 … A-09, D-03, D-04, U-02 … U-06 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
+| A-08, A-09 | in_progress | claude | enrich.test (ambang, below_18 disensor, cache, gagal → unknown, saklar) | Jalur LLM per akun + cache CH + τ + minor_suppressed. Belum: eval precision/disparitas pada golden set (S-23), leksikon nama sebagai sinyal pertama, backfill demografi post lama |
+| D-04 | in_progress | claude | analytics.test (psikografi + coverage + isolasi tenant) | `/analytics/psychography`. Belum: Gallery/Chronology endpoint terpisah |
+| U-06 | in_progress | claude | `apps/web/src/pages/Audience.tsx` | Gender, usia, sentimen per gender/usia + coverage di Audiens |
+| A-01, A-02, A-07, D-03, U-02 … U-05 | todo | | | Termasuk emotion (A-07), demografi (A-08/A-09), psychography (D-04/U-06), Conversation subpages (U-04), Resume (U-07) |
 
 ## Fase 4 — Provider Ops & Alert
 | ID | Status | PIC | Bukti | Catatan |
@@ -141,6 +144,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-03 | Threads murah + Psikografi | Threads → themineworks (terurut terbaru, adaptif; Real-time Rp 221 jt → 56 jt/kantor). Batas & jadwal disederhanakan (4 paket). Psikografi A-08/A-09/D-04/U-06 jalur LLM. Riset provider: ScrapeCreators/CaptAPI (Threads per-request), FB tanpa API per-request murah |
 | 2026-10-03 | Komentar + Batas & jadwal | Keputusan pemilik: ambil komentar post teratas; semua batas/jadwal di Pengaturan (owner). Run `comments` (0026) + planner + YouTube commentThreads (VERIFIED) + pipeline tanpa cocok keyword; interval per platform (0025/0028), system_settings (0025/0027). Live: 453 komentar YouTube/run. Uji stream 2 kantor → 1 stream. COST_MODEL §12 lengkap. 470+ test |
 | 2026-10-03 | Audit + key di Pengaturan | Audit live: IG & TikTok mati sejak 01-10 karena **saldo HikerAPI & LamaTok $0** (402) — perlu isi ulang oleh pemilik; kini terlihat di UI (cooldown + alasan). Kelola API key provider dari Pengaturan. Fix biaya HikerAPI (maks 8 hashtag/run). Audit UI Playwright di localhost: 13 halaman + drill-down tanpa error JS/API. 461+ test lulus |
 | 2026-10-01 | Menu Akun (pantau akun) | Keputusan pemilik: menu baru per akun. `topics.kind` (0024), query `@username` → user_timeline; connector user_timeline: lamatok/hikerapi/xquik (verified live); API kind + validasi + filter + operations_available; UI `Accounts.tsx`. Test: query (@author), topics (kind, plan, backfill 1 run/akun). Apify FREE → maks 4 run bersamaan |

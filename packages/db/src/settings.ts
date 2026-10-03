@@ -7,6 +7,8 @@ import { withSystem } from "./client";
 export const SETTING_DEFAULTS = {
   /** Lantai post per pengambilan untuk sumber terurut terbaru (maxItems adaptif; COST_MODEL §11.2). Lebih kecil = lebih hemat. */
   "fetch.min_items_per_run": 5,
+  /** Psikografi (gender & rentang usia agregat, AI_SPEC §12): perkiraan per akun via LLM. */
+  "demographics.enabled": true,
   /** Topik baru / platform baru: ambil data N hari ke belakang saat dibuat (0 = mati). */
   "topics.initial_backfill_days": 7,
   /** Komentar: ambil komentar dari post teratas tiap topik. */

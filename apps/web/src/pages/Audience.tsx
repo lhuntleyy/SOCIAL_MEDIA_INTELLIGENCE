@@ -1,5 +1,5 @@
 import ReactECharts from "echarts-for-react";
-import { BarList, type Filters, fmtN, Panel, PieChart, Treemap, useA, useDrill } from "../analytics";
+import { BarList, type Filters, fmtN, Panel, PieChart, SENT_COLOR, SENT_LABEL, Treemap, useA, useDrill } from "../analytics";
 import { Empty } from "../ui";
 import { AnalyticsPage, type Geo } from "./Dashboard";
 
@@ -91,17 +91,113 @@ function Body({ f }: { f: Filters }) {
             />
           </Panel>
         </div>
-        <Panel title="Psikografi (gender & usia)">
-          <p className="text-sm text-zinc-600">
-            Segera hadir: estimasi <b>gender</b> dan <b>rentang usia</b> audiens — hanya ditampilkan sebagai agregat (persentase + cakupan),
-            tidak pernah per akun.
-          </p>
+        <Panel title="Komposisi gender">
+          <GenderPie f={f} />
         </Panel>
       </div>
+      <Psychography f={f} />
     </>
   );
 }
 
 export default function Audience() {
   return <AnalyticsPage title="Audiens">{(f) => <Body f={f} />}</AnalyticsPage>;
+}
+
+// ---------------------------------------------------------------- Psikografi (A-08/A-09, D-04, U-06)
+interface PsyGroup {
+  total: number;
+  unknown: number;
+  coverage_pct: number;
+  items: { key: string; count: number; pct: number; sentiment: Record<string, number> }[];
+}
+interface Psy {
+  gender: PsyGroup;
+  age: PsyGroup;
+}
+const GENDER_LABEL: Record<string, string> = { male: "Laki-laki", female: "Perempuan" };
+const GENDER_COLOR: Record<string, string> = { male: "#2563eb", female: "#db2777" };
+const AGE_ORDER = ["18_21", "22_30", "31_45", "46_55", "above_55"];
+const AGE_LABEL: Record<string, string> = { "18_21": "18–21", "22_30": "22–30", "31_45": "31–45", "46_55": "46–55", above_55: "> 55" };
+
+const Coverage = ({ g }: { g: PsyGroup | undefined }) =>
+  g ? (
+    <span className="text-xs text-zinc-500" title="Porsi post dari akun yang gender/usianya bisa diperkirakan dengan yakin">
+      terdeteksi {g.coverage_pct}% · tidak diketahui {fmtN(g.unknown)} post
+    </span>
+  ) : null;
+
+function GenderPie({ f }: { f: Filters }) {
+  const q = useA<Psy>(f, "/analytics/psychography");
+  const g = q.data?.gender;
+  return (
+    <>
+      <PieChart
+        donut
+        height={240}
+        items={g?.items.map((i) => ({ key: i.key, name: GENDER_LABEL[i.key] ?? i.key, value: i.count, color: GENDER_COLOR[i.key] }))}
+      />
+      <div className="text-center">
+        <Coverage g={g} />
+      </div>
+    </>
+  );
+}
+
+function SentimentBars({ g, order, label }: { g: PsyGroup | undefined; order: string[]; label: (k: string) => string }) {
+  const items = order.map((k) => g?.items.find((i) => i.key === k)).filter((i): i is PsyGroup["items"][number] => !!i);
+  if (!items.length) return <Empty>Belum cukup data terdeteksi.</Empty>;
+  return (
+    <ReactECharts
+      style={{ height: Math.max(180, items.length * 44 + 60) }}
+      option={{
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (v: number) => `${v}%` },
+        legend: { bottom: 0 },
+        grid: { left: 90, right: 24, top: 8, bottom: 40 },
+        xAxis: { type: "value", max: 100, axisLabel: { formatter: "{value}%" } },
+        yAxis: { type: "category", inverse: true, data: items.map((i) => label(i.key)) },
+        series: (["negative", "neutral", "positive"] as const).map((s) => ({
+          name: SENT_LABEL[s],
+          type: "bar",
+          stack: "s",
+          itemStyle: { color: SENT_COLOR[s] },
+          data: items.map((i) => (i.count ? Math.round(((i.sentiment[s] ?? 0) / i.count) * 1000) / 10 : 0)),
+        })),
+      }}
+    />
+  );
+}
+
+/** Hanya agregat: tidak ada label gender/usia per akun atau per post di mana pun (SEC-09, ADR-007). */
+function Psychography({ f }: { f: Filters }) {
+  const q = useA<Psy>(f, "/analytics/psychography");
+  const d = q.data;
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Panel
+          title="Rentang usia"
+          info="Perkiraan dari nama/username/umur akun; hanya akun yang cukup yakin. Di bawah 18 tahun tidak pernah ditandai per akun."
+          right={<Coverage g={d?.age} />}
+        >
+          <BarList
+            color="#7c3aed"
+            items={AGE_ORDER.map((k) => d?.age.items.find((i) => i.key === k))
+              .filter((i): i is PsyGroup["items"][number] => !!i)
+              .map((i) => ({ key: i.key, name: AGE_LABEL[i.key] ?? i.key, value: i.count }))}
+          />
+        </Panel>
+        <Panel title="Sentimen per gender" info="Persentase sentimen post dari masing-masing kelompok.">
+          <SentimentBars g={d?.gender} order={["male", "female"]} label={(k) => GENDER_LABEL[k] ?? k} />
+        </Panel>
+        <Panel title="Sentimen per usia">
+          <SentimentBars g={d?.age} order={AGE_ORDER} label={(k) => AGE_LABEL[k] ?? k} />
+        </Panel>
+      </div>
+      <p className="text-xs text-zinc-500">
+        Psikografi = <b>perkiraan</b> dari nama tampilan, username, dan umur akun (bukan data resmi), hanya ditampilkan sebagai agregat.
+        Akun organisasi/media dan akun yang meragukan masuk “tidak diketahui”.
+      </p>
+    </>
+  );
 }

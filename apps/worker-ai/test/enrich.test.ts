@@ -5,10 +5,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { HttpClient } from "@smip/connector-sdk";
 import { credentialAad, LocalDevKms, seal } from "@smip/crypto";
 import { createDb, up } from "@smip/db";
-import { parseBatch, pseudonymize } from "@smip/llm";
+import { demographicsDecision, parseBatch, pseudonymize } from "@smip/llm";
 import { MemoryBlobStore } from "@smip/storage";
 import postgres from "postgres";
 import { handleEnrich, LlmRuntime, UNLABELED_VERSION } from "../src";
+import { type AuthorDemo, type DemographicsStore, type DemoRow, demoKey } from "../src/demographics";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
 const pgUp = await (async () => {
@@ -64,6 +65,26 @@ test("parseBatch: indeks 1-based, label tak dikenal / duplikat / di luar rentang
     },
   ]);
   expect(pseudonymize("@budi cek https://x.co/a 08123456789 2026")).toBe("<user> cek <url> <num> 2026");
+});
+
+test("demografi: di bawah ambang → unknown; below_18 tidak pernah disimpan per akun (ADR-007)", () => {
+  expect(demographicsDecision({ gender: "female", gender_confidence: 0.9, age_range: "22_30", age_confidence: 0.8 })).toMatchObject({
+    gender: "female",
+    age_range: "22_30",
+    minorSuppressed: false,
+  });
+  expect(demographicsDecision({ gender: "male", gender_confidence: 0.5, age_range: "31_45", age_confidence: 0.4 })).toMatchObject({
+    gender: "unknown",
+    age_range: "unknown",
+  });
+  expect(demographicsDecision({ gender: "male", gender_confidence: 0.95, age_range: "below_18", age_confidence: 0.99 })).toEqual({
+    gender: "male",
+    gender_conf: 0.95,
+    age_range: "unknown",
+    age_conf: 0,
+    minorSuppressed: true,
+  });
+  expect(demographicsDecision(null).gender).toBe("unknown");
 });
 
 describe.skipIf(!pgUp)("worker-ai jalur LLM (integrasi)", () => {
@@ -232,5 +253,127 @@ describe.skipIf(!pgUp)("worker-ai jalur LLM (integrasi)", () => {
       ["neutral", 0, UNLABELED_VERSION],
     ]);
     mode = "ok";
+  });
+
+  test("A-08/A-09: gender/usia per akun → payload sink (agregat); cache dipakai ulang; anak disensor; LLM demografi gagal → unknown", async () => {
+    const store = new Map<string, AuthorDemo>();
+    const saved: DemoRow[] = [];
+    const demographics: DemographicsStore = {
+      get: async (keys) =>
+        new Map(
+          keys.flatMap((k) =>
+            store.has(demoKey(k.platform, k.authorId))
+              ? [[demoKey(k.platform, k.authorId), store.get(demoKey(k.platform, k.authorId))!]]
+              : [],
+          ),
+        ),
+      put: async (rows) => {
+        for (const r of rows) {
+          saved.push(r);
+          store.set(demoKey(r.platform, r.author_id), r);
+        }
+      },
+    };
+    let demoCalls = 0;
+    let demoFail = false;
+    const llm = {
+      call: async (task: string, build: (n: number) => { system: string; user: string }) => {
+        const c = build(4096);
+        const n = (c.user.match(/^\[\d+\]/gm) ?? []).length;
+        const resolved = { providerKey: "fake", model: "m1", params: {} };
+        if (c.system.includes("statistik AGREGAT")) {
+          demoCalls++;
+          if (demoFail) throw new Error("kuota habis");
+          // urutan akun mengikuti urutan post: a1 Budi (yakin), a2 anak (disensor), a3 ragu
+          const ans = [
+            { gender: "male", gender_confidence: 0.95, age_range: "31_45", age_confidence: 0.8 },
+            { gender: "female", gender_confidence: 0.9, age_range: "below_18", age_confidence: 0.9 },
+            { gender: "female", gender_confidence: 0.4, age_range: "22_30", age_confidence: 0.3 },
+          ];
+          return { json: { results: ans.slice(0, n).map((a, k) => ({ i: k + 1, ...a })) }, resolved } as never;
+        }
+        expect(task).toBe("sentiment");
+        return {
+          json: {
+            results: Array.from({ length: n }, (_, k) => ({
+              i: k + 1,
+              sentiment: "neutral",
+              sentiment_confidence: 0.9,
+              emotion: "unknown",
+              emotion_confidence: 0.5,
+              issues: [],
+            })),
+          },
+          resolved,
+        } as never;
+      },
+    };
+    const mk = async (authors: { id: string; name: string }[]) => {
+      const posts = authors.map((a, k) => ({
+        platform: "x",
+        platform_post_id: `d${a.id}${k}${Date.now()}`,
+        text: "kopdes di desa kami sudah berjalan dengan baik sekali",
+        author: { platform_user_id: a.id, handle: a.id, display_name: a.name, created_at: null, followers: null },
+        hashtags: [],
+        media: [],
+        parent: null,
+        geo_region_code: null,
+      }));
+      const ref = await blobs.putJsonl(`posts/demo-${Date.now()}.jsonl.gz`, posts);
+      return {
+        batch_id: Bun.randomUUIDv7(),
+        crawl_run_id: RUN,
+        tenant_id: T,
+        topic_id: TOPIC,
+        priority_class: "realtime" as const,
+        items: posts.map((p) => ({
+          platform: "x",
+          post_id: p.platform_post_id,
+          text: p.text,
+          lang_hint: "id",
+          is_new_post: true,
+          author: { platform_user_id: p.author.platform_user_id, display_name: p.author.display_name, created_at: null },
+          match: { topic_query_id: Q },
+        })),
+        items_ref: ref,
+        models: {},
+      };
+    };
+    const d = { db: created.db, llm, blobs, training, demographics };
+    const r1 = await handleEnrich(
+      d,
+      await mk([
+        { id: "a1", name: "Budi Santoso" },
+        { id: "a2", name: "Adik" },
+        { id: "a3", name: "Kiki" },
+      ]),
+      {
+        lastAttempt: false,
+      },
+    );
+    expect(r1.payload.matches.map((m) => [m.author_gender, m.author_age_range])).toEqual([
+      ["male", "31_45"],
+      ["female", "unknown"], // below_18 → unknown
+      ["unknown", "unknown"], // di bawah ambang
+    ]);
+    expect(saved.map((x) => [x.author_id, x.method, x.age_range])).toEqual([
+      ["a1", "llm", "31_45"],
+      ["a2", "minor_suppressed", "unknown"],
+      ["a3", "llm", "unknown"],
+    ]);
+    expect(saved.every((x) => x.model_version === "llm:fake:m1:demo-v1")).toBe(true);
+    // akun yang sama lagi → dari cache, tanpa panggilan LLM demografi
+    const r2 = await handleEnrich(d, await mk([{ id: "a1", name: "Budi Santoso" }]), { lastAttempt: false });
+    expect([demoCalls, r2.payload.matches[0]!.author_gender]).toEqual([1, "male"]);
+    // LLM demografi gagal → akun baru unknown, batch sentimen tetap jalan
+    demoFail = true;
+    const r3 = await handleEnrich(d, await mk([{ id: "a9", name: "Rina" }]), { lastAttempt: false });
+    expect([r3.labeled, r3.payload.matches[0]!.author_gender]).toEqual([1, "unknown"]);
+    // fitur dimatikan di Pengaturan → tidak memanggil LLM demografi sama sekali
+    await sql`insert into system_settings (key, value) values ('demographics.enabled', 'false')`;
+    demoFail = false;
+    const before = demoCalls;
+    await handleEnrich(d, await mk([{ id: "a10", name: "Agus" }]), { lastAttempt: false });
+    expect(demoCalls).toBe(before);
   });
 });

@@ -1,4 +1,5 @@
 // Service `worker-ai` (Fase 3, jalur LLM — ADR-011): consume ai.enrich & reprocess.ai (A-06) → sink.analytics. Model & API key dari panel admin.
+import { createClient } from "@clickhouse/client";
 import { loadConfig } from "@smip/config";
 import { HttpClient } from "@smip/connector-sdk";
 import { AiEnrichPayload } from "@smip/contracts";
@@ -7,6 +8,7 @@ import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
 import { BullMqQueue, createEnvelope, QUEUE_POLICIES } from "@smip/queue";
 import { S3BlobStore } from "@smip/storage";
+import { chDemographicsStore } from "./demographics";
 import { handleEnrich } from "./enrich";
 import { LlmRuntime } from "./runtime";
 
@@ -23,7 +25,20 @@ const s3 = (bucket: string) =>
     secretAccessKey: cfg.S3_SECRET_ACCESS_KEY!,
   });
 const llm = new LlmRuntime({ db, kms: createKms(cfg), http: new HttpClient({ timeoutMs: 90_000 }), logger });
-const deps = { db, llm, blobs: s3(cfg.S3_BUCKET_RAW!), training: s3(cfg.S3_BUCKET_TRAINING!), logger };
+const ch = createClient({
+  url: cfg.CLICKHOUSE_URL,
+  database: cfg.CLICKHOUSE_DB,
+  username: cfg.CLICKHOUSE_USER,
+  password: cfg.CLICKHOUSE_PASSWORD,
+});
+const deps = {
+  db,
+  llm,
+  blobs: s3(cfg.S3_BUCKET_RAW!),
+  training: s3(cfg.S3_BUCKET_TRAINING!),
+  logger,
+  demographics: chDemographicsStore(ch),
+};
 
 const handler = (queueName: "ai.enrich" | "reprocess.ai") => async (m: { payload: AiEnrichPayload }, ctx: { attempt: number }) => {
   const r = await handleEnrich(deps, m.payload, { lastAttempt: ctx.attempt >= QUEUE_POLICIES[queueName].attempts });

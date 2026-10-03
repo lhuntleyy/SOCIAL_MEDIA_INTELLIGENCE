@@ -194,6 +194,69 @@ describe.skipIf(!up)("D-01 analytics", () => {
     expect((await get(`/analytics/platforms?topic_id=${TA}`, tb)).status).toBe(404);
   });
 
+  test("D-04 psikografi: proporsi gender/usia + sentimen per kelompok + coverage (unknown tetap dihitung); tanpa label per akun", async () => {
+    const now = Date.now();
+    const TP = tid(30);
+    await h.sql`insert into topics (id, tenant_id, name) values (${TP}, ${A}, 'Psiko')`;
+    const ev = (k: number, gender: string, age: string, sentiment: string) => ({
+      tenant_id: A,
+      topic_id: TP,
+      topic_query_id: tid(9),
+      platform: "x",
+      post_id: `ps${k}`,
+      content_type: "post",
+      published_at: new Date(now - (k + 1) * 3_600_000).toISOString().replace("T", " ").slice(0, 23),
+      author_id: `pa${k}`,
+      author_handle: `pa${k}`,
+      author_created_year: null,
+      author_followers: null,
+      sentiment,
+      sentiment_score: 0.9,
+      emotion: "unknown",
+      emotion_score: 0,
+      author_gender: gender,
+      author_gender_conf: gender === "unknown" ? 0 : 0.9,
+      author_age_range: age,
+      author_age_conf: age === "unknown" ? 0 : 0.8,
+      model_version: "llm:v1",
+      issues: [],
+      hashtags: [],
+      parent_author_id: null,
+      parent_author_handle: null,
+      geo_region_code: null,
+      media: [],
+      engagement: 1,
+      engagement_known: 1,
+      sign: 1,
+      event_at: new Date(now).toISOString().replace("T", " ").slice(0, 23),
+    });
+    await ch.insert({
+      table: "topic_match_events",
+      format: "JSONEachRow",
+      values: [
+        ev(19, "unknown", "unknown", "neutral"),
+        ev(20, "male", "22_30", "negative"),
+        ev(21, "male", "31_45", "positive"),
+        ev(22, "female", "22_30", "negative"),
+      ],
+    });
+    const r = (await get(`/analytics/psychography?topic_id=${TP}`, ta)).json.data as {
+      gender: {
+        total: number;
+        unknown: number;
+        coverage_pct: number;
+        items: { key: string; count: number; pct: number; sentiment: Record<string, number> }[];
+      };
+      age: { items: { key: string; count: number }[] };
+    };
+    // 1 post tanpa label (unknown tetap dihitung) + 3 berlabel → coverage 75%
+    expect([r.gender.total, r.gender.unknown, r.gender.coverage_pct]).toEqual([4, 1, 75]);
+    const g = Object.fromEntries(r.gender.items.map((i) => [i.key, [i.count, i.pct, i.sentiment.negative, i.sentiment.positive]]));
+    expect(g).toEqual({ male: [2, 66.7, 1, 1], female: [1, 33.3, 1, 0] });
+    expect(Object.fromEntries(r.age.items.map((i) => [i.key, i.count]))).toEqual({ "22_30": 2, "31_45": 1 });
+    expect((await get(`/analytics/psychography?topic_id=${TP}`, tb)).status).toBe(404);
+  });
+
   test("SEC-01: topik tenant lain → 404; parameter tidak valid → 400", async () => {
     expect((await get(`/analytics/sentiment/proportion?topic_id=${TA}`, tb)).status).toBe(404);
     expect((await get(`/posts?topic_id=${TA}`, tb)).status).toBe(404);

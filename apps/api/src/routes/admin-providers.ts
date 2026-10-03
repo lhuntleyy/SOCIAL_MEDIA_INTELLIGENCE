@@ -24,6 +24,7 @@ const SettingsZ = z
   .strictObject({
     "topics.initial_backfill_days": z.int().min(0).max(31).nullable(),
     "fetch.min_items_per_run": z.int().min(1).max(100).nullable(),
+    "demographics.enabled": z.boolean().nullable(),
     "comments.enabled": z.boolean().nullable(),
     "comments.top_posts_per_day": z.int().min(0).max(1000).nullable(),
     "comments.max_pages_per_post": z.int().min(1).max(50).nullable(),

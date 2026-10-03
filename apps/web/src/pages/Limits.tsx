@@ -480,10 +480,23 @@ function Simple({ platforms }: { platforms: PlatformRow[] }) {
         <ErrorText error={apply.error} />
       </Card>
       {v && (
-        <Card title="Komentar & topik baru">
+        <Card title="Komentar, psikografi & topik baru">
           <div className="flex flex-wrap items-center gap-3 py-1.5 text-sm">
             <span className="flex-1">Ambil komentar dari post paling ramai</span>
             <Switch on={!!v["comments.enabled"]} onChange={(on) => put.mutate({ "comments.enabled": on })} disabled={put.isPending} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 py-1.5 text-sm">
+            <span className="flex-1">
+              Perkirakan gender & rentang usia audiens (hanya agregat di halaman Audiens)
+              <span className="block text-xs text-zinc-500">
+                Memakai AI untuk akun baru (± 1 panggilan per 40 akun); tidak pernah per akun.
+              </span>
+            </span>
+            <Switch
+              on={!!v["demographics.enabled"]}
+              onChange={(on) => put.mutate({ "demographics.enabled": on })}
+              disabled={put.isPending}
+            />
           </div>
           {v["comments.enabled"] && (
             <NumField

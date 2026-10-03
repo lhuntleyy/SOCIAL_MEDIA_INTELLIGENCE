@@ -396,3 +396,39 @@ export async function feedCount(ch: ClickHouseClient, f: AnalyticsFilter, o: Fee
   const [r] = await q<{ n: string }>(ch, `SELECT count() AS n FROM topic_matches FINAL WHERE ${w.where}`, w.params);
   return Number(r?.n ?? 0);
 }
+
+/**
+ * D-04 Psikografi (AI_SPEC §12.4): proporsi gender & rentang usia (berbasis post dari akun ber-label ≥ τ) + sentimen per kelompok.
+ * Hanya agregat; `coverage_pct` = porsi post dari akun yang terdeteksi — bucket unknown tidak disembunyikan (AGENTS §3a).
+ * `below_18` tidak pernah tersimpan per akun (ADR-007) sehingga tidak muncul.
+ */
+export async function psychography(ch: ClickHouseClient, f: AnalyticsFilter) {
+  const one = async (table: string, col: string) => {
+    const w = base(f, "bucket", true);
+    const rows = await q<{ k: string; s: string; n: string }>(
+      ch,
+      `SELECT toString(${col}) AS k, toString(sentiment) AS s, sum(posts) AS n FROM ${table} WHERE ${w.where} GROUP BY k, s HAVING n != 0`,
+      w.params,
+    );
+    const total = rows.reduce((a, r) => a + Number(r.n), 0);
+    const known = rows.filter((r) => r.k !== "unknown");
+    const knownTotal = known.reduce((a, r) => a + Number(r.n), 0);
+    const by = new Map<string, Record<string, number>>();
+    for (const r of known) {
+      const m = by.get(r.k) ?? { negative: 0, neutral: 0, positive: 0 };
+      m[r.s] = (m[r.s] ?? 0) + Number(r.n);
+      by.set(r.k, m);
+    }
+    return {
+      total,
+      unknown: total - knownTotal,
+      coverage_pct: total ? Math.round((knownTotal / total) * 1000) / 10 : 0,
+      items: [...by].map(([k, s]) => {
+        const n = s.negative! + s.neutral! + s.positive!;
+        return { key: k, count: n, pct: knownTotal ? Math.round((n / knownTotal) * 1000) / 10 : 0, sentiment: s };
+      }),
+    };
+  };
+  const [gender, age] = await Promise.all([one("agg_psycho_gender_1d", "author_gender"), one("agg_psycho_age_1d", "author_age_range")]);
+  return { gender, age, basis: "post dari akun yang terdeteksi (perkiraan per akun, ambang confidence)" };
+}
