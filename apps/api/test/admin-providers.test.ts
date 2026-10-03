@@ -141,30 +141,28 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     const back = await call("PUT", "/admin/settings", opTok, { values: { "comments.top_posts_per_day": null, "comments.enabled": null } });
     expect(back.json.data.values["comments.top_posts_per_day"]).toBe(20);
 
-    // interval platform = kecepatan TERCEPAT (paket owner): plan = max(kecepatan topik, batas); topik lambat tetap lambat
+    // interval platform: plan topik ikut, interval eksplisit per-topik dilepas, jadwal berikutnya tidak lebih lambat
     const TOPIC = tid(0x700);
     const Q = tid(0x701);
     const PLAN = tid(0x702);
     await h.sql.begin(async (tx) => {
       await tx`SET LOCAL ROLE smip_system`;
-      await tx`insert into topics (id, tenant_id, name, default_interval_sec) values (${TOPIC}, ${T1}, 'Topik interval', 300)`;
+      await tx`insert into topics (id, tenant_id, name, default_interval_sec) values (${TOPIC}, ${T1}, 'Topik interval', 3600)`;
       await tx`insert into topic_queries (id, tenant_id, topic_id, kind, query_text, query_ast, ast_hash) values (${Q}, ${T1}, ${TOPIC}, 'main', 'banjir', ${tx.json({ type: "term", value: "banjir", version: 1 })}, ${Buffer.from("h1")})`;
-      await tx`insert into topic_platforms (topic_id, platform_code, tenant_id, enabled, interval_sec) values (${TOPIC}, 'x', ${T1}, true, null)`;
+      await tx`insert into topic_platforms (topic_id, platform_code, tenant_id, enabled, interval_sec) values (${TOPIC}, 'x', ${T1}, true, 7200)`;
       await tx`insert into crawl_plans (id, tenant_id, topic_id, topic_query_id, platform_code, operation, interval_sec, status, next_run_at)
-        values (${PLAN}, ${T1}, ${TOPIC}, ${Q}, 'x', 'search_keyword', 300, 'active', now() + interval '2 hours')`;
+        values (${PLAN}, ${T1}, ${TOPIC}, ${Q}, 'x', 'search_keyword', 7200, 'active', now() + interval '2 hours')`;
     });
-    const pl = await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 900 });
-    expect(pl.json.data.crawl_interval_sec).toBe(900);
+    const pl = await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 300 });
+    expect(pl.json.data.crawl_interval_sec).toBe(300);
     const [plan] =
-      await h.sql`select interval_sec, next_run_at <= now() + interval '15 minutes' as soon from crawl_plans where id = ${PLAN}`;
-    expect(plan).toMatchObject({ interval_sec: 900, soon: true }); // topik 5 menit dibatasi paket 15 menit
-    await h.sql`update topics set default_interval_sec = 7200 where id = ${TOPIC}`;
-    await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 300 });
-    expect((await h.sql`select interval_sec from crawl_plans where id = ${PLAN}`)[0]!.interval_sec).toBe(7200); // topik lambat tidak dipercepat
+      await h.sql`select interval_sec, next_run_at <= now() + interval '5 minutes' as soon from crawl_plans where id = ${PLAN}`;
+    expect(plan).toMatchObject({ interval_sec: 300, soon: true });
+    const [tp] = await h.sql`select interval_sec from topic_platforms where topic_id = ${TOPIC}`;
+    expect(tp!.interval_sec).toBeNull();
     expect((await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 10 })).status).toBe(400);
-    await h.sql`update topics set default_interval_sec = 300 where id = ${TOPIC}`;
     await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: null });
-    expect((await h.sql`select interval_sec from crawl_plans where id = ${PLAN}`)[0]!.interval_sec).toBe(300); // tanpa batas → kecepatan topik
+    expect((await h.sql`select interval_sec from crawl_plans where id = ${PLAN}`)[0]!.interval_sec).toBe(3600); // kembali ke bawaan topik
   });
 
   test("connectors: list berisi capabilities/health/rate_limits/quota tanpa config_schema", async () => {

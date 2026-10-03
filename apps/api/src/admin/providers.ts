@@ -185,17 +185,17 @@ export class ProviderAdminService {
       );
       if (!r.length) throw new ApiError("NOT_FOUND", "Platform tidak ditemukan");
       if (b.crawl_interval_sec !== undefined) {
-        // interval platform = KECEPATAN TERCEPAT yang diizinkan owner (paket); tiap topik memilih kecepatannya sendiri di Dashboard
-        // ("Update data") → plan = max(kecepatan topik, batas ini). Jadwal berikutnya tidak lebih lambat dari interval baru.
-        // null → tanpa batas owner (hanya batas connector).
-        await tx.execute(sql`update crawl_plans cp set interval_sec = greatest(coalesce(tp.interval_sec, t.default_interval_sec), coalesce(${b.crawl_interval_sec}::int, 0)),
-            next_run_at = least(cp.next_run_at, now() + make_interval(secs => greatest(coalesce(tp.interval_sec, t.default_interval_sec), coalesce(${b.crawl_interval_sec}::int, 0)))),
+        // interval platform = kebijakan owner untuk SEMUA topik: interval per-topik lama dilepas, plan & stream ikut sekarang
+        // (jadwal berikutnya tidak lebih lambat dari interval baru). null → kembali ke interval bawaan topik.
+        await tx.execute(sql`update topic_platforms set interval_sec = null where platform_code = ${code}`);
+        await tx.execute(sql`update crawl_plans cp set interval_sec = coalesce(${b.crawl_interval_sec}::int, t.default_interval_sec),
+            next_run_at = least(cp.next_run_at, now() + make_interval(secs => coalesce(${b.crawl_interval_sec}::int, t.default_interval_sec))),
             updated_at = now()
-          from topics t left join topic_platforms tp on tp.topic_id = t.id and tp.platform_code = ${code}
-          where t.id = cp.topic_id and cp.platform_code = ${code} and cp.status <> 'disabled'`);
-        await tx.execute(sql`update collection_streams set interval_sec = greatest(interval_class, coalesce(${b.crawl_interval_sec}::int, 0)),
-            next_run_at = least(next_run_at, now() + make_interval(secs => greatest(interval_class, coalesce(${b.crawl_interval_sec}::int, 0))))
-          where platform_code = ${code}`);
+          from topics t where t.id = cp.topic_id and cp.platform_code = ${code} and cp.status <> 'disabled'`);
+        if (b.crawl_interval_sec !== null)
+          await tx.execute(sql`update collection_streams set interval_sec = ${b.crawl_interval_sec},
+              next_run_at = least(next_run_at, now() + make_interval(secs => ${b.crawl_interval_sec}::int))
+            where platform_code = ${code}`);
       }
       await this.audit(tx, a, "platform.update", { type: "platform", id: code }, b, null);
       return r[0]!;

@@ -275,22 +275,19 @@ export class TopicService {
     const warnings: { code: string; platform: string; reason: string }[] = [];
     const out = platforms.map((p) => {
       const ops = p.operations?.length ? [...new Set(p.operations)] : ["search_keyword"];
-      // kecepatan = pilihan topik ("Update data" di Dashboard; interval eksplisit per platform via API tetap dihormati), dibatasi
-      // KECEPATAN TERCEPAT platform dari Pengaturan (owner) + batas connector: topik tidak pernah lebih cepat dari paket owner
-      const requested = p.interval_sec ?? defaultInterval;
-      const ownerMax = platformInterval?.get(p.code);
-      const floors = [ownerMax, ...ops.map((op) => view.get(`${p.code}|${op}`)?.minInterval)];
+      // interval platform dari Pengaturan (owner) menang atas bawaan topik; interval eksplisit per topik tetap dihormati
+      const requested = p.interval_sec ?? platformInterval?.get(p.code) ?? defaultInterval;
+      const floors = ops.map((op) => view.get(`${p.code}|${op}`)?.minInterval);
       if (ops.every((op) => !view.has(`${p.code}|${op}`))) {
         warnings.push({ code: "NO_ACTIVE_CONNECTOR", platform: p.code, reason: "belum ada connector verified pada routing policy" });
       }
       const { effective, clamped } = clampInterval(requested, [planMin, ...floors]);
       if (clamped) {
         const byPlan = planMin !== undefined && planMin > requested && !floors.some((f) => f !== undefined && f >= planMin);
-        const byOwner = !byPlan && ownerMax !== undefined && ownerMax === effective;
         warnings.push({
           code: "INTERVAL_CLAMPED",
           platform: p.code,
-          reason: byPlan ? "plan_min_interval" : byOwner ? "platform_max_speed" : "min_interval_of_available_connectors",
+          reason: byPlan ? "plan_min_interval" : "min_interval_of_available_connectors",
         });
       }
       return { code: p.code, requested, effective, operations: ops, enabled: p.enabled ?? true };
@@ -443,7 +440,6 @@ export class TopicService {
       description: r.description,
       status: r.status,
       platforms: r.platforms,
-      /** kecepatan "Update data" topik (detik); paket owner bisa memperlambat per platform (lihat detail topik) */
       default_interval_sec: r.default_interval_sec,
       last_run_at: r.last_run_at ?? null,
       author: r.author_id ? { id: r.author_id, name: r.author_name } : null,
@@ -765,8 +761,7 @@ export class TopicService {
         b.platforms ??
         existing.platforms.map((p) => ({
           code: String(p.code),
-          // kecepatan topik diganti → berlaku ke semua platform (interval lama per platform dilepas)
-          interval_sec: b.default_interval_sec !== undefined ? undefined : Number(p.interval_sec),
+          interval_sec: Number(p.interval_sec),
           operations: p.operations as string[],
           enabled: Boolean(p.enabled),
         }));
@@ -844,18 +839,6 @@ export class TopicService {
       await this.audit(tx, a, `topic.${status === "active" ? "resume" : status === "paused" ? "pause" : "archive"}`, id);
       return status === "archived" ? { id, status } : this.load(tx, id);
     });
-  }
-
-  /**
-   * Kontrol tunggal "Update data" (Dashboard, keputusan pemilik 2026-10-03): `null` = jeda topik (tidak ada pengambilan → tidak
-   * ada biaya); angka = kecepatan pengambilan topik untuk semua platform, dibatasi kecepatan tercepat paket owner per platform.
-   * Topik yang dijeda otomatis dilanjutkan saat kecepatan dipilih.
-   */
-  async setSpeed(a: Actor, id: string, intervalSec: number | null) {
-    if (intervalSec === null) return { ...(await this.setStatus(a, id, "paused")), warnings: [] };
-    const out = await this.update(a, id, { default_interval_sec: intervalSec });
-    if (out.status === "paused") return { ...(await this.setStatus(a, id, "active")), warnings: out.warnings };
-    return out;
   }
 
   /** Jeda minimal antar "Ambil sekarang" per plan — mencegah klik berulang menjadi tagihan berulang. */

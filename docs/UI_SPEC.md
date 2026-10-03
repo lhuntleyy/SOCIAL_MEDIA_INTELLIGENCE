@@ -22,7 +22,7 @@
 ```
 Nav utama (dinamis, dropdown submenu — sesuai produk referensi): **Dashboard**, **Resume ▾**, **Conversation ▾** (Chronology, Gallery, Issues, Engagement, Emotion, Sentiment, Contributors, Issues Comparison), **Audience ▾**, **Psychography ▾**.
 - Filter state disimpan di URL query string (`?topic=…&from=…&to=…&platforms=x,instagram&refresh=15m`) → shareable link.
-- **Update data** (keputusan pemilik 2026-10-03, menggantikan dropdown auto-refresh): SATU kontrol per topik — Mati (jeda) / 5m / 15m / 30m / 1j / 3j / 6j / 24j — = kecepatan **pengambilan** data topik di server (`PUT /topics/{id}/speed`, sama untuk semua pengguna kantor; viewer hanya melihat), dibatasi kecepatan tercepat paket owner per platform (Pengaturan → Batas & jadwal). Tampilan memuat ulang sendiri tiap min(kecepatan, 5 menit) (`refetchInterval`); tombol **Ambil sekarang** (`POST /topics/{id}/fetch-now`, jeda 5 menit per platform); keterangan "Terakhir diambil … · <platform> mengikuti batas paket". SSE tetap aktif untuk update instan bila tersedia.
+- **Auto-refresh dropdown** (Off/5m/15m/30m/1h, keputusan pemilik 2026-10-03): `refetchInterval` layar (diingat per topik di browser, gratis — membaca DB). **Off = topik dijeda di server** (`POST /topics/{id}/pause`, untuk semua pengguna, tanpa biaya); memilih interval pada topik dijeda → `resume`; viewer tidak bisa menjeda. Pengambilan data mengikuti jadwal owner (Pengaturan → Batas & jadwal), juga saat dashboard tidak dibuka. Tombol **Ambil sekarang** (analis+, jeda 5 menit) + "Terakhir diambil …". SSE tetap aktif untuk update instan bila tersedia.
 - Badge freshness di header: "Data terakhir: 29 detik lalu" (dari `meta.freshness`).
 - Setiap widget: judul + ikon ⓘ (definisi metrik) + ⚙ (opsi: ganti tipe chart, export PNG/CSV, granularity).
 
@@ -162,7 +162,7 @@ Tenant (timezone, retensi), Users & roles, API keys, Plan & usage.
 ```
 URL filters ──► useFilters() ──► query keys
 SSE /stream ──► on aggregates.updated → queryClient.invalidateQueries({ queryKey: ['analytics', topicId] })
-Update data ──► kecepatan topik (server) + refetchInterval min(kecepatan, 5m) (hanya saat tab visible)
+Auto-refresh ──► refetchInterval (hanya saat tab visible); Off ──► pause topik
 ```
 - `staleTime` analytics = 30 s; feed = 15 s.
 - Error boundary per widget (satu widget gagal tidak menjatuhkan halaman) + tombol retry.

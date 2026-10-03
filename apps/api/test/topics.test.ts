@@ -414,56 +414,25 @@ describe.skipIf(!up)("topics API (integrasi)", () => {
     });
     expect((await j<{ initial_backfill: { days: number; runs: number } }>(u)).data.initial_backfill).toEqual({ days: 2, runs: 2 }); // hanya instagram
   });
-  test("Update data: kecepatan topik dibatasi paket owner, Mati = jeda, Ambil sekarang + cooldown, viewer 403", async () => {
-    const list = await j<{ id: string; default_interval_sec: number; last_run_at: string | null }[]>(
+  test("Ambil sekarang: plan aktif dijadwalkan segera, jeda 5 menit, topik dijeda 409, viewer 403, isolasi tenant", async () => {
+    const list = await j<{ id: string; status: string; last_run_at: string | null }[]>(
       await h.call("GET", "/topics?search=Auto%20Scrape", { token: tok.analystA }),
     );
     const id = list.data[0]!.id;
-    expect(list.data[0]!.default_interval_sec).toBeGreaterThan(0);
-    const plans = async () =>
-      (await h.sql`select platform_code, interval_sec, status from crawl_plans where topic_id = ${id} order by platform_code`).map((p) => [
-        p.platform_code,
-        p.interval_sec,
-        p.status,
-      ]);
-    const speed = (v: number | null, token = tok.analystA) => h.call("PUT", `/topics/${id}/speed`, { token, body: { interval_sec: v } });
-    await h.sql`update platforms set crawl_interval_sec = 3600 where code = 'instagram'`; // paket owner: IG paling cepat 1 jam
-    try {
-      const s = await speed(900);
-      expect(s.status).toBe(200);
-      expect(await plans()).toEqual([
-        ["instagram", 3600, "active"], // dibatasi paket owner
-        ["x", 900, "active"],
-      ]);
-      expect((await j<{ default_interval_sec: number }>(s)).data.default_interval_sec).toBe(900);
-      expect((await speed(null)).status).toBe(200); // Mati = jeda topik
-      expect((await plans()).map((p) => p[2])).toEqual(["paused", "paused"]);
-      expect((await h.call("POST", `/topics/${id}/fetch-now`, { token: tok.analystA })).status).toBe(409);
-      await speed(1800); // memilih kecepatan melanjutkan topik
-      expect(await plans()).toEqual([
-        ["instagram", 3600, "active"],
-        ["x", 1800, "active"],
-      ]);
-      expect((await speed(60)).status).toBe(400);
-      expect((await speed(900, tok.viewerA)).status).toBe(403);
-
-      await h.sql`update crawl_plans set next_run_at = now() + interval '1 hour', last_run_at = null where topic_id = ${id}`;
-      const f = await j<{ platforms: string[]; cooldown_until: string | null }>(
-        await h.call("POST", `/topics/${id}/fetch-now`, { token: tok.analystA }),
-      );
-      expect(f.data).toEqual({ platforms: ["instagram", "x"], cooldown_until: null });
-      expect((await h.sql`select count(*)::int as n from crawl_plans where topic_id = ${id} and next_run_at <= now()`)[0]!.n).toBe(2);
-      await h.sql`update crawl_plans set last_run_at = now() where topic_id = ${id}`;
-      const again = await j<{ platforms: string[]; cooldown_until: string | null }>(
-        await h.call("POST", `/topics/${id}/fetch-now`, { token: tok.analystA }),
-      );
-      expect(again.data.platforms).toEqual([]); // baru diambil → tidak ditagih ulang
-      expect(again.data.cooldown_until).not.toBeNull();
-      expect((await h.call("POST", `/topics/${id}/fetch-now`, { token: tok.viewerA })).status).toBe(403);
-      expect((await h.call("POST", `/topics/${id}/fetch-now`, { token: tok.ownerB })).status).toBe(404);
-    } finally {
-      await h.sql`update platforms set crawl_interval_sec = null where code = 'instagram'`;
-    }
+    const now = () => h.call("POST", `/topics/${id}/fetch-now`, { token: tok.analystA });
+    await h.sql`update crawl_plans set next_run_at = now() + interval '1 hour', last_run_at = null where topic_id = ${id}`;
+    const f = await j<{ platforms: string[]; cooldown_until: string | null }>(await now());
+    expect(f.data).toEqual({ platforms: ["instagram", "x"], cooldown_until: null });
+    expect((await h.sql`select count(*)::int as n from crawl_plans where topic_id = ${id} and next_run_at <= now()`)[0]!.n).toBe(2);
+    await h.sql`update crawl_plans set last_run_at = now() where topic_id = ${id}`;
+    const again = await j<{ platforms: string[]; cooldown_until: string | null }>(await now());
+    expect(again.data.platforms).toEqual([]); // baru diambil → tidak ditagih ulang
+    expect(again.data.cooldown_until).not.toBeNull();
+    expect((await h.call("POST", `/topics/${id}/fetch-now`, { token: tok.viewerA })).status).toBe(403);
+    expect((await h.call("POST", `/topics/${id}/fetch-now`, { token: tok.ownerB })).status).toBe(404);
+    await h.call("POST", `/topics/${id}/pause`, { token: tok.analystA });
+    expect((await now()).status).toBe(409);
+    await h.call("POST", `/topics/${id}/resume`, { token: tok.analystA });
   });
 
   test("menu Akun: topik kind=account → query @username per platform, plan user_timeline; validasi; filter kind; kind tetap", async () => {

@@ -428,7 +428,51 @@ terpakai → tidak menggantikan provider sekarang.
 
 Dampak paket (10 topik campuran, perkiraan): bagian Facebook turun ± 40% di semua paket; Real-time ± Rp 52 jt/kantor (dari Rp 56 jt).
 
-**Paket = batas atas biaya** (2026-10-03): kecepatan kini dipilih per topik di Dashboard ("Update data"); paket owner hanya kecepatan
-**tercepat** per platform. Angka paket di §12.4 = biaya bila semua topik memilih tercepat. Topik yang diatur 1 jam ≈ biaya paket
-Standar untuk topik itu; topik **Mati** = $0 (data lama tetap terlihat). "Ambil sekarang" = satu pengambilan tambahan per platform
-(jeda 5 menit, adaptif → biasanya < $0,01 per klik).
+
+### 12.6 Perbandingan jadwal tetap (server) + auto-refresh layar — 2026-10-03 (keputusan: kembali ke model ini)
+Model: jadwal pengambilan diatur owner untuk semua topik; layar klien auto-refresh (5 menit–1 jam) hanya membaca DB → **$0**
+tambahan (± 15 query ClickHouse ringan per refresh per pengguna). **Off** di dashboard = topik dijeda = $0 pengambilan.
+Tarif dari provider aktif (X xquik, Threads themineworks $0,005/run + $0,001/post, FB silentflow $0,0023/post, IG HikerAPI &
+TikTok LamaTok $0,001/request, YouTube resmi gratis), lantai adaptif 5 post/run, ukuran topik §11.3, AI $0,33/1K teks (post +
+komentar 20 post teratas/hari TikTok + YouTube), server $90/bln. Skrip model diverifikasi terhadap tagihan Apify 2026-10-02
+(3 topik kecil, 1 jam: ± $0,6/hari Apify; model sedikit lebih tinggi = konservatif).
+
+**Biaya ambil data per topik / bulan (USD, tanpa AI):**
+| Jadwal semua platform | Kecil | Sedang | Ramai |
+|---|---:|---:|---:|
+| 5 menit | 177 | 243 | 247 |
+| 15 menit | 60 | 83 | 105 |
+| **30 menit** | **30** | **48** | **71** |
+| **1 jam** | **16** | **30** | **58** |
+| 3 jam | 5 | 21 | 52 |
+
+Rincian topik sedang, 30 menit vs 1 jam: Facebook $16,6 vs $8,3 · Threads $18,7 vs $14,4 · IG $5,0 vs $2,9 · TikTok $4,3 vs $2,2 ·
+X $2,9 vs $2,8 · YouTube $0. **Penyumbang utama = biaya per run** (Threads $0,005 start + lantai 5 post; FB lantai 5 post), bukan
+jumlah post — makin sering jadwal, makin banyak run.
+
+**Kantor 10 topik (3 kecil + 5 sedang + 2 ramai), total termasuk AI + komentar ($222) + server ($90):**
+| Paket (Pengaturan) | Jadwal | Total / bln | Harga jual (×1,2 ÷ 0,4) | YouTube request/hari |
+|---|---|---:|---:|---:|
+| Hemat | semua 3 jam | Rp 8,9 jt | ± Rp 27 jt | 240 (1 key) |
+| **Standar** | semua 1 jam · YouTube 3 jam | **Rp 10,4 jt** | **± Rp 31 jt** | 240 (1 key) |
+| **Plus** | semua 30 menit · YouTube 1 jam | **Rp 12,9 jt** | **± Rp 39 jt** | 720 (> 400/key → perluasan kuota) |
+| Cepat | semua 15 menit · YouTube 1 jam | Rp 18,4 jt | ± Rp 55 jt | 720 |
+| Real-time | semua 5 menit · YouTube 1 jam | Rp 42,1 jt | ± Rp 126 jt | 720 |
+
+Topik yang ada sekarang (4 aktif, kecil): 1 jam **$62 + AI $20 ≈ Rp 2,8 jt/bln** (dengan server); 30 menit Rp 3,8 jt. Bila 7 topik
+(5 kecil + 2 sedang) dinyalakan: 1 jam Rp 5,0 jt, 30 menit Rp 6,7 jt.
+
+**Pembanding "ambil setiap refresh layar"** (ditolak): biaya = jumlah pengguna × refresh — 3 pengguna × refresh 5 menit × 8 jam kerja
+= 288 pengambilan/topik/hari (≈ biaya 5 menit, Rp 42 jt/kantor) dan **0 pengambilan di luar jam kerja** (data bolong, alert & laporan
+tidak lengkap karena API pencarian hanya memberi post terbaru).
+
+**Cara menekan biaya tanpa mengubah tampilan klien (urut dampak):**
+1. Jadwal 1 jam (Standar) — klien tetap melihat layar segar via auto-refresh; data paling lambat ± 1 jam.
+2. Lantai post per run 5 → 2 (`fetch.min_items_per_run`): kantor 1 jam $315 → $292 (−7%), 30 menit $471 → $401 (−15%).
+3. Mode malam (00–06 WIB tiap 3 jam): 30 menit $471 → $409 (−13%) — belum ada, perlu dibangun.
+4. Jadwal adaptif per topik: topik sepi (run tanpa post baru berturut-turut) otomatis melambat sampai 3 jam — penghematan terbesar
+   untuk topik kecil (biaya per run dominan); belum ada, perlu dibangun.
+5. Keyword sama antar kantor → satu pengambilan (collection stream, ADR-009, sudah aktif).
+6. YouTube > 5 topik di 1 jam: ajukan perluasan kuota Google (gratis) — jangan membuat banyak project untuk mengakali kuota (ToS).
+
+"Ambil sekarang" (dashboard, analis+) = satu pengambilan tambahan per platform (jeda 5 menit, adaptif → biasanya < $0,01 per klik).

@@ -113,8 +113,7 @@ Refresh token dikirim **hanya** sebagai cookie `smip_rt` (`HttpOnly; Secure; Sam
 | PATCH | `/topics/{id}` | analyst+ |
 | DELETE | `/topics/{id}` (archive) | admin+ |
 | POST | `/topics/{id}/pause` · `/resume` | analyst+ |
-| PUT | `/topics/{id}/speed` `{interval_sec: 300…86400 \| null}` — kontrol **Update data**: kecepatan pengambilan topik untuk semua platform (dibatasi kecepatan tercepat platform dari Pengaturan owner → warning `INTERVAL_CLAMPED` reason `platform_max_speed`); `null` = jeda; memilih angka melanjutkan topik yang dijeda | analyst+ |
-| POST | `/topics/{id}/fetch-now` → 202 `{platforms, cooldown_until}` — **Ambil sekarang**: plan aktif (+ collection stream yang melayani) dijadwalkan segera; plan yang diambil < 5 menit lalu dilewati; topik dijeda → 409 | analyst+ |
+| POST | `/topics/{id}/fetch-now` → 202 `{platforms, cooldown_until}` — **Ambil sekarang**: plan aktif (+ collection stream yang melayani) dijadwalkan segera; plan yang diambil < 5 menit lalu dilewati; topik dijeda → 409 (dashboard: Auto-refresh **Off** = `pause`, memilih interval = `resume`) | analyst+ |
 | POST | `/topics/validate-query` | analyst+ |
 | POST | `/topics/preview` | analyst+ |
 | POST | `/topics/cost-estimate` | analyst+ |
