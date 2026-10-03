@@ -23,7 +23,7 @@ export const QueryFeature = z.enum(["term", "phrase", "or", "and", "not", "group
 export type QueryFeature = z.infer<typeof QueryFeature>;
 
 export const ContentType = z.enum(["post", "reply", "repost", "quote", "comment"]);
-export const RunKind = z.enum(["incremental", "backfill", "engagement_refresh", "verify"]);
+export const RunKind = z.enum(["incremental", "backfill", "engagement_refresh", "verify", "comments"]);
 export const Sentiment = z.enum(["negative", "neutral", "positive"]);
 export const Emotion = z.enum(["anger", "anticipation", "disgust", "trust", "joy", "sadness", "surprise", "fear", "unknown"]);
 export const Gender = z.enum(["male", "female", "unknown"]);

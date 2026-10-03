@@ -170,6 +170,11 @@ bun $E scripts/connectors.ts account youtube_data_api yt-1 YOUTUBE_API_KEY api_k
 > (mis. token Apify baru atau pindah akun ber-saldo), matikan, hapus. Key disegel, hanya 4 karakter terakhir yang ditampilkan.
 > Status **jeda sementara · saldo/kuota di provider habis** = isi ulang saldo di dashboard provider (HikerAPI/LamaTok/Apify).
 
+> **Batas & jadwal (owner):** *Pengaturan → Batas & jadwal* — jadwal pengambilan per platform (5 menit–24 jam, berlaku ke semua topik),
+> maks. post per pengambilan, scrape awal topik, komentar (post teratas/hari, halaman, ambil ulang), batas tiap sumber, run bersamaan.
+> Catatan: `scripts/live-routing.ts` adalah setelan awal; menjalankannya ulang menimpa sebagian batas sumber (biaya per run, run bersamaan).
+> Komentar TikTok aktif setelah saldo LamaTok diisi dan `bun $E scripts/connectors.ts verify lamatok.tiktok "<id video>,…" --op post_comments --apply`.
+
 **8.2 Verifikasi** tiap connector yang akan dipakai (menjalankan pencarian sungguhan — **berbayar kecil** untuk Apify):
 ```bash
 Q='"koperasi merah putih" OR kopdes'

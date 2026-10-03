@@ -78,7 +78,7 @@ type RunRow = {
   window_from: Date | null;
   window_to: Date | null;
   items_fetched: number;
-  refresh_target: { platform: string; post_ids: string[] } | null;
+  refresh_target: { platform: string; post_ids: string[]; max_pages?: number } | null;
 };
 /** Pemilik run: plan per-query atau collection stream (ADR-009) — dispatch memperlakukan keduanya seragam. */
 type PlanRow = {
@@ -177,6 +177,16 @@ async function loadPlan(
         p.platform_code, p.operation, q.query_ast, q.enabled as query_enabled, t.status as topic_status
       from crawl_plans p join topic_queries q on q.id = p.topic_query_id join topics t on t.id = p.topic_id
       where p.id = ${run.crawl_plan_id}`)) as unknown as PlanRow[];
+    if (p && run.kind === "comments" && run.refresh_target) {
+      // run komentar: pemilik = plan topik (tenant, biaya, AST topik untuk kontekstual), operasi = ambil komentar post target
+      return {
+        ...p,
+        operation: "post_comments",
+        target_ids: run.refresh_target.post_ids,
+        route_tenant_id: run.tenant_id!,
+        shared_pool_only: false,
+      };
+    }
     return p && { ...p, route_tenant_id: run.tenant_id!, shared_pool_only: false };
   }
   if (!run.collection_stream_id) return undefined;
@@ -241,6 +251,8 @@ async function releasePlan(
 ) {
   const ownerId = run.crawl_plan_id ?? run.collection_stream_id;
   if (!ownerId) return;
+  // run komentar menumpang plan topik: gagal/sukses tidak boleh menggeser jadwal/backoff pengambilan topik
+  if (run.kind === "comments") return;
   const table: RunOwnerTable = run.crawl_plan_id ? "crawl_plans" : "collection_streams";
   const t = sql.raw(table);
   // run stream berakhir tanpa finalize (gagal/dibatalkan/dilewati): biaya attempt tetap dialokasikan ke tenant (I-25)
@@ -460,8 +472,14 @@ export async function handleDispatch(
         ...(plan.target_ids ? { targetIds: plan.target_ids } : timelineTargets ? { targetIds: timelineTargets } : {}),
         window: { since: run.window_from ? iso(run.window_from) : undefined, until: run.window_to ? iso(run.window_to) : undefined },
         cursor: null,
-        pageLimit: f.pageLimit,
-        maxItems: plan.target_ids ? plan.target_ids.length : maxItems,
+        // komentar: halaman komentar per post dari Pengaturan (dibawa planner di refresh_target)
+        pageLimit: plan.operation === "post_comments" ? (run.refresh_target?.max_pages ?? 1) : f.pageLimit,
+        // komentar: ± 50 per halaman per post (jumlah halaman diatur Pengaturan → komentar)
+        maxItems: plan.target_ids
+          ? plan.operation === "post_comments"
+            ? Math.min(10_000, plan.target_ids.length * 50 * (run.refresh_target?.max_pages ?? 1))
+            : plan.target_ids.length
+          : maxItems,
       },
       deadline_at: iso(new Date(now.getTime() + f.timeoutMs)),
     };

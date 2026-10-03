@@ -19,6 +19,17 @@ const Secret = z
   .refine((o) => Object.keys(o).length > 0 && Object.keys(o).length <= 8, {
     message: "1–8 field",
   });
+/** Setiap kunci SETTING_DEFAULTS + rentang wajar; null = kembali ke default. */
+const SettingsZ = z
+  .strictObject({
+    "topics.initial_backfill_days": z.int().min(0).max(31).nullable(),
+    "comments.enabled": z.boolean().nullable(),
+    "comments.top_posts_per_day": z.int().min(0).max(1000).nullable(),
+    "comments.max_pages_per_post": z.int().min(1).max(50).nullable(),
+    "comments.refetch_hours": z.int().min(1).max(720).nullable(),
+    "comments.max_post_age_days": z.int().min(1).max(30).nullable(),
+  })
+  .partial();
 const Credential = z.strictObject({ kind: z.enum(["api_key", "oauth2", "session", "basic", "cookie_jar"]), secret: Secret });
 
 function actor(c: {
@@ -65,8 +76,21 @@ export function providerAdminRoutes(svc: ProviderAdminService) {
   r.patch("/admin/platforms/:code", op, async (c) => {
     const code = c.req.param("code");
     if (!/^[a-z][a-z0-9_]{0,31}$/.test(code)) throw new ApiError("NOT_FOUND", "Platform tidak ditemukan");
-    const b = await parseJson(c, z.strictObject({ max_items_per_run: z.int().min(1).max(1000).nullable().optional() }));
+    const b = await parseJson(
+      c,
+      z.strictObject({
+        max_items_per_run: z.int().min(1).max(10_000).nullable().optional(),
+        /** interval pengambilan platform (detik) — berlaku ke semua topik; null = bawaan sistem */
+        crawl_interval_sec: z.int().min(60).max(86_400).nullable().optional(),
+      }),
+    );
     return c.json({ data: await svc.patchPlatform(actor(c), code, b) });
+  });
+  // ----- pengaturan sistem (Batas & jadwal) -----
+  r.get("/admin/settings", op, async (c) => c.json({ data: await svc.getSettings() }));
+  r.put("/admin/settings", op, async (c) => {
+    const b = await parseJson(c, z.strictObject({ values: SettingsZ }));
+    return c.json({ data: await svc.putSettings(actor(c), b.values) });
   });
   r.get("/admin/providers", op, async (c) => c.json({ data: await svc.listProviders() }));
   r.patch("/admin/providers/:id", op, async (c) => {

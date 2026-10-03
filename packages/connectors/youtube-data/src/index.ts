@@ -127,6 +127,68 @@ interface Channel {
 
 const HASHTAG = /#([\p{L}\p{N}_]{2,100})/gu;
 
+interface CommentThread {
+  id?: string;
+  snippet?: Obj;
+}
+
+/** commentThreads.list → komentar tingkat atas (content_type comment, parent = video). Bentuk diverifikasi live 2026-10-03. */
+export function normalizeComment(
+  t: CommentThread,
+  videoChannelId: string | null,
+  meta: { fetchedAt: string; rawRef: string | null },
+): CanonicalItem | null {
+  const top = obj(obj(t.snippet).topLevelComment);
+  const s = obj(top.snippet);
+  const id = str(top.id) ?? str(t.id);
+  const vid = str(s.videoId) ?? str(obj(t.snippet).videoId);
+  const authorId = str(obj(s.authorChannelId).value);
+  const name = str(s.authorDisplayName);
+  const published = str(s.publishedAt);
+  if (!id || !vid || !authorId || !published || Number.isNaN(Date.parse(published))) return null;
+  const text = str(s.textOriginal) ?? str(s.textDisplay) ?? "";
+  const handle = name?.startsWith("@") ? name.slice(1) : (name ?? authorId);
+  return {
+    schema: "canonical-item/v1",
+    platform: "youtube",
+    platform_post_id: id,
+    content_type: "comment",
+    url: `https://www.youtube.com/watch?v=${vid}&lc=${id}`,
+    text,
+    lang_hint: null,
+    published_at: new Date(published).toISOString(),
+    parent: { platform_post_id: vid, author: videoChannelId ? { platform_user_id: videoChannelId, handle: null } : null },
+    root_post_id: vid,
+    author: {
+      platform_user_id: authorId,
+      handle,
+      display_name: name,
+      followers: null,
+      following: null,
+      verified: null,
+      created_at: null,
+      location_raw: null,
+      avatar_url: null,
+    },
+    metrics: {
+      likes: typeof s.likeCount === "number" ? s.likeCount : null,
+      comments: typeof obj(t.snippet).totalReplyCount === "number" ? (obj(t.snippet).totalReplyCount as number) : null,
+      shares: null,
+      views: null,
+      quotes: null,
+      saves: null,
+      captured_at: meta.fetchedAt,
+    },
+    hashtags: [...new Set([...text.matchAll(HASHTAG)].map((m) => m[1]!.toLowerCase()))],
+    mentions: [],
+    media: [],
+    geo: { lat: null, lng: null, place_name: null },
+    is_ad: null,
+    extra: {},
+    provenance: { connector_key: KEY, connector_version: VERSION, fetched_at: meta.fetchedAt, raw_ref: meta.rawRef },
+  };
+}
+
 export function normalizeVideo(
   v: Video,
   ch: Channel | undefined,
@@ -212,6 +274,18 @@ export class YoutubeDataConnector implements Connector {
         asyncExecution: false,
         resultOrder: "desc",
       },
+      post_comments: {
+        // komentar post teratas topik: commentThreads.list (1 unit kuota/panggilan, ≤ 100 komentar/halaman)
+        queryFeatures: [],
+        maxQueryLength: null,
+        supportsSince: false,
+        supportsUntil: false,
+        supportsCursor: false,
+        maxPageSize: 100,
+        returnsFields: ["metrics.likes"],
+        asyncExecution: false,
+        resultOrder: "desc",
+      },
       post_detail: {
         // engagement refresh (I-20): videos.list per ≤ 50 id
         queryFeatures: [],
@@ -283,6 +357,7 @@ export class YoutubeDataConnector implements Connector {
         warnings: h.dropped ? [{ code: "ITEMS_DROPPED", message: `${h.dropped} item dibuang (normalisasi)` }] : [],
       };
     }
+    if (req.operation === "post_comments") return this.comments(req, ctx);
     if (req.operation !== "search_keyword")
       throw new ConnectorError("NOT_SUPPORTED", `operation ${req.operation} tidak didukung`, { scope: "connector" });
     const q = toYoutubeQuery(req.query?.native ?? "");
@@ -312,6 +387,73 @@ export class YoutubeDataConnector implements Connector {
       usage: { requests: 1 + h.requests, results: ids.length, costUnits: 0, costUnitLabel: "usd" },
       upstream: { httpStatuses: [200], requestIds: [] },
       warnings: h.dropped ? [{ code: "ITEMS_DROPPED", message: `${h.dropped} item dibuang (normalisasi/window)` }] : [],
+    };
+  }
+
+  /** Komentar tingkat atas video target, terbaru dulu; ≤ pageLimit halaman × 100 per video. Komentar dimatikan → video dilewati. */
+  private async comments(req: FetchRequest, ctx: ConnectorContext): Promise<FetchResult> {
+    const ids = (req.targetIds ?? []).filter((x) => /^[\w-]{2,64}$/.test(x)).slice(0, 50);
+    if (!ids.length) throw new ConnectorError("INVALID_QUERY", "post_comments butuh targetIds (id video)", { scope: "request" });
+    const raw: CommentThread[] = [];
+    const owner = new Map<string, string | null>();
+    let requests = 0;
+    let skipped = 0;
+    for (const vid of ids) {
+      let page: string | undefined;
+      for (let p = 0; p < Math.max(1, req.pageLimit); p++) {
+        let body: { items?: CommentThread[]; nextPageToken?: string };
+        requests++; // panggilan yang ditolak (komentar dimatikan) tetap memakai kuota
+        try {
+          body = await call(ctx, "commentThreads", {
+            part: "snippet",
+            videoId: vid,
+            maxResults: "100",
+            order: "time",
+            textFormat: "plainText",
+            pageToken: page,
+          });
+        } catch (e) {
+          // video dengan komentar dimatikan / dihapus / privat: lewati video itu (bukan masalah akun)
+          if (
+            e instanceof ConnectorError &&
+            (e.httpStatus === 403 || e.httpStatus === 404) &&
+            /commentsDisabled|videoNotFound|forbidden/.test(e.message)
+          ) {
+            skipped++;
+            break;
+          }
+          throw e;
+        }
+        for (const t of body.items ?? []) {
+          raw.push(t);
+          owner.set(str(t.id) ?? "", str(obj(t.snippet).channelId));
+        }
+        page = body.nextPageToken;
+        if (!page || !(body.items ?? []).length) break;
+      }
+    }
+    const fetchedAt = new Date().toISOString();
+    const rawRef = raw.length
+      ? await ctx.archiveRaw(raw, { platform: "youtube", crawlRunId: req.idempotencyKey, attemptNo: 1, page: 1 })
+      : null;
+    const items: CanonicalItem[] = [];
+    let dropped = 0;
+    for (const t of raw) {
+      const it = normalizeComment(t, owner.get(str(t.id) ?? "") ?? null, { fetchedAt, rawRef });
+      if (it) items.push(it);
+      else dropped++;
+    }
+    const warnings: FetchResult["warnings"] = [];
+    if (skipped) warnings.push({ code: "TARGETS_SKIPPED", message: `${skipped} video tanpa komentar (dimatikan/dihapus)` });
+    if (dropped) warnings.push({ code: "ITEMS_DROPPED", message: `${dropped} komentar dibuang (normalisasi)` });
+    return {
+      items: items.slice(0, req.maxItems),
+      nextCursor: null,
+      hasMore: false,
+      rawRefs: rawRef ? [rawRef] : [],
+      usage: { requests, results: raw.length, costUnits: 0, costUnitLabel: "usd" },
+      upstream: { httpStatuses: [200], requestIds: [] },
+      warnings,
     };
   }
 

@@ -512,6 +512,14 @@ Provider = baris DB; `kind` = protokol API: `gemini`, `openai_compatible` (OpenA
 | POST | `/admin/llm/test` | `{provider_id, model_id, text?, topic?}` → klasifikasi sentimen contoh (JSON terstruktur, token, latensi) |
 | PUT | `/admin/llm/tasks/{default\|sentiment\|emotion\|keyphrase\|summary}` | `{provider_id, model_id, fallback_provider_id?, fallback_model_id?, enabled, params?}` — model wajib ada di katalog |
 
+### 9.2 Batas & jadwal (owner, 2026-10-03)
+| Rute | Catatan |
+|---|---|
+| `GET /admin/settings` | `{values, defaults, overridden}` — kunci: `topics.initial_backfill_days`, `comments.enabled`, `comments.top_posts_per_day`, `comments.max_pages_per_post`, `comments.refetch_hours`, `comments.max_post_age_days` |
+| `PUT /admin/settings` `{values: {key: value \| null}}` | null = kembali ke default; kunci tak dikenal / di luar rentang → 400; diaudit `settings.update` |
+| `PATCH /admin/platforms/{code}` `{max_items_per_run?, crawl_interval_sec?}` | interval 60–86.400 s berlaku ke **semua** plan & stream platform itu; interval per-topik dilepas; null = bawaan topik |
+| `GET /admin/connectors` | + `config_fields` (properti angka/boolean config connector yang bisa diatur; schema lengkap tetap tidak dikirim) |
+
 ## 10. Admin — Tenant & User
 
 `GET/POST /admin/tenants`, `PATCH /admin/tenants/{id}` (plan, status), `GET/POST /users`, `PATCH /users/{id}`, `POST /users/{id}/memberships`, `DELETE /users/{id}/memberships/{tenant_id}`, `GET/POST/DELETE /api-keys`.

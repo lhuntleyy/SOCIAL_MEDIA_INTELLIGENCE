@@ -2,7 +2,7 @@
 // implementasi (policy, health, rate limit, quota) di packages/router.
 import type { ConnectorErrorCode, Operation, QueryFeature } from "@smip/contracts";
 
-export type RunKind = "incremental" | "backfill" | "engagement_refresh" | "verify";
+export type RunKind = "incremental" | "backfill" | "engagement_refresh" | "verify" | "comments";
 
 export interface RouteInput {
   tenantId: string;

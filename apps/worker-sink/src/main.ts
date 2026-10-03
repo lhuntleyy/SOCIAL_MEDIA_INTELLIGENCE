@@ -6,6 +6,7 @@ import { createDb } from "@smip/db";
 import { createLogger } from "@smip/observability";
 import { BullMqQueue } from "@smip/queue";
 import { S3BlobStore } from "@smip/storage";
+import { planComments } from "./comments";
 import { planEngagementRefresh } from "./refresh";
 import { handleSink } from "./sink";
 
@@ -55,9 +56,27 @@ async function planRefresh() {
   }
 }
 const refreshTimer = cfg.ENGAGEMENT_REFRESH_ENABLED ? setInterval(planRefresh, cfg.ENGAGEMENT_REFRESH_PLAN_MS!) : undefined;
+// planner komentar (Pengaturan → Batas & jadwal → Komentar): tiap 15 menit, satu pemegang lock
+const COMMENTS_LOCK = "lock:comments:planner";
+let planningComments = false;
+async function planCommentsTick() {
+  if (planningComments) return;
+  planningComments = true;
+  try {
+    if ((await cache.send("SET", [COMMENTS_LOCK, owner, "NX", "PX", String(14 * 60_000)])) !== "OK") return;
+    const r = await planComments(db, ch);
+    if (r.runs) logger.info("komentar direncanakan", { runs: r.runs, posts: r.posts });
+  } catch (e) {
+    logger.error("planner komentar gagal", { error: e });
+  } finally {
+    planningComments = false;
+  }
+}
+const commentsTimer = setInterval(planCommentsTick, 15 * 60_000);
 logger.info("worker-sink mulai", { engagement_refresh: cfg.ENGAGEMENT_REFRESH_ENABLED });
 const shutdown = async () => {
   if (refreshTimer) clearInterval(refreshTimer);
+  clearInterval(commentsTimer);
   await sub.close(30_000);
   await queue.close();
   await ch.close();

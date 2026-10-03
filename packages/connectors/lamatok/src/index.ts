@@ -326,7 +326,8 @@ export class LamatokConnector implements Connector {
       if (!ids.length) throw new ConnectorError("INVALID_QUERY", "post_comments butuh targetIds (id video)", { scope: "request" });
       for (const id of ids) {
         let cursor = 0;
-        for (let p = 0; p < (cfg.maxCommentPages ?? 2); p++) {
+        // halaman komentar per video: config connector (owner) menang, lalu pageLimit run (Pengaturan → komentar)
+        for (let p = 0; p < (cfg.maxCommentPages ?? Math.max(1, req.pageLimit)); p++) {
           const body = await this.call(ctx, "/v2/media/comments/by/id", { id, count: 50, cursor });
           requests++;
           const cs = arr(body.comments).map(obj);

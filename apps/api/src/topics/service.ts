@@ -11,6 +11,7 @@ import {
   type Db,
   inList,
   type PlanForRun,
+  readSettings,
   type Tx,
   textArray,
   withSystem,
@@ -269,11 +270,13 @@ export class TopicService {
     defaultInterval: number,
     view: Map<string, { primary: ConnectorRates; minInterval?: number }>,
     planMin?: number,
+    platformInterval?: Map<string, number>,
   ) {
     const warnings: { code: string; platform: string; reason: string }[] = [];
     const out = platforms.map((p) => {
       const ops = p.operations?.length ? [...new Set(p.operations)] : ["search_keyword"];
-      const requested = p.interval_sec ?? defaultInterval;
+      // interval platform dari Pengaturan (owner) menang atas bawaan topik; interval eksplisit per topik tetap dihormati
+      const requested = p.interval_sec ?? platformInterval?.get(p.code) ?? defaultInterval;
       const floors = ops.map((op) => view.get(`${p.code}|${op}`)?.minInterval);
       if (ops.every((op) => !view.has(`${p.code}|${op}`))) {
         warnings.push({ code: "NO_ACTIVE_CONNECTOR", platform: p.code, reason: "belum ada connector verified pada routing policy" });
@@ -307,7 +310,17 @@ export class TopicService {
     const view = await this.connectorView(tx, codes);
     const limits = await this.planLimits(tx);
     const dflt = b.default_interval_sec ?? limits.default_interval_sec ?? TopicService.DEFAULT_INTERVAL_SEC;
-    const resolved = this.resolvePlatforms(b.platforms, dflt, view, limits.min_interval_sec);
+    const pi = (await tx.execute(sql`select code, crawl_interval_sec from platforms where crawl_interval_sec is not null`)) as unknown as {
+      code: string;
+      crawl_interval_sec: number;
+    }[];
+    const resolved = this.resolvePlatforms(
+      b.platforms,
+      dflt,
+      view,
+      limits.min_interval_sec,
+      new Map(pi.map((r) => [r.code, Number(r.crawl_interval_sec)])),
+    );
     const matches = await this.matchesPerDay(codes, b.queries);
     const est = estimateCost(
       resolved.platforms
@@ -627,7 +640,8 @@ export class TopicService {
     if (platforms && !platforms.length) return null;
     try {
       const limits = await this.tenant(a, (tx) => this.planLimits(tx));
-      const days = Math.min(MAX_BACKFILL_DAYS, limits.initial_backfill_days ?? TopicService.INITIAL_BACKFILL_DAYS);
+      const settings = await withSystem(this.db, readSettings);
+      const days = Math.min(MAX_BACKFILL_DAYS, limits.initial_backfill_days ?? settings["topics.initial_backfill_days"]);
       if (days <= 0) return null;
       const to = this.opts.now?.() ?? new Date();
       const from = new Date(to.getTime() - days * 86_400_000);

@@ -172,8 +172,10 @@ describe.skipIf(!pgUp)("db migrations & RLS (integrasi Postgres)", () => {
         values (${planId}, ${A}, ${id(1)}, ${id(61)}, 'x', 'search_keyword', 900, now())`;
     });
 
-    test("interval hanya 5m/15m/30m/45m/1h (10m ditolak)", async () => {
-      await expect(run(sql`update topics set default_interval_sec = 600 where id = ${id(1)}`)).rejects.toThrow(/check constraint/);
+    test("interval 1 menit – 24 jam (0028: diatur owner per platform); di luar rentang ditolak", async () => {
+      await run(sql`update topics set default_interval_sec = 600 where id = ${id(1)}`); // 10 menit kini sah
+      await expect(run(sql`update topics set default_interval_sec = 30 where id = ${id(1)}`)).rejects.toThrow(/check constraint/);
+      await expect(run(sql`update topics set default_interval_sec = 90000 where id = ${id(1)}`)).rejects.toThrow(/check constraint/);
     });
 
     test("crawl_runs: tepat satu pemilik (plan XOR stream); run plan wajib tenant", async () => {

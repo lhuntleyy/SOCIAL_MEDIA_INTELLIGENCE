@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router";
 import { api } from "../api";
 import { Badge, Button, Card, ErrorText, Input, PLATFORM_LABEL, Select, Switch, Tabs } from "../ui";
 import AiSettings from "./AdminLlm";
+import Limits from "./Limits";
 
 interface Connector {
   id: string;
@@ -145,47 +146,6 @@ function Budget({
       {!valid && <span className="text-red-600">angka tidak valid</span>}
       {save.error && <span className="text-red-600">{(save.error as Error).message}</span>}
     </span>
-  );
-}
-
-/** Batas post per pengambilan (per run) untuk satu platform — kosong = bawaan sistem (300). */
-function MaxItems({ code, value }: { code: string; value: number | null | undefined }) {
-  const qc = useQueryClient();
-  const [v, setV] = useState<string | null>(null);
-  const save = useMutation({
-    mutationFn: (n: number | null) => api(`/admin/platforms/${code}`, { method: "PATCH", json: { max_items_per_run: n } }),
-    onSuccess: () => {
-      setV(null);
-      void qc.invalidateQueries({ queryKey: ["admin-platforms"] });
-    },
-  });
-  const cur = v ?? (value ? String(value) : "");
-  const n = cur.trim() === "" ? null : Number(cur);
-  const valid = n === null || (Number.isInteger(n) && n >= 1 && n <= 1000);
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-600">
-      <label
-        htmlFor={`max-${code}`}
-        title="Batas jumlah post yang diambil setiap kali sistem menarik data platform ini (per topik per jadwal)."
-      >
-        Maks. post per pengambilan
-      </label>
-      <input
-        id={`max-${code}`}
-        inputMode="numeric"
-        placeholder="300 (bawaan)"
-        value={cur}
-        onChange={(e) => setV(e.target.value.replace(/[^0-9]/g, ""))}
-        className="w-28 rounded-md border border-zinc-300 px-2 py-1"
-      />
-      {v !== null && (
-        <Button variant="ghost" onClick={() => save.mutate(n)} disabled={!valid || save.isPending}>
-          Simpan
-        </Button>
-      )}
-      {!valid && <span className="text-red-600">1–1000</span>}
-      <ErrorText error={save.error} />
-    </div>
   );
 }
 
@@ -469,7 +429,6 @@ function Sources() {
                   );
                 })}
               </ul>
-              <MaxItems code={p} value={platformSettings.data?.find((x) => x.code === p)?.max_items_per_run} />
             </Card>
           );
         })}
@@ -481,21 +440,22 @@ function Sources() {
   );
 }
 
-type Tab = "sources" | "ai";
+type Tab = "sources" | "limits" | "ai";
 export default function Settings() {
   const [sp, setSp] = useSearchParams();
-  const tab: Tab = sp.get("tab") === "ai" ? "ai" : "sources";
+  const tab: Tab = sp.get("tab") === "ai" ? "ai" : sp.get("tab") === "limits" ? "limits" : "sources";
   return (
     <div className="space-y-4">
       <Tabs
         tabs={[
           { id: "sources", label: "Sumber data" },
+          { id: "limits", label: "Batas & jadwal" },
           { id: "ai", label: "AI" },
         ]}
         value={tab}
         onChange={(v) => setSp({ tab: v }, { replace: true })}
       />
-      {tab === "sources" ? <Sources /> : <AiSettings />}
+      {tab === "sources" ? <Sources /> : tab === "limits" ? <Limits /> : <AiSettings />}
     </div>
   );
 }

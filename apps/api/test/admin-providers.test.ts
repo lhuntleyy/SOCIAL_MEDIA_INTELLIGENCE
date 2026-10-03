@@ -128,6 +128,43 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     expect(a!.n).toBe(2);
   });
 
+  test("Batas & jadwal: pengaturan sistem (default/override/null=default, validasi, diaudit) + interval platform ke semua plan", async () => {
+    const g = await call("GET", "/admin/settings", opTok);
+    expect(g.json.data.values["comments.top_posts_per_day"]).toBe(20);
+    expect(g.json.data.overridden).toEqual([]);
+    const put = await call("PUT", "/admin/settings", opTok, { values: { "comments.top_posts_per_day": 50, "comments.enabled": false } });
+    expect(put.json.data.values).toMatchObject({ "comments.top_posts_per_day": 50, "comments.enabled": false });
+    expect(put.json.data.overridden.sort()).toEqual(["comments.enabled", "comments.top_posts_per_day"]);
+    expect((await call("PUT", "/admin/settings", opTok, { values: { "comments.top_posts_per_day": -1 } })).status).toBe(400);
+    expect((await call("PUT", "/admin/settings", opTok, { values: { "tidak.dikenal": 1 } })).status).toBe(400);
+    expect((await call("PUT", "/admin/settings", adm1, { values: {} })).status).toBe(403);
+    const back = await call("PUT", "/admin/settings", opTok, { values: { "comments.top_posts_per_day": null, "comments.enabled": null } });
+    expect(back.json.data.values["comments.top_posts_per_day"]).toBe(20);
+
+    // interval platform: plan topik ikut, interval eksplisit per-topik dilepas, jadwal berikutnya tidak lebih lambat
+    const TOPIC = tid(0x700);
+    const Q = tid(0x701);
+    const PLAN = tid(0x702);
+    await h.sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`insert into topics (id, tenant_id, name, default_interval_sec) values (${TOPIC}, ${T1}, 'Topik interval', 3600)`;
+      await tx`insert into topic_queries (id, tenant_id, topic_id, kind, query_text, query_ast, ast_hash) values (${Q}, ${T1}, ${TOPIC}, 'main', 'banjir', ${tx.json({ type: "term", value: "banjir", version: 1 })}, ${Buffer.from("h1")})`;
+      await tx`insert into topic_platforms (topic_id, platform_code, tenant_id, enabled, interval_sec) values (${TOPIC}, 'x', ${T1}, true, 7200)`;
+      await tx`insert into crawl_plans (id, tenant_id, topic_id, topic_query_id, platform_code, operation, interval_sec, status, next_run_at)
+        values (${PLAN}, ${T1}, ${TOPIC}, ${Q}, 'x', 'search_keyword', 7200, 'active', now() + interval '2 hours')`;
+    });
+    const pl = await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 300 });
+    expect(pl.json.data.crawl_interval_sec).toBe(300);
+    const [plan] =
+      await h.sql`select interval_sec, next_run_at <= now() + interval '5 minutes' as soon from crawl_plans where id = ${PLAN}`;
+    expect(plan).toMatchObject({ interval_sec: 300, soon: true });
+    const [tp] = await h.sql`select interval_sec from topic_platforms where topic_id = ${TOPIC}`;
+    expect(tp!.interval_sec).toBeNull();
+    expect((await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: 10 })).status).toBe(400);
+    await call("PATCH", "/admin/platforms/x", opTok, { crawl_interval_sec: null });
+    expect((await h.sql`select interval_sec from crawl_plans where id = ${PLAN}`)[0]!.interval_sec).toBe(3600); // kembali ke bawaan topik
+  });
+
   test("connectors: list berisi capabilities/health/rate_limits/quota tanpa config_schema", async () => {
     const r = await call("GET", "/admin/connectors?platform=x", opTok);
     expect(r.json.data.map((c: { key: string }) => c.key).sort()).toEqual(["prova.x", "prova.x.alt"]);
@@ -135,6 +172,8 @@ describe.skipIf(!up)("I-21 Admin API provider management", () => {
     expect(c.provider.key).toBe("prova");
     expect(c.capabilities[0].operation).toBe("search_keyword");
     expect(c.config_schema).toBeUndefined();
+    // hanya batas yang bisa diatur owner (angka/boolean) — untuk Pengaturan → Batas & jadwal
+    expect(c.config_fields).toEqual([{ key: "max_items", type: "integer", minimum: 1, maximum: 1000, description: null }]);
     expect((await call("GET", `/admin/connectors/${tid(0x999)}`, opTok)).status).toBe(404);
   });
 

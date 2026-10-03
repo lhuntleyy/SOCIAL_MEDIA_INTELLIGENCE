@@ -6,7 +6,18 @@ import { HttpClient } from "@smip/connector-sdk";
 import type { Operation } from "@smip/contracts";
 import type { QueueName, RouteInput } from "@smip/core";
 import type { KmsAdapter } from "@smip/crypto";
-import { auditLogs, type Db, inList, loadRoutingSnapshot, type Tx, withSystem, writeJobOutbox, writeOutbox } from "@smip/db";
+import {
+  auditLogs,
+  type Db,
+  inList,
+  loadRoutingSnapshot,
+  readSettings,
+  SETTING_DEFAULTS,
+  type Tx,
+  withSystem,
+  writeJobOutbox,
+  writeOutbox,
+} from "@smip/db";
 import { evaluate, type HealthState } from "@smip/router";
 import { sql } from "drizzle-orm";
 import { ApiError } from "../errors";
@@ -159,20 +170,58 @@ export class ProviderAdminService {
 
   /** Pengaturan per platform (migrasi 0023): batas post per pengambilan. */
   listPlatforms() {
-    return this.sys((tx) => rows(tx, sql`select code, name, enabled, max_items_per_run from platforms order by sort_order, code`));
+    return this.sys((tx) =>
+      rows(tx, sql`select code, name, enabled, max_items_per_run, crawl_interval_sec from platforms order by sort_order, code`),
+    );
   }
 
-  async patchPlatform(a: Actor, code: string, b: { max_items_per_run?: number | null }) {
+  async patchPlatform(a: Actor, code: string, b: { max_items_per_run?: number | null; crawl_interval_sec?: number | null }) {
     return this.sys(async (tx) => {
       const r = await rows(
         tx,
-        sql`update platforms set max_items_per_run = ${b.max_items_per_run === undefined ? sql`max_items_per_run` : b.max_items_per_run}
-            where code = ${code} returning code, name, enabled, max_items_per_run`,
+        sql`update platforms set max_items_per_run = ${b.max_items_per_run === undefined ? sql`max_items_per_run` : b.max_items_per_run},
+              crawl_interval_sec = ${b.crawl_interval_sec === undefined ? sql`crawl_interval_sec` : b.crawl_interval_sec}
+            where code = ${code} returning code, name, enabled, max_items_per_run, crawl_interval_sec`,
       );
       if (!r.length) throw new ApiError("NOT_FOUND", "Platform tidak ditemukan");
+      if (b.crawl_interval_sec !== undefined) {
+        // interval platform = kebijakan owner untuk SEMUA topik: interval per-topik lama dilepas, plan & stream ikut sekarang
+        // (jadwal berikutnya tidak lebih lambat dari interval baru). null → kembali ke interval bawaan topik.
+        await tx.execute(sql`update topic_platforms set interval_sec = null where platform_code = ${code}`);
+        await tx.execute(sql`update crawl_plans cp set interval_sec = coalesce(${b.crawl_interval_sec}::int, t.default_interval_sec),
+            next_run_at = least(cp.next_run_at, now() + make_interval(secs => coalesce(${b.crawl_interval_sec}::int, t.default_interval_sec))),
+            updated_at = now()
+          from topics t where t.id = cp.topic_id and cp.platform_code = ${code} and cp.status <> 'disabled'`);
+        if (b.crawl_interval_sec !== null)
+          await tx.execute(sql`update collection_streams set interval_sec = ${b.crawl_interval_sec},
+              next_run_at = least(next_run_at, now() + make_interval(secs => ${b.crawl_interval_sec}::int))
+            where platform_code = ${code}`);
+      }
       await this.audit(tx, a, "platform.update", { type: "platform", id: code }, b, null);
       return r[0]!;
     });
+  }
+
+  async getSettings() {
+    return this.sys(async (tx) => {
+      const values = await readSettings(tx);
+      const set = (await tx.execute(sql`select key from system_settings`)) as unknown as { key: string }[];
+      return { values, defaults: SETTING_DEFAULTS, overridden: set.map((s) => s.key) };
+    });
+  }
+
+  async putSettings(a: Actor, values: Record<string, unknown>) {
+    await this.sys(async (tx) => {
+      for (const [k, v] of Object.entries(values)) {
+        if (!(k in SETTING_DEFAULTS)) continue;
+        if (v === null || v === undefined) await tx.execute(sql`delete from system_settings where key = ${k}`);
+        else
+          await tx.execute(sql`insert into system_settings (key, value, updated_by) values (${k}, ${JSON.stringify(v)}::text::jsonb, ${a.userId})
+            on conflict (key) do update set value = excluded.value, updated_at = now(), updated_by = excluded.updated_by`);
+      }
+      await this.audit(tx, a, "settings.update", { type: "system_settings", id: "global" }, values, null);
+    });
+    return this.getSettings();
   }
 
   async patchProvider(a: Actor, id: string, b: { enabled?: boolean; risk_level?: "low" | "medium" | "high"; notes?: string | null }) {
@@ -232,9 +281,24 @@ export class ProviderAdminService {
         from quota_policies qp where qp.enabled and qp.scope_id in ${inList(ids)}`,
     );
     return cs.map((c) => {
-      const { config_schema: _s, ...rest } = c;
+      const { config_schema: schema, ...rest } = c;
+      // batas yang bisa diatur owner (Pengaturan → Batas & jadwal): hanya properti angka/boolean, tanpa schema lengkap
+      const props = ((schema as { properties?: Record<string, Record<string, unknown>> } | null)?.properties ?? {}) as Record<
+        string,
+        { type?: string; minimum?: number; maximum?: number; description?: string }
+      >;
+      const config_fields = Object.entries(props)
+        .filter(([, p]) => p.type === "integer" || p.type === "number" || p.type === "boolean")
+        .map(([key, p]) => ({
+          key,
+          type: p.type,
+          minimum: p.minimum ?? null,
+          maximum: p.maximum ?? null,
+          description: p.description ?? null,
+        }));
       return {
         ...rest,
+        config_fields,
         capabilities: caps.filter((x) => x.connector_id === c.id).map(({ connector_id: _c, ...x }) => x),
         health: health.filter((x) => x.connector_id === c.id).map(({ connector_id: _c, ...x }) => x),
         rate_limits: rl.filter((x) => x.scope_id === c.id || x.scope_id === (c.provider as { id: string }).id),

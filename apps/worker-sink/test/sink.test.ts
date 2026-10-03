@@ -13,7 +13,7 @@ import { MemoryBlobStore } from "@smip/storage";
 import { stubEnrich } from "@smip/worker-ai-stub";
 import { cachedGazetteer, Deduper, handlePipelineItems } from "@smip/worker-pipeline";
 import postgres from "postgres";
-import { handleSink, planEngagementRefresh, type SinkDeps } from "../src";
+import { handleSink, planComments, planEngagementRefresh, type SinkDeps } from "../src";
 
 const PG = process.env.TEST_PG_URL ?? "postgres://smip_owner:smip_owner_dev@127.0.0.1:55432/postgres";
 const REDIS = process.env.TEST_REDIS_CACHE_URL ?? "redis://127.0.0.1:56380";
@@ -380,5 +380,50 @@ describe.skipIf(!infraUp)("I-15 worker-sink (integrasi)", () => {
       ["negative", 1],
       ["neutral", 1],
     ]);
+  });
+
+  test("planner komentar: post engagement tertinggi per topik/platform, anggaran harian & jeda ambil ulang dari Pengaturan", async () => {
+    const ids = await setup("sawit");
+    const fresh = (n: number, likes: number) =>
+      post(n, `sawit ${n}`, {
+        published_at: new Date(Date.now() - n * 60_000).toISOString(),
+        metrics: { likes, comments: 0, shares: null, views: null, quotes: null, saves: null, captured_at: new Date().toISOString() },
+      });
+    for (const m of await throughPipeline(ids, [fresh(1, 5), fresh(2, 50), fresh(3, 20), fresh(4, 1)])) await handleSink(sinkDeps, m);
+    const pid = (n: number) => fresh(n, 0).platform_post_id;
+    // tanpa policy post_comments → tidak ada run
+    expect((await planComments(created.db, ch)).runs).toBe(0);
+    await sql`insert into routing_policies (id, tenant_id, platform_code, operation, strategy, enabled, version)
+      values (${id(0x9101)}, null, 'x', 'post_comments', 'priority_weighted', true, 1)`;
+    // policy tanpa connector komentar terverifikasi → tetap tidak ada run
+    expect((await planComments(created.db, ch)).runs).toBe(0);
+    await sql`insert into providers (id, key, name, kind, risk_level, enabled) values (${id(0x9102)}, 'pc', 'PC', 'official', 'low', true)`;
+    await sql`insert into connectors (id, key, provider_id, platform_code, runtime, version, enabled) values (${id(0x9103)}, 'pc.x', ${id(0x9102)}, 'x', 'bun', '1', true)`;
+    await sql`insert into connector_capabilities (connector_id, operation, declared, status, verified_at, evidence_ref)
+      values (${id(0x9103)}, 'post_comments', '{}', 'verified', now(), 'test')`;
+    await sql`insert into routing_rules (id, policy_id, connector_id, priority, weight, enabled) values (${id(0x9104)}, ${id(0x9101)}, ${id(0x9103)}, 1, 100, true)`;
+    await sql`insert into system_settings (key, value) values ('comments.top_posts_per_day', '2'), ('comments.max_pages_per_post', '3')
+      on conflict (key) do update set value = excluded.value`;
+    const r1 = await planComments(created.db, ch);
+    expect([r1.runs, r1.posts]).toEqual([1, 2]);
+    const [run] = await sql`select id, tenant_id, crawl_plan_id, status, refresh_target from crawl_runs where kind = 'comments'`;
+    expect(run).toMatchObject({ tenant_id: T, crawl_plan_id: ids.plan, status: "queued" });
+    expect(run!.refresh_target).toEqual({ platform: "x", post_ids: [pid(2), pid(3)], max_pages: 3 }); // engagement tertinggi
+    const [job] = await sql`select payload->'payload' as p, payload->>'priority' as pr from outbox where aggregate_id = ${run!.id}`;
+    expect([job!.p.operation, job!.p.run_kind, job!.p.topic_query_id, job!.pr]).toEqual(["post_comments", "comments", ids.query, "10"]);
+    // masih berjalan → tidak menumpuk
+    expect((await planComments(created.db, ch)).runs).toBe(0);
+    await sql`update crawl_runs set status = 'succeeded' where id = ${run!.id}`;
+    // anggaran harian (2) habis
+    expect((await planComments(created.db, ch)).runs).toBe(0);
+    // anggaran naik → hanya post yang BELUM diambil dalam jendela ambil ulang
+    await sql`update system_settings set value = '3' where key = 'comments.top_posts_per_day'`;
+    const r3 = await planComments(created.db, ch);
+    expect(r3.posts).toBe(1);
+    const last = await sql`select refresh_target from crawl_runs where kind = 'comments' and status = 'queued'`;
+    expect(last[0]!.refresh_target.post_ids).toEqual([pid(1)]);
+    await sql`insert into system_settings (key, value) values ('comments.enabled', 'false') on conflict (key) do update set value = 'false'`;
+    await sql`update crawl_runs set status = 'succeeded' where kind = 'comments'`;
+    expect((await planComments(created.db, ch)).runs).toBe(0); // dimatikan di Pengaturan
   });
 });

@@ -41,9 +41,10 @@ function pathValue(o: unknown, path: string): unknown {
 export async function runVerify(c: Connector, acc: AccountMaterial, o: VerifyOptions): Promise<VerifyReport> {
   const op = o.operation ?? ((Object.keys(c.manifest.operations).find((k) => k.startsWith("search_")) ?? "search_keyword") as Operation);
   const sup = c.manifest.operations[op];
-  const timeline = op === "user_timeline";
+  // user_timeline: query = username dipisah koma; post_comments: query = id post dipisah koma
+  const timeline = op === "user_timeline" || op === "post_comments";
   if (!sup || !(op.startsWith("search_") || timeline))
-    throw new Error(`verify hanya untuk operation search_* / user_timeline (connector ${c.manifest.key}: ${op})`);
+    throw new Error(`verify hanya untuk operation search_* / user_timeline / post_comments (connector ${c.manifest.key}: ${op})`);
   const until = new Date();
   const since = new Date(until.getTime() - o.windowHours * 3600_000);
   const lat: number[] = [];
@@ -75,7 +76,7 @@ export async function runVerify(c: Connector, acc: AccountMaterial, o: VerifyOpt
               .filter(Boolean),
           }
         : { query: { native: o.query, sourceNodeIds: [] } }),
-      window: { since: since.toISOString(), until: until.toISOString() },
+      window: op === "post_comments" ? undefined : { since: since.toISOString(), until: until.toISOString() },
       cursor: null,
       pageLimit: 1,
       maxItems: o.maxItems,

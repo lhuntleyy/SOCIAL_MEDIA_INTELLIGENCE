@@ -166,7 +166,8 @@ export default function TopicForm() {
     description: desc || null,
     filter_ads: filterAds,
     language_hints: ["id"],
-    platforms: Object.entries(sel).map(([code, interval_sec]) => (interval_sec ? { code, interval_sec } : { code })),
+    // interval pengambilan diatur owner per platform di Pengaturan → Batas & jadwal (bukan per topik)
+    platforms: Object.keys(sel).map((code) => ({ code })),
     queries: queries.map((q) => ({
       ...(q.id ? { id: q.id } : {}),
       kind: q.kind,

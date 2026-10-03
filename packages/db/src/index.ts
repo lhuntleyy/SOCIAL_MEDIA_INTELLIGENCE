@@ -7,4 +7,5 @@ export * from "./router-effects";
 export * from "./routing-snapshot";
 export * from "./runs";
 export * from "./schema";
+export * from "./settings";
 export * from "./sql-helpers";

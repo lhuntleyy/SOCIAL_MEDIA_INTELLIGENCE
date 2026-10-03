@@ -53,6 +53,12 @@ const TIMELINE: Record<string, { rules: [string, number, number][] }> = {
   instagram: { rules: [["hikerapi.instagram", 1, 100]] },
   x: { rules: [["apify.x.xquik", 1, 100]] },
 };
+/** Komentar post teratas topik (operation post_comments; planner di worker-sink, Pengaturan → komentar). Connector yang
+ *  belum verified tidak dipakai router sampai `connectors.ts verify <key> "<id,…>" --op post_comments --apply`. */
+const COMMENTS: Record<string, { rules: [string, number, number][] }> = {
+  youtube: { rules: [["youtube_data_api.youtube", 1, 100]] }, // VERIFIED 2026-10-03 (100 komentar, gratis, 1 unit kuota)
+  tiktok: { rules: [["lamatok.tiktok", 1, 100]] }, // declared — verifikasi setelah saldo LamaTok diisi
+};
 /** Connector yang dimatikan (tidak dipakai routing). */
 const DISABLED = ["apify.instagram.boolean", "apify.instagram.hashtag", "apify.tiktok.clockworks", "apify.tiktok.xmolodtsov"];
 /** Tarif HikerAPI & LamaTok (DOCS hikerapi.com/pricing & lamatok.com/pricing 2026-10-01: $1 / 1.000 request; $0,60 di volume).
@@ -106,6 +112,7 @@ try {
     const plans: [string, string, { rules: [string, number, number][] }][] = [
       ...Object.entries(PLAN).map(([pl, p]) => [pl, "search_keyword", p] as [string, string, typeof p]),
       ...Object.entries(TIMELINE).map(([pl, p]) => [pl, "user_timeline", p] as [string, string, typeof p]),
+      ...Object.entries(COMMENTS).map(([pl, p]) => [pl, "post_comments", p] as [string, string, typeof p]),
     ];
     for (const [platform, operation, p] of plans) {
       let [pol] =

@@ -464,4 +464,59 @@ describe.skipIf(!infraUp)("I-13 alur run end-to-end dengan connector fake", () =
     expect(await attempts(runId)).toEqual([["fake.x.b", "success", null, 2]]);
     await sql`update crawl_runs set status = 'succeeded' where id = ${runId}`;
   });
+
+  test("komentar: run `comments` milik plan topik → post_comments atas post target (halaman dari Pengaturan) → pipeline topik; gagal tidak menggeser jadwal plan", async () => {
+    await sql`update outbox set published_at = now() where published_at is null`;
+    await sql`update crawl_runs set status = 'cancelled' where status not in ('succeeded', 'failed', 'partial', 'skipped', 'cancelled')`;
+    const POL3 = id(0x50);
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE smip_system`;
+      await tx`insert into connector_capabilities (connector_id, operation, declared, status, verified_at, evidence_ref)
+        values (${C.b}, 'post_comments', ${tx.json({ query_features: [], result_order: "desc" })}, 'verified', now(), 'test')`;
+      await tx`insert into routing_policies (id, platform_code, operation, max_attempts) values (${POL3}, 'x', 'post_comments', 1)`;
+      await tx`insert into routing_rules (id, policy_id, connector_id, priority, weight, enabled) values (${id(0x51)}, ${POL3}, ${C.b}, 1, 100, true)`;
+      await tx`update crawl_plans set next_run_at = now() + interval '1 day', consecutive_failures = 0 where id = ${PLAN}`;
+    });
+    const mkRun = async () => {
+      const runId = Bun.randomUUIDv7();
+      const [r] = await sql`insert into crawl_runs (id, tenant_id, crawl_plan_id, scheduled_for, kind, status, refresh_target)
+        values (${runId}, ${T}, ${PLAN}, date_trunc('milliseconds', now()), 'comments', 'queued',
+                ${sql.json({ platform: "x", post_ids: ["x-700", "x-701"], max_pages: 2 })})
+        returning scheduled_for`;
+      return { runId, sf: r!.scheduled_for.toISOString() };
+    };
+    const payload = (runId: string, sf: string): CrawlDispatchPayload => ({
+      crawl_run_id: runId,
+      scheduled_for: sf,
+      crawl_plan_id: PLAN,
+      topic_id: TOPIC,
+      topic_query_id: QUERY,
+      platform: "x",
+      operation: "post_comments",
+      run_kind: "comments",
+      window: {},
+      interval_sec: 900,
+      attempt_no: 1,
+      exclude_connector_ids: [],
+      exclude_account_ids: [],
+    });
+    // komentar tidak menyebut keyword topik — tetap diteruskan ke pipeline untuk topik pemilik run
+    const comments = items(700, 3).map((it) => ({ ...it, content_type: "comment" as const, text: "setuju banget pak" }));
+    fakes.b.script([{ respond: { items: comments } }]);
+    const ok = await mkRun();
+    await handleDispatch(deps, payload(ok.runId, ok.sf));
+    await pump(async () => pipelineJobs.some((j) => j.crawl_run_id === ok.runId));
+    expect(fakes.b.calls.map((c) => [c.operation, c.targetIds, c.pageLimit])).toEqual([["post_comments", ["x-700", "x-701"], 2]]);
+    expect(fakes.a.calls).toHaveLength(0); // connector tanpa post_comments tidak dipilih
+    expect(pipelineJobs.find((j) => j.crawl_run_id === ok.runId)).toMatchObject({ topic_query_id: QUERY, topic_id: TOPIC, items_count: 3 });
+
+    // gagal → run failed, plan TIDAK di-backoff (jadwal pengambilan topik aman)
+    fakes.b.script([{ fail: { code: "UPSTREAM_5XX" } }, { fail: { code: "UPSTREAM_5XX" } }]);
+    const bad = await mkRun();
+    await handleDispatch(deps, payload(bad.runId, bad.sf));
+    await pump(async () => (await sql`select status from crawl_runs where id = ${bad.runId}`)[0]!.status === "failed");
+    const [plan] =
+      await sql`select consecutive_failures, next_run_at > now() + interval '23 hours' as untouched from crawl_plans where id = ${PLAN}`;
+    expect(plan).toEqual({ consecutive_failures: 0, untouched: true });
+  });
 });

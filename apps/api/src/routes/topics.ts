@@ -9,7 +9,7 @@ import type { Actor, TopicService } from "../topics/service";
 import { parseJson } from "../validate";
 
 const Id = z.uuid();
-const Interval = z.union([z.literal(300), z.literal(900), z.literal(1800), z.literal(2700), z.literal(3600)]);
+const Interval = z.int().min(60).max(86_400); // selaras CHECK 0028 (diatur owner per platform; topik biasanya tidak mengirim)
 const Lang = z.enum(["id", "en", "ms"]);
 const Operation = z.enum(["search_keyword", "search_hashtag", "user_timeline", "post_detail", "post_comments", "profile"]);
 const PlatformCode = z.string().regex(/^[a-z][a-z0-9_]{0,31}$/);

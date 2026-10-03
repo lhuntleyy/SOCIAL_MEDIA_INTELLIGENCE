@@ -119,7 +119,13 @@ export class FakeConnector implements Connector {
       displayName: `Fake ${opts.platform}${opts.variant ? ` (${opts.variant})` : ""}`,
       credentialKinds: ["api_key", "none"],
       configSchema: { type: "object", additionalProperties: false, properties: {} },
-      operations: { search_keyword: OP, search_hashtag: OP, user_timeline: OP, post_detail: { ...OP, queryFeatures: [] } },
+      operations: {
+        search_keyword: OP,
+        search_hashtag: OP,
+        user_timeline: OP,
+        post_detail: { ...OP, queryFeatures: [] },
+        post_comments: { ...OP, queryFeatures: [] },
+      },
       costModel: { unit: "result", reportsUsageInResponse: true },
       docsUrl: "https://example.invalid/fake-connector",
     };

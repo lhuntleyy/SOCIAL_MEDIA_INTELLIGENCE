@@ -156,6 +156,18 @@ describe.skipIf(!infraUp)("I-14 worker-pipeline (integrasi)", () => {
     expect(p.items.map((i) => i.text)).toEqual(["banjir lagi #jakarta", "genangan di jalan", "banjir #jakarta"]);
   });
 
+  test("run komentar: komentar ditautkan ke topik pemilik run walau tidak menyebut keyword (bahasa apa pun)", async () => {
+    const ids = await setup({ query_text: "banjir", languages: ["id"] });
+    await sql`update crawl_runs set kind = 'comments' where id = ${ids.run}`;
+    const r = await send(ids, [
+      post(41, "setuju banget pak", { content_type: "comment" }),
+      post(42, "so sad to hear this news today", { content_type: "comment", lang_hint: "en" }),
+    ]);
+    expect(r.matched).toBe(2);
+    const p = AiEnrichPayload.parse((await jobs(ids.run, "ai.enrich"))[0]!.payload);
+    expect(p.items.map((i) => i.text)).toEqual(["setuju banget pak", "so sad to hear this news today"]);
+  });
+
   test("filter_ads: is_ad=true disaring bila topik filter_ads; is_ad=null tidak (FR-I07)", async () => {
     const ids = await setup({ query_text: "promo" }, { filterAds: true });
     const r = await send(ids, [

@@ -123,7 +123,11 @@ export async function handlePipelineItems(d: PipelineDeps, m: PipelineItemsPaylo
     );
     // per item: satu match per (tenant, topik) — query pertama yang cocok mewakili topik (seenm per topik)
     const hits = items.map((i) => {
-      const matched = index.match({ text: i.text ?? "", hashtags: i.hashtags, lang: i.lang_hint, author: i.author?.handle });
+      // komentar dari post teratas topik: relevan karena konteks post induk walau tidak menyebut keyword → ikut topik pemilik run
+      const matched =
+        run.kind === "comments"
+          ? subs
+          : index.match({ text: i.text ?? "", hashtags: i.hashtags, lang: i.lang_hint, author: i.author?.handle });
       const perTopic = new Map<string, Subscriber>();
       for (const sub of matched) {
         if (sub.filterAds && i.is_ad === true) {

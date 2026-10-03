@@ -71,6 +71,39 @@ async function mockFetch(input: string | URL | Request, init?: RequestInit): Pro
         },
       ],
     });
+  if (u.pathname === "/youtube/v3/commentThreads") {
+    const vid = u.searchParams.get("videoId");
+    if (vid === "vOff") return gErr(403, "commentsDisabled");
+    const c = (id: string, at: string, who: string | null) => ({
+      kind: "youtube#commentThread",
+      id,
+      snippet: {
+        channelId: "UCsintetis001",
+        videoId: vid,
+        topLevelComment: {
+          kind: "youtube#comment",
+          id,
+          snippet: {
+            videoId: vid,
+            textOriginal: "setuju banget #kopdes",
+            textDisplay: "setuju banget #kopdes",
+            authorDisplayName: who,
+            authorChannelId: who ? { value: `UC${who}` } : undefined,
+            likeCount: 3,
+            publishedAt: at,
+          },
+        },
+        totalReplyCount: 1,
+        isPublic: true,
+      },
+    });
+    return json(200, {
+      nextPageToken: u.searchParams.get("pageToken") ? undefined : "PG2",
+      items: u.searchParams.get("pageToken")
+        ? [c(`${vid}-c3`, "2026-09-27T01:00:00Z", "@warga3")]
+        : [c(`${vid}-c1`, "2026-09-29T01:00:00Z", "@warga1"), c(`${vid}-c2`, "2026-09-29T00:00:00Z", null)],
+    });
+  }
   if (u.pathname === "/youtube/v3/i18nRegions") return json(200, { items: [] });
   return json(404, { error: { code: 404 } });
 }
@@ -145,6 +178,28 @@ describe("youtube_data_api.youtube", () => {
     expect(r.items[1]!.metrics.likes).toBeNull(); // statistik disembunyikan → null, bukan 0
     const p2 = await connector.fetch(req({ cursor: "CAUQAA" }), ctx());
     expect([p2.nextCursor, p2.hasMore]).toEqual([null, false]);
+  });
+
+  test("post_comments: komentar tingkat atas per video (≤ pageLimit halaman), komentar dimatikan → video dilewati, bukan error akun", async () => {
+    mode = "ok";
+    calls.length = 0;
+    const r = await connector.fetch(
+      req({ operation: "post_comments", query: undefined, window: undefined, targetIds: ["v1", "vOff"], pageLimit: 2 }),
+      ctx(),
+    );
+    // v1: 2 halaman (c1, c2 tanpa author → dibuang, c3); vOff dilewati
+    expect(r.items.map((i) => i.platform_post_id)).toEqual(["v1-c1", "v1-c3"]);
+    expect(r.items[0]).toMatchObject({
+      content_type: "comment",
+      parent: { platform_post_id: "v1", author: { platform_user_id: "UCsintetis001" } },
+      author: { handle: "warga1", platform_user_id: "UC@warga1" },
+      metrics: { likes: 3, comments: 1 },
+      hashtags: ["kopdes"],
+      url: "https://www.youtube.com/watch?v=v1&lc=v1-c1",
+    });
+    expect(r.usage.requests).toBe(3);
+    expect(r.warnings.map((w) => w.code).sort()).toEqual(["ITEMS_DROPPED", "TARGETS_SKIPPED"]);
+    expect(calls.filter((c) => c.startsWith("/youtube/v3/commentThreads")).every((c) => c.includes("order=time"))).toBe(true);
   });
 
   test("post_detail (engagement refresh): videos.list per id tanpa search", async () => {

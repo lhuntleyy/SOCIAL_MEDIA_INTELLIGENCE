@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-02T18:51:25.444Z",
+  "connector": "youtube_data_api.youtube",
+  "version": "0.1.0",
+  "operation": "post_comments",
+  "query": "4V9PK2yAobc,tuyHiqhkfRc,xqe3iZYUlKw",
+  "window_hours": 24,
+  "max_items": 100,
+  "samples": 1,
+  "items_valid": 100,
+  "items_invalid": 0,
+  "usage_results_returned": 300,
+  "cost_usd": 0,
+  "since_respected": true,
+  "returns_fields_rate": {
+    "metrics.likes": 1
+  },
+  "latency_ms": {
+    "samples": [
+      515
+    ],
+    "p50": 515,
+    "p95": 515
+  },
+  "status": "verified",
+  "note": "p95 dari < 5 sampel belum memenuhi S-14 (≥ 5)"
+}
