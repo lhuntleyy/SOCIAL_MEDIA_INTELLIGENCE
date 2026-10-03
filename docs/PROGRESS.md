@@ -124,7 +124,8 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | H-07 | done | claude | [ONBOARDING_CONNECTOR](ONBOARDING_CONNECTOR.md) · RUNBOOK §13–§16 + indeks · INSTALL (operasional) · README | Panduan menambah provider (biaya/legal → probe → kode → tes → urutan deploy → verify → routing → pantau), runbook lengkap (retensi, backup, monitoring, insiden connector), README status & navigasi operasional; annotation guide sudah ada (S-20) |
 | H-01 | partial (API selesai; ingest NFR-01 butuh staging) | claude | [laporan](evidence/H-01/loadtest-2026-10-04.md) · `scripts/loadtest/dashboard.ts` | Load test dashboard: bottleneck CPU ClickHouse (± 80 req/dtk di demo 2 vCPU) → cache respons per versi data topik: 20 VU p95 2,9 → 0,07 dtk, 50 VU p95 0,32 dtk; terburuk (cache meleset) ≤ 10 VU memenuhi NFR-04. Belum: throughput ingest 500 topik (staging + connector fake) |
 | H-02 | done | claude | [laporan](evidence/H-02/chaos-2026-10-04.md) · `scripts/chaos/` · sink.test (ClickHouse mati saat sink) | Chaos suite di demo: Redis antrean restart, ClickHouse mati 90 dtk, worker mati di tengah pengambilan → semua lulus (0 dobel, 0 hilang, 0 run menggantung); tes integrasi deterministik ClickHouse mati saat sink (tepat sekali + idempoten). Temuan: log sistem ClickHouse lama memicu batas memori setelah restart → dikosongkan, RUNBOOK §7. Jadwal nightly belum (butuh staging — mengganggu demo) |
-| H-05 | todo | | | |
+| H-05 | todo (ditunda — compose single-node cukup untuk 1–3 kantor) | | | |
+| N-01 … N-12 | todo | | [TASK Fase 7](TASK.md) | Hybrid NLP IndoBERT + LLM (distilasi dari 8.218 label LLM, kalibrasi, router sinyal sulit, audit bayangan), sarkasme, entitas & stance, insight harian, isu digabung. Gerbang: gold set S-20/S-22 |
 
 > Saat sebuah fase dimulai, pecah baris "F-01 … F-12" menjadi satu baris per task.
 

@@ -131,5 +131,27 @@ Kode test di kolom **Test**: `R-/P-` = TESTING §4.1–4.2, `SEC-` = TESTING §4
 | H-06 | Backup/restore & DR drill | H-05 | RPO/RTO terukur | drill report | 2 |
 | H-07 | Dokumentasi final (RUNBOOK, annotation guide, onboarding connector) | — | review | — | 2 |
 
+## Fase 7 — Hybrid NLP (IndoBERT + LLM) & Insight (ditambahkan 2026-10-04, keputusan pemilik)
+
+Tujuan: biaya AI per post turun ± 60–80 % tanpa turun akurasi, dan lebih tahan slang/campur Inggris/sarkasme netizen Indonesia.
+Alur: post → deteksi bahasa → **model cepat (IndoBERT/IndoBERTweet, CPU/ONNX)** → *confidence* terkalibrasi ≥ ambang **dan** tidak
+ada sinyal sulit → diterima; selain itu → **LLM** (verifikasi + sarkasme + alasan). Ambang & akurasi WAJIB diukur pada gold set
+(S-20/S-22) — angka 0,85 dari luar tidak dipakai mentah karena softmax BERT cenderung terlalu yakin.
+
+| ID | Task | Depends | Acceptance | Test | Est (hari) |
+|---|---|---|---|---|---|
+| N-01 | Benchmark model Indonesia siap pakai (IndoBERT/IndoRoBERTa/IndoBERTweet sentimen; cek lisensi & data latih — mis. SmSA = ulasan produk, beda domain) vs LLM pada gold set | S-20 | macro-F1 + latensi CPU + lisensi per model | eval report | 1.5 |
+| N-02 | **Distilasi**: fine-tune IndoBERTweet dari `nlp_labels` (8.218+ label LLM, terus bertambah) + gold dev; ekspor ONNX int8 | N-01, A-10 | macro-F1 ≥ LLM − 3 poin pada gold test | eval | 3 |
+| N-03 | Kalibrasi confidence (temperature scaling) + ambang per label untuk target presisi (mis. ≥ 0,9) | N-02 | reliability diagram; % diterima vs akurasi | eval | 1 |
+| N-04 | Router hibrid di worker-ai: model → terima / ke LLM bila confidence < ambang, **sinyal sulit** (emoji 😂🙃🤡, "wkwk", kontras "tapi/padahal", tanda kutip ironi, kata pujian + kata keluhan), post engagement tinggi (akurasi lebih penting), bahasa campur/daerah | N-03 | `model_version` & `source` (model/llm) tercatat; fallback LLM bila model mati | integration | 2 |
+| N-05 | Serving model di workers-py (ONNX Runtime CPU, batch) + kapasitas: ± 4 post/dtk rata-rata untuk 10 juta post/bln | N-02 | p95 ≤ 100 ms/post batch; RAM ≤ 1,5 GB | load test | 1.5 |
+| N-06 | **Audit bayangan**: 2 % post yang diterima model tetap dikirim ke LLM → metrik kesepakatan harian, alert bila turun (drift slang/isu baru) | N-04 | dashboard + alert O-07 | integration | 1 |
+| N-07 | Emosi 8 kelas: tetap LLM sampai label cukup; distilasi bertahap per emosi yang datanya cukup | S-22 | macro-F1 per emosi | eval | 2 |
+| N-08 | Sarkasme eksplisit: LLM mengembalikan `sarcasm: bool` + alasan singkat → tampil di kartu post ("terdeteksi sindiran") & bisa difilter | N-04 | label tersimpan & tampil | e2e | 1 |
+| N-09 | Entitas & stance: tokoh/lembaga/merek yang disebut + sikap terhadapnya (LLM batch, kosakata dinormalisasi) → widget "siapa yang dibicarakan & sentimennya" | A-04 | precision@k pada sampel | eval + e2e | 3 |
+| N-10 | Insight harian per topik: LLM merangkum **agregat** (bukan post mentah) → "apa yang berubah hari ini, kenapa, post kunci" di Dashboard & Laporan + alert | D-01 | ringkasan ≤ 1 panggilan LLM/topik/hari | e2e | 2 |
+| N-11 | Isu: gabung isu mirip (normalisasi + embedding/sinonim), skor tren (c-TF-IDF vs 7 hari) — sisa A-04 | A-04 | precision@5 pada sampel | eval | 1.5 |
+| N-12 | Biaya: ukur ulang COST_MODEL §12 setelah hibrid (porsi ke LLM, biaya CPU model) | N-04 | angka per kantor diperbarui | report | 0.5 |
+
 ## Fase 6 — Expansion
 Bluesky & Reddit connectors (masing-masing: PROVIDER_MATRIX → connector → verify); target-aware/aspect sentiment (ABSA); emotion multi-label penuh; issue clustering; NER & deteksi koordinasi; SSO OIDC. (TikTok & YouTube pindah ke MVP Fase 2; shared crawl = I-22/ADR-009.) (Emotion dasar & psychography gender/age sudah di fase 3.)
