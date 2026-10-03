@@ -101,3 +101,9 @@ jalankan ulang verify bila ragu.
   `docker-compose.monitoring.yml`. Grafana/Prometheus/Alertmanager hanya di `127.0.0.1` → akses lewat `ssh -L 3000:127.0.0.1:3000`.
 - **Validasi setelah mengubah aturan:** `docker run --rm -v $PWD/infra/compose/monitoring:/m:ro -w /m/tests --entrypoint promtool prom/prometheus:v3.5.0 test rules smip.rules.test.yml`.
 - Tanpa stack: `curl http://<ip-container-workers>:9464/metrics` dan Pengaturan → Monitor tetap memberi gambaran yang sama.
+
+---
+**Indeks cepat:** circuit open §1 · tidak ada provider sehat §2 · CHALLENGE_REQUIRED §3 · kuota/saldo §4 · backlog §5 · DLQ §6 ·
+ClickHouse §7 · DR drill §8 · rotasi kunci §9 · kill-switch §10 · run mandek §11 · celah data §12a · coverage turun §12 ·
+connector baru & capability failed §13 · retensi & hapus kantor §14 · backup/restore §15 · monitoring §16.
+Alat bantu di aplikasi: Pengaturan → **Monitor** (kesehatan, kegagalan, DLQ, biaya per kantor, audit), **Routing** (simulator).

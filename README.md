@@ -7,7 +7,19 @@ dengan **routing, failover, rate limit, quota, dan health check** yang semuanya 
 
 Analitik: exposure, **sentiment** (+ by-engagement), **emotion/perception 8 emosi**, issues & **hashtags**, geo provinsi, audience, **psychography (gender & age range — agregat, dengan coverage + kontrol UU PDP)**, contributors, gallery — di section Dashboard / Conversation / Audience / Psychography / Resume.
 
-> **Status:** dokumentasi **v0.4** (2026-09-28) + spike Fase 0 berjalan (lihat [PROGRESS](docs/PROGRESS.md)). Kritik & daftar perbaikan v0.3→v0.4: [REVIEW-2026-09-28](docs/REVIEW-2026-09-28.md).
+> **Status (2026-10-04):** berjalan live di server demo — 6 platform, analitik lengkap (sentimen, emosi, isu, psikografi agregat, galeri),
+> alert Telegram/webhook, export Excel/CSV, update instan (SSE), paket jadwal per kantor + jadwal adaptif, retensi, backup/restore,
+> monitoring. Status per task: [PROGRESS](docs/PROGRESS.md) · riwayat: [CHANGELOG](CHANGELOG.md).
+
+## Operasional cepat
+
+| Kebutuhan | Dokumen |
+|---|---|
+| Instalasi dari nol | [docs/INSTALL.md](docs/INSTALL.md) |
+| Insiden & prosedur (retensi §14, backup/restore §15, monitoring §16, deploy connector §13) | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
+| Menambah sumber data / provider baru | [docs/ONBOARDING_CONNECTOR.md](docs/ONBOARDING_CONNECTOR.md) |
+| Biaya & paket | [docs/COST_MODEL.md](docs/COST_MODEL.md) §12 |
+| Pedoman pelabelan (anotasi) | [docs/annotation-guide.md](docs/annotation-guide.md) |
 
 > **Baca [`AGENTS.md`](AGENTS.md) lebih dulu** bila kamu (manusia atau agent/model) akan mengerjakan repo ini — berisi golden rules, konvensi, dan Definition of Done agar tidak keluar jalur.
 
@@ -37,7 +49,8 @@ Analitik: exposure, **sentiment** (+ by-engagement), **emotion/perception 8 emos
 | — | [REVIEW-2026-09-28.md](docs/REVIEW-2026-09-28.md) | Kritik v0.3 + alasan + lokasi perbaikan |
 | — | [docs/evidence/](docs/evidence/) | Bukti task Fase 0 (sebelum CI ada) |
 | — | [`docs dari temen/`](<docs dari temen/README.md>) | Dokumen pembanding (stack lain, **referensi saja — jangan diedit**) |
-| — | [screenshots/](screenshots/) | 13 screenshot produk referensi (dirujuk UI_SPEC §7) |
+| — | [screenshots/](screenshots/) | screenshot produk referensi (dirujuk UI_SPEC §7) |
+| — | [ONBOARDING_CONNECTOR.md](docs/ONBOARDING_CONNECTOR.md) | *(tambahan)* Langkah menambah provider/actor baru: probe, kode, tes, urutan deploy, verify, routing |
 
 ## Aturan yang tidak boleh dilanggar (Golden Rules)
 

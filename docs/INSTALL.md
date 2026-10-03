@@ -284,3 +284,13 @@ Mode demo **bukan produksi**: Vault dev mode, role DB owner, tanpa backup otomat
 | Sertifikat HTTPS gagal | port 80/443 tertutup, atau `SITE_HOST` tidak menunjuk ke IP server |
 | Server kehabisan RAM | pastikan swap aktif (§2), worker mode satu proses (bawaan), jangan menjalankan test & build bersamaan |
 | `docker: permission denied` | user belum masuk grup docker di sesi ini — logout/login atau `sg docker -c "…"` |
+
+## Setelah instalasi (operasional)
+1. **Backup terjadwal** — contoh cron tiap 6 jam (sesuaikan path):
+   `0 */6 * * * cd /home/ubuntu/social-intel && scripts/backup.sh --env infra/compose/.env.dev >> $HOME/smip-backups/backup.log 2>&1`
+   lalu salin `~/smip-backups/` ke penyimpanan di luar server. Simpan KEK/`.env`/`secrets.env` terpisah (RUNBOOK §15).
+2. **Monitoring** (server ≥ 4 GB) — `infra/compose/monitoring/` (RUNBOOK §16). Tanpa itu: Pengaturan → Monitor.
+3. **Retensi** berjalan otomatis harian; angka di Pengaturan (`retention.*`, RUNBOOK §14).
+4. **Paket kantor** — menu Kantor & pengguna → dropdown Paket (jadwal pengambilan per kantor); penghemat otomatis di Pengaturan →
+   Batas & jadwal.
+5. **Sumber data baru** — ikuti [ONBOARDING_CONNECTOR.md](ONBOARDING_CONNECTOR.md).

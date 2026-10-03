@@ -120,7 +120,8 @@ Dimulai 2026-09-28 dengan S-21 berstatus `review` (keputusan stack terdokumentas
 | H-04 | done | claude | `packages/analytics/src/retention.ts` · `apps/worker-sink/src/retention.ts` · `scripts/tenant-purge.ts` · sink.test | Job retensi harian (DATA_MODEL §9): data kantor > retention_days paket di 18 tabel ClickHouse, post tak-match > 30 hari, post tak terpakai > 400 hari, outbox/ledger > 30 hari (angka di `retention.*`); hapus total kantor tertutup (CH + crypto-shred + cascade). RUNBOOK §14 |
 | H-06 | done (jadwal otomatis menunggu persetujuan) | claude | `scripts/backup.sh` · `scripts/restore.sh` · [drill](evidence/H-06/drill-2026-10-04.md) | Backup Postgres + ClickHouse tabel dasar (agregat dibangun ulang MV), checksum, rotasi 7; restore ke database baru + verifikasi baris; drill: 5 dtk, baris & agregat identik. RUNBOOK §15. Belum: jadwal otomatis (cron) & salinan di luar server — keputusan pemilik |
 | H-03 | partial (ZAP/pentest = vendor) | claude | [laporan](evidence/H-03/security-scan-2026-10-04.md) · `scripts/secret-scan.ts` | Secret scan file + seluruh riwayat git: bersih (kini di `bun run check`/CI); `bun audit`: 1 moderate dev-only (esbuild via drizzle-kit/tsx) diterima; SAST = Biome + TS strict + dependency rules; tes SEC lulus. Belum: OWASP ZAP & pentest eksternal |
-| H-01, H-02, H-05, H-07 | todo | | | |
+| H-07 | done | claude | [ONBOARDING_CONNECTOR](ONBOARDING_CONNECTOR.md) · RUNBOOK §13–§16 + indeks · INSTALL (operasional) · README | Panduan menambah provider (biaya/legal → probe → kode → tes → urutan deploy → verify → routing → pantau), runbook lengkap (retensi, backup, monitoring, insiden connector), README status & navigasi operasional; annotation guide sudah ada (S-20) |
+| H-01, H-02, H-05 | todo | | | |
 
 > Saat sebuah fase dimulai, pecah baris "F-01 … F-12" menjadi satu baris per task.
 
@@ -153,6 +154,7 @@ Cara kerja yang dipakai (ikuti agar konsisten):
 ## Log Keputusan / Blocker
 | Tanggal | Item | Keterangan |
 |---|---|---|
+| 2026-10-04 | H-07 Dokumentasi | Onboarding connector, runbook terindeks, INSTALL operasional, README. |
 | 2026-10-04 | O-07 Monitoring | Metrik state + HTTP, Prometheus/Alertmanager/Grafana siap pakai (konfigurasi tervalidasi). 525 test |
 | 2026-10-04 | H-03 Pemindaian keamanan | Secret scan (file + riwayat) bersih & masuk CI, audit dependency, laporan. |
 | 2026-10-04 | H-06 Backup + DR drill | Skrip backup/restore, drill sukses (RTO data 5 dtk, identik). |
